@@ -320,6 +320,37 @@ class AsyncWorldModelEngine:
         await self._queue.put((job, future))
         return await future
 
+    async def submit_stream(self, job: RolloutJob) -> AsyncIterator[tuple[int, torch.Tensor]]:
+        """Submit a job and yield (step_idx, latent_state) as each step completes.
+
+        The final RolloutResult is still available via engine.get_result() after
+        the iterator is exhausted.
+        """
+        step_queue: asyncio.Queue[tuple[int, torch.Tensor] | None] = asyncio.Queue()
+
+        def _on_step(job_id: str, step_idx: int, latent: torch.Tensor) -> None:
+            # Called from the sync engine step — safe because engine loop is
+            # the only writer and it runs in the same thread as the event loop.
+            step_queue.put_nowait((step_idx, latent))
+
+        job.step_callback = _on_step
+
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future[RolloutResult] = loop.create_future()
+        await self._queue.put((job, future))
+
+        # Yield steps as they arrive
+        steps_yielded = 0
+        while steps_yielded < job.num_steps:
+            item = await step_queue.get()
+            if item is None:
+                break
+            steps_yielded += 1
+            yield item
+
+        # Ensure the future is resolved (it should already be by now)
+        await future
+
     @property
     def num_active(self) -> int:
         """Number of active rollouts in the engine."""

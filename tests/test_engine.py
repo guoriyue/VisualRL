@@ -358,3 +358,36 @@ class TestAsyncEngine:
             assert callback_log[3] == ("callback_test", 3)
         finally:
             await async_engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_submit_stream(self):
+        """submit_stream yields each step as it completes."""
+        config = _small_config()
+        config.device = "cpu"
+        dynamics = LatentDynamicsModel(config.dynamics)
+
+        async_engine = AsyncWorldModelEngine(config, dynamics, tokenizer=None)
+        async_engine.start()
+
+        try:
+            job = RolloutJob(
+                job_id="stream_test",
+                initial_latent=torch.randn(16, 6),
+                actions=torch.randn(3, 8),
+                num_steps=3,
+                return_frames=False,
+                return_latents=True,
+            )
+
+            streamed_steps = []
+            async for step_idx, latent in async_engine.submit_stream(job):
+                streamed_steps.append((step_idx, latent.shape))
+
+            assert len(streamed_steps) == 3
+            assert streamed_steps[0][0] == 0
+            assert streamed_steps[1][0] == 1
+            assert streamed_steps[2][0] == 2
+            # Each latent should be [N, D] = [16, 6]
+            assert streamed_steps[0][1] == torch.Size([16, 6])
+        finally:
+            await async_engine.stop()

@@ -1,7 +1,7 @@
 """FastAPI server for world model inference.
 
 Provides:
-- POST /v1/rollout — submit a rollout prediction
+- POST /v1/rollout — submit a rollout prediction (supports stream=true for SSE)
 - GET  /v1/rollout/{job_id} — get rollout result
 - GET  /v1/health — health check
 - GET  /v1/models — list available models
@@ -17,7 +17,7 @@ import base64
 import io
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import AsyncIterator, Optional
 
 import torch
 import numpy as np
@@ -29,6 +29,8 @@ from wm_infra.tokenizer.video_tokenizer import VideoTokenizer
 from wm_infra.api.protocol import (
     RolloutRequest,
     RolloutResponse,
+    StepResult,
+    SSE_DONE,
     HealthResponse,
     ModelInfo,
 )
@@ -51,6 +53,35 @@ def _create_async_engine(config: EngineConfig) -> AsyncWorldModelEngine:
             tokenizer.load_state_dict(state_dict["tokenizer"], strict=False)
 
     return AsyncWorldModelEngine(config, dynamics, tokenizer)
+
+
+def _build_job(request: RolloutRequest, config: EngineConfig) -> RolloutJob:
+    """Build a RolloutJob from an API request."""
+    job = RolloutJob(
+        job_id="",
+        num_steps=request.num_steps,
+        return_frames=request.return_frames,
+        return_latents=request.return_latents,
+        stream=request.stream,
+    )
+
+    if request.initial_latent is not None:
+        job.initial_latent = torch.tensor(request.initial_latent, dtype=torch.float32)
+    elif request.initial_observation_b64 is not None:
+        img_bytes = base64.b64decode(request.initial_observation_b64)
+        from PIL import Image
+        img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+        img_np = np.array(img).astype(np.float32) / 255.0
+        job.initial_observation = torch.from_numpy(img_np).permute(2, 0, 1)
+    else:
+        N = config.state_cache.num_latent_tokens
+        D = config.dynamics.latent_token_dim
+        job.initial_latent = torch.randn(N, D)
+
+    if request.actions is not None:
+        job.actions = torch.tensor(request.actions, dtype=torch.float32)
+
+    return job
 
 
 def create_app(config: Optional[EngineConfig] = None):
@@ -96,43 +127,25 @@ def create_app(config: Optional[EngineConfig] = None):
         from wm_infra.models.registry import list_models as _list_models
         return {"models": _list_models()}
 
-    @app.post("/v1/rollout", response_model=RolloutResponse)
+    @app.post("/v1/rollout")
     async def submit_rollout(request: RolloutRequest):
         if _engine is None:
             raise HTTPException(status_code=503, detail="Engine not initialized")
 
-        # Build job
-        job = RolloutJob(
-            job_id="",
-            num_steps=request.num_steps,
-            return_frames=request.return_frames,
-            return_latents=request.return_latents,
-            stream=request.stream,
-        )
+        job = _build_job(request, config)
 
-        # Parse initial state
-        if request.initial_latent is not None:
-            job.initial_latent = torch.tensor(request.initial_latent, dtype=torch.float32)
-        elif request.initial_observation_b64 is not None:
-            img_bytes = base64.b64decode(request.initial_observation_b64)
-            try:
-                from PIL import Image
-                img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
-                img_np = np.array(img).astype(np.float32) / 255.0
-                job.initial_observation = torch.from_numpy(img_np).permute(2, 0, 1)
-            except ImportError:
-                raise HTTPException(status_code=400, detail="PIL required for image decoding")
-        else:
-            # Generate random initial state for demo
-            N = config.state_cache.num_latent_tokens
-            D = config.dynamics.latent_token_dim
-            job.initial_latent = torch.randn(N, D)
+        # SSE streaming path
+        if request.stream:
+            return StreamingResponse(
+                _stream_rollout(job, request),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "X-Accel-Buffering": "no",
+                },
+            )
 
-        # Parse actions
-        if request.actions is not None:
-            job.actions = torch.tensor(request.actions, dtype=torch.float32)
-
-        # Submit to async engine — awaits completion without blocking event loop
+        # Non-streaming path
         result = await _engine.submit(job)
 
         response = RolloutResponse(
@@ -148,9 +161,9 @@ def create_app(config: Optional[EngineConfig] = None):
         if result.predicted_frames is not None:
             frames_b64 = []
             for t in range(result.predicted_frames.shape[0]):
-                frame = result.predicted_frames[t]  # [C, H, W]
+                frame = result.predicted_frames[t]
                 frame_np = (frame.cpu().clamp(0, 1).numpy() * 255).astype(np.uint8)
-                frame_np = frame_np.transpose(1, 2, 0)  # [H, W, C]
+                frame_np = frame_np.transpose(1, 2, 0)
                 try:
                     from PIL import Image
                     img = Image.fromarray(frame_np)
@@ -162,6 +175,18 @@ def create_app(config: Optional[EngineConfig] = None):
             response.frames_b64 = frames_b64
 
         return response
+
+    async def _stream_rollout(
+        job: RolloutJob,
+        request: RolloutRequest,
+    ) -> AsyncIterator[str]:
+        """Generate SSE events for a streaming rollout."""
+        async for step_idx, latent in _engine.submit_stream(job):
+            step_result = StepResult(step=step_idx)
+            if request.return_latents:
+                step_result.latent = latent.cpu().tolist()
+            yield step_result.to_sse()
+        yield SSE_DONE
 
     @app.get("/v1/rollout/{job_id}")
     async def get_rollout(job_id: str):

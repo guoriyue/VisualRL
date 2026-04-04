@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -35,6 +36,13 @@ class StepResult(BaseModel):
     step: int
     latent: Optional[list[list[float]]] = None
     frame_b64: Optional[str] = None
+
+    def to_sse(self) -> str:
+        """Format as a Server-Sent Event data line."""
+        return f"data: {self.model_dump_json()}\n\n"
+
+
+SSE_DONE = "data: [DONE]\n\n"
 
 
 class RolloutResponse(BaseModel):
