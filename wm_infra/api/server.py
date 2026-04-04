@@ -5,11 +5,14 @@ Provides:
 - GET  /v1/rollout/{job_id} — get rollout result
 - GET  /v1/health — health check
 - GET  /v1/models — list available models
+
+Uses AsyncWorldModelEngine for non-blocking concurrent request handling.
+Multiple concurrent POST /v1/rollout requests are automatically batched
+by the engine's background loop.
 """
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import io
 import logging
@@ -20,7 +23,7 @@ import torch
 import numpy as np
 
 from wm_infra.config import EngineConfig, DynamicsConfig, TokenizerConfig
-from wm_infra.core.engine import WorldModelEngine, RolloutJob
+from wm_infra.core.engine import AsyncWorldModelEngine, RolloutJob
 from wm_infra.models.dynamics import LatentDynamicsModel
 from wm_infra.tokenizer.video_tokenizer import VideoTokenizer
 from wm_infra.api.protocol import (
@@ -33,11 +36,11 @@ from wm_infra.api.protocol import (
 logger = logging.getLogger("wm_infra")
 
 # Global engine instance
-_engine: Optional[WorldModelEngine] = None
+_engine: Optional[AsyncWorldModelEngine] = None
 
 
-def _create_engine(config: EngineConfig) -> WorldModelEngine:
-    """Create engine with model and optional tokenizer."""
+def _create_async_engine(config: EngineConfig) -> AsyncWorldModelEngine:
+    """Create async engine with model and optional tokenizer."""
     dynamics = LatentDynamicsModel(config.dynamics)
     tokenizer = VideoTokenizer(config.tokenizer)
 
@@ -47,7 +50,7 @@ def _create_engine(config: EngineConfig) -> WorldModelEngine:
         if "tokenizer" in state_dict:
             tokenizer.load_state_dict(state_dict["tokenizer"], strict=False)
 
-    return WorldModelEngine(config, dynamics, tokenizer)
+    return AsyncWorldModelEngine(config, dynamics, tokenizer)
 
 
 def create_app(config: Optional[EngineConfig] = None):
@@ -62,13 +65,15 @@ def create_app(config: Optional[EngineConfig] = None):
     async def lifespan(app: FastAPI):
         global _engine
         logger.info("Initializing world model engine...")
-        _engine = _create_engine(config)
+        _engine = _create_async_engine(config)
+        _engine.start()
         logger.info(
             f"Engine ready: device={config.device.value}, "
-            f"dynamics={sum(p.numel() for p in _engine.dynamics_model.parameters())} params"
+            f"dynamics={sum(p.numel() for p in _engine.engine.dynamics_model.parameters())} params"
         )
         yield
         logger.info("Shutting down engine")
+        await _engine.stop()
 
     app = FastAPI(
         title="wm-infra",
@@ -82,8 +87,8 @@ def create_app(config: Optional[EngineConfig] = None):
         return HealthResponse(
             status="ok",
             model_loaded=_engine is not None,
-            active_rollouts=_engine.state_manager.num_active if _engine else 0,
-            memory_used_gb=_engine.state_manager.memory_used_gb if _engine else 0.0,
+            active_rollouts=_engine.engine.state_manager.num_active if _engine else 0,
+            memory_used_gb=_engine.engine.state_manager.memory_used_gb if _engine else 0.0,
         )
 
     @app.get("/v1/models")
@@ -110,7 +115,6 @@ def create_app(config: Optional[EngineConfig] = None):
             job.initial_latent = torch.tensor(request.initial_latent, dtype=torch.float32)
         elif request.initial_observation_b64 is not None:
             img_bytes = base64.b64decode(request.initial_observation_b64)
-            # Decode image bytes to tensor
             try:
                 from PIL import Image
                 img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
@@ -128,15 +132,8 @@ def create_app(config: Optional[EngineConfig] = None):
         if request.actions is not None:
             job.actions = torch.tensor(request.actions, dtype=torch.float32)
 
-        # Submit and run
-        job_id = _engine.submit_job(job)
-        results = await asyncio.get_event_loop().run_in_executor(
-            None, _engine.run_until_done
-        )
-
-        result = _engine.get_result(job_id)
-        if result is None:
-            raise HTTPException(status_code=500, detail="Rollout failed")
+        # Submit to async engine — awaits completion without blocking event loop
+        result = await _engine.submit(job)
 
         response = RolloutResponse(
             job_id=result.job_id,
@@ -161,7 +158,7 @@ def create_app(config: Optional[EngineConfig] = None):
                     img.save(buf, format="PNG")
                     frames_b64.append(base64.b64encode(buf.getvalue()).decode())
                 except ImportError:
-                    frames_b64.append("")  # Placeholder if PIL not available
+                    frames_b64.append("")
             response.frames_b64 = frames_b64
 
         return response
@@ -170,7 +167,7 @@ def create_app(config: Optional[EngineConfig] = None):
     async def get_rollout(job_id: str):
         if _engine is None:
             raise HTTPException(status_code=503, detail="Engine not initialized")
-        result = _engine.get_result(job_id)
+        result = _engine.engine.get_result(job_id)
         if result is None:
             raise HTTPException(status_code=404, detail="Job not found")
         return {

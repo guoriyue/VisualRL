@@ -1,10 +1,12 @@
 """Tests for the world model engine end-to-end."""
 
+import asyncio
+
 import pytest
 import torch
 
 from wm_infra.config import EngineConfig, DynamicsConfig, TokenizerConfig, StateCacheConfig
-from wm_infra.core.engine import WorldModelEngine, RolloutJob
+from wm_infra.core.engine import WorldModelEngine, AsyncWorldModelEngine, RolloutJob
 from wm_infra.core.state import LatentStateManager
 from wm_infra.core.scheduler import RolloutScheduler, RolloutRequest
 from wm_infra.models.dynamics import LatentDynamicsModel
@@ -241,3 +243,118 @@ class TestWorldModelEngine:
         assert len(results) == 3
         for r in results:
             assert r.steps_completed == 2
+
+
+class TestAsyncEngine:
+    @pytest.mark.asyncio
+    async def test_single_job(self):
+        config = _small_config()
+        config.device = "cpu"
+        dynamics = LatentDynamicsModel(config.dynamics)
+
+        async_engine = AsyncWorldModelEngine(config, dynamics, tokenizer=None)
+        async_engine.start()
+
+        try:
+            job = RolloutJob(
+                job_id="async_test1",
+                initial_latent=torch.randn(16, 6),
+                actions=torch.randn(3, 8),
+                num_steps=3,
+                return_frames=False,
+                return_latents=True,
+            )
+            result = await async_engine.submit(job)
+            assert result.steps_completed == 3
+            assert result.predicted_latents is not None
+            assert result.job_id == "async_test1"
+        finally:
+            await async_engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_concurrent_jobs(self):
+        """Multiple concurrent submits should all complete."""
+        config = _small_config()
+        config.device = "cpu"
+        config.state_cache.max_batch_size = 8
+        config.scheduler.max_concurrent_rollouts = 8
+        dynamics = LatentDynamicsModel(config.dynamics)
+
+        async_engine = AsyncWorldModelEngine(config, dynamics, tokenizer=None)
+        async_engine.start()
+
+        try:
+            jobs = []
+            for i in range(5):
+                job = RolloutJob(
+                    job_id=f"concurrent_{i}",
+                    initial_latent=torch.randn(16, 6),
+                    actions=torch.randn(2, 8),
+                    num_steps=2,
+                    return_frames=False,
+                    return_latents=True,
+                )
+                jobs.append(job)
+
+            # Submit all concurrently
+            results = await asyncio.gather(
+                *[async_engine.submit(job) for job in jobs]
+            )
+
+            assert len(results) == 5
+            job_ids = {r.job_id for r in results}
+            assert job_ids == {f"concurrent_{i}" for i in range(5)}
+            for r in results:
+                assert r.steps_completed == 2
+                assert r.predicted_latents is not None
+        finally:
+            await async_engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_engine_lifecycle(self):
+        """Engine can be started and stopped cleanly."""
+        config = _small_config()
+        config.device = "cpu"
+        dynamics = LatentDynamicsModel(config.dynamics)
+
+        async_engine = AsyncWorldModelEngine(config, dynamics, tokenizer=None)
+        assert not async_engine.is_running
+
+        async_engine.start()
+        assert async_engine.is_running
+
+        await async_engine.stop()
+        assert not async_engine.is_running
+
+    @pytest.mark.asyncio
+    async def test_step_callback(self):
+        """Per-step callback fires for each prediction step."""
+        config = _small_config()
+        config.device = "cpu"
+        dynamics = LatentDynamicsModel(config.dynamics)
+
+        async_engine = AsyncWorldModelEngine(config, dynamics, tokenizer=None)
+        async_engine.start()
+
+        try:
+            callback_log = []
+
+            def on_step(job_id: str, step_idx: int, latent: torch.Tensor):
+                callback_log.append((job_id, step_idx))
+
+            job = RolloutJob(
+                job_id="callback_test",
+                initial_latent=torch.randn(16, 6),
+                actions=torch.randn(4, 8),
+                num_steps=4,
+                return_frames=False,
+                return_latents=True,
+                step_callback=on_step,
+            )
+            result = await async_engine.submit(job)
+            assert result.steps_completed == 4
+            assert len(callback_log) == 4
+            assert callback_log[0] == ("callback_test", 0)
+            assert callback_log[3] == ("callback_test", 3)
+        finally:
+            await async_engine.stop()

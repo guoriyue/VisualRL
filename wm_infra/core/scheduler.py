@@ -87,10 +87,13 @@ class RolloutScheduler:
     def schedule_batch(self) -> ScheduledBatch:
         """Select the next batch of rollout steps to execute.
 
+        Automatically admits pending requests each time it's called,
+        enabling continuous batching — new requests join mid-rollout.
+
         Returns:
             ScheduledBatch with request IDs and their current step indices
         """
-        # Admit pending requests first
+        # Admit pending requests every scheduling round (continuous batching)
         self.admit()
 
         if not self._active:

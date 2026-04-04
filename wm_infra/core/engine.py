@@ -7,14 +7,19 @@ The engine manages the full rollout lifecycle:
   4. Execute dynamics model predictions (batched)
   5. Optionally decode latent states back to pixel frames
   6. Stream results back to the client
+
+AsyncWorldModelEngine wraps the sync engine with an asyncio-based
+background loop for non-blocking concurrent request handling.
 """
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Optional
+from typing import Any, AsyncIterator, Callable, Optional
 
 import torch
 import torch.nn as nn
@@ -24,6 +29,8 @@ from wm_infra.core.state import LatentStateManager
 from wm_infra.core.scheduler import RolloutScheduler, RolloutRequest, ScheduledBatch
 from wm_infra.models.base import WorldModel, RolloutInput, RolloutOutput
 from wm_infra.tokenizer.video_tokenizer import VideoTokenizer
+
+logger = logging.getLogger("wm_infra.engine")
 
 
 @dataclass(slots=True)
@@ -39,6 +46,8 @@ class RolloutJob:
     return_latents: bool = False
     stream: bool = False
     created_at: float = field(default_factory=time.monotonic)
+    # Optional per-step callback for streaming: fn(job_id, step_idx, latent_state)
+    step_callback: Optional[Callable[[str, int, torch.Tensor], None]] = None
 
 
 @dataclass(slots=True)
@@ -204,6 +213,13 @@ class WorldModelEngine:
             # Update state
             self.state_manager.append_step(job_id, action.squeeze(0), next_state.squeeze(0))
 
+            # Per-step callback for streaming
+            if job.step_callback is not None:
+                try:
+                    job.step_callback(job_id, step_idx, next_state.squeeze(0))
+                except Exception:
+                    logger.exception("Step callback failed for job %s step %d", job_id, step_idx)
+
             # Check completion
             if self.scheduler.step_completed(job_id):
                 self.scheduler.complete(job_id)
@@ -241,3 +257,130 @@ class WorldModelEngine:
         # Cleanup state
         self.state_manager.remove(job_id)
         self._jobs.pop(job_id, None)
+
+
+class AsyncWorldModelEngine:
+    """Async wrapper around WorldModelEngine for non-blocking serving.
+
+    Runs a background asyncio task that continuously:
+      1. Drains the submission queue for new jobs
+      2. Calls the sync engine's step() for one batch of GPU work
+      3. Resolves futures for completed jobs
+      4. Yields back to the event loop
+
+    This allows multiple concurrent HTTP requests to submit jobs and
+    await results without blocking each other or the event loop.
+    """
+
+    def __init__(
+        self,
+        config: EngineConfig,
+        dynamics_model: nn.Module,
+        tokenizer: Optional[VideoTokenizer] = None,
+    ):
+        self.engine = WorldModelEngine(config, dynamics_model, tokenizer)
+        self._queue: asyncio.Queue[tuple[RolloutJob, asyncio.Future]] = asyncio.Queue()
+        self._pending_futures: dict[str, asyncio.Future] = {}
+        self._loop_task: Optional[asyncio.Task] = None
+        self._shutdown = False
+
+    def start(self) -> None:
+        """Start the background engine loop. Must be called from a running event loop."""
+        if self._loop_task is not None:
+            return
+        self._shutdown = False
+        self._loop_task = asyncio.get_event_loop().create_task(self._engine_loop())
+        logger.info("Async engine loop started")
+
+    async def stop(self) -> None:
+        """Stop the background engine loop gracefully."""
+        self._shutdown = True
+        if self._loop_task is not None:
+            self._loop_task.cancel()
+            try:
+                await self._loop_task
+            except asyncio.CancelledError:
+                pass
+            self._loop_task = None
+        # Cancel any pending futures
+        for fut in self._pending_futures.values():
+            if not fut.done():
+                fut.cancel()
+        self._pending_futures.clear()
+        logger.info("Async engine loop stopped")
+
+    async def submit(self, job: RolloutJob) -> RolloutResult:
+        """Submit a job and await its completion.
+
+        Returns:
+            RolloutResult when the job finishes.
+        """
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future[RolloutResult] = loop.create_future()
+        await self._queue.put((job, future))
+        return await future
+
+    @property
+    def num_active(self) -> int:
+        """Number of active rollouts in the engine."""
+        return self.engine.state_manager.num_active
+
+    @property
+    def num_queued(self) -> int:
+        """Number of jobs waiting in the submission queue."""
+        return self._queue.qsize()
+
+    @property
+    def is_running(self) -> bool:
+        return self._loop_task is not None and not self._loop_task.done()
+
+    async def _engine_loop(self) -> None:
+        """Background loop: drain queue, step engine, resolve futures."""
+        logger.info("Engine loop running")
+        try:
+            while not self._shutdown:
+                # 1. Drain the submission queue — admit new jobs immediately
+                drained = 0
+                while not self._queue.empty():
+                    try:
+                        job, future = self._queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    if not job.job_id:
+                        job.job_id = str(uuid.uuid4())
+                    self.engine.submit_job(job)
+                    self._pending_futures[job.job_id] = future
+                    drained += 1
+
+                # 2. If no work, sleep briefly to avoid busy-spin
+                if not self.engine.has_pending_work() and self._queue.empty():
+                    await asyncio.sleep(0.001)
+                    continue
+
+                # 3. Run one step of the sync engine (GPU work)
+                completed_ids = self.engine.step()
+
+                # 4. Resolve futures for completed jobs
+                for job_id in completed_ids:
+                    result = self.engine.get_result(job_id)
+                    future = self._pending_futures.pop(job_id, None)
+                    if future is not None and not future.done():
+                        if result is not None:
+                            future.set_result(result)
+                        else:
+                            future.set_exception(
+                                RuntimeError(f"Rollout {job_id} completed but no result")
+                            )
+
+                # 5. Yield to event loop so HTTP handlers can run
+                await asyncio.sleep(0)
+
+        except asyncio.CancelledError:
+            logger.info("Engine loop cancelled")
+        except Exception:
+            logger.exception("Engine loop crashed")
+            # Fail all pending futures
+            for fut in self._pending_futures.values():
+                if not fut.done():
+                    fut.set_exception(RuntimeError("Engine loop crashed"))
+            self._pending_futures.clear()
