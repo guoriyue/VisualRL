@@ -126,6 +126,8 @@ class WorldModelEngine:
         Returns:
             List of job IDs that completed during this step
         """
+        from wm_infra.api.metrics import BATCH_SIZE, STEP_DURATION
+
         # 1. Admit pending jobs and encode initial states
         admitted = self.scheduler.admit()
         for job_id in admitted:
@@ -136,8 +138,12 @@ class WorldModelEngine:
         if batch.size == 0:
             return []
 
+        BATCH_SIZE.observe(batch.size)
+
         # 3. Execute predictions for the batch
+        t0 = time.monotonic()
         completed_ids = self._execute_batch(batch)
+        STEP_DURATION.observe(time.monotonic() - t0)
 
         # 4. Finalize completed jobs
         for job_id in completed_ids:
@@ -367,6 +373,8 @@ class AsyncWorldModelEngine:
 
     async def _engine_loop(self) -> None:
         """Background loop: drain queue, step engine, resolve futures."""
+        from wm_infra.api.metrics import QUEUE_DEPTH, ACTIVE_ROLLOUTS, VRAM_USED_BYTES
+
         logger.info("Engine loop running")
         try:
             while not self._shutdown:
@@ -382,6 +390,11 @@ class AsyncWorldModelEngine:
                     self.engine.submit_job(job)
                     self._pending_futures[job.job_id] = future
                     drained += 1
+
+                # Update gauges
+                QUEUE_DEPTH.set(self._queue.qsize())
+                ACTIVE_ROLLOUTS.set(self.engine.state_manager.num_active)
+                VRAM_USED_BYTES.set(self.engine.state_manager._current_memory)
 
                 # 2. If no work, sleep briefly to avoid busy-spin
                 if not self.engine.has_pending_work() and self._queue.empty():

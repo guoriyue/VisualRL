@@ -34,6 +34,7 @@ from wm_infra.api.protocol import (
     HealthResponse,
     ModelInfo,
 )
+from wm_infra.api.metrics import REQUEST_TOTAL, REQUEST_DURATION
 
 logger = logging.getLogger("wm_infra")
 
@@ -127,8 +128,19 @@ def create_app(config: Optional[EngineConfig] = None):
         from wm_infra.models.registry import list_models as _list_models
         return {"models": _list_models()}
 
+    @app.get("/metrics")
+    async def metrics():
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        from fastapi.responses import Response
+        return Response(
+            content=generate_latest(),
+            media_type=CONTENT_TYPE_LATEST,
+        )
+
     @app.post("/v1/rollout")
     async def submit_rollout(request: RolloutRequest):
+        import time as _time
+
         if _engine is None:
             raise HTTPException(status_code=503, detail="Engine not initialized")
 
@@ -136,6 +148,7 @@ def create_app(config: Optional[EngineConfig] = None):
 
         # SSE streaming path
         if request.stream:
+            REQUEST_TOTAL.labels(status="stream").inc()
             return StreamingResponse(
                 _stream_rollout(job, request),
                 media_type="text/event-stream",
@@ -146,7 +159,15 @@ def create_app(config: Optional[EngineConfig] = None):
             )
 
         # Non-streaming path
-        result = await _engine.submit(job)
+        t0 = _time.monotonic()
+        try:
+            result = await _engine.submit(job)
+            REQUEST_TOTAL.labels(status="success").inc()
+        except Exception:
+            REQUEST_TOTAL.labels(status="error").inc()
+            raise
+        finally:
+            REQUEST_DURATION.observe(_time.monotonic() - t0)
 
         response = RolloutResponse(
             job_id=result.job_id,

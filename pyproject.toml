@@ -17,6 +17,8 @@ dependencies = [
     "pydantic>=2.6.0",
     "numpy>=1.26.0",
     "einops>=0.7.0",
+    "prometheus-client>=0.20.0",
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
