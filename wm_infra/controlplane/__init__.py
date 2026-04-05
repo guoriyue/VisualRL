@@ -6,7 +6,9 @@ The control plane tracks what was requested, what was produced,
 and how outputs can flow into evaluation and training.
 """
 
-from .resource_estimator import estimate_rollout_request, estimate_wan_request
+from importlib import import_module
+from typing import TYPE_CHECKING
+
 from .schemas import (
     ArtifactKind,
     ArtifactRecord,
@@ -47,6 +49,21 @@ from .temporal import (
     TemporalStatus,
     TemporalStore,
 )
+
+if TYPE_CHECKING:
+    from .resource_estimator import estimate_rollout_request, estimate_wan_request
+
+_RESOURCE_ESTIMATOR_EXPORTS = {"estimate_rollout_request", "estimate_wan_request"}
+
+
+def __getattr__(name: str):
+    if name in _RESOURCE_ESTIMATOR_EXPORTS:
+        module = import_module(".resource_estimator", __name__)
+        value = getattr(module, name)
+        globals()[name] = value
+        return value
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     "ArtifactKind",
