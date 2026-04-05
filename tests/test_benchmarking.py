@@ -18,16 +18,18 @@ def test_summarize_latency_ms():
 def test_run_summary_from_samples():
     summary = run_summary_from_samples([
         {"status": "succeeded", "metrics": {"submit_latency_ms": 10, "terminal_latency_ms": 100}},
+        {"status": "accepted", "metrics": {"submit_latency_ms": 15, "terminal_latency_ms": 150}},
         {"status": "failed", "metrics": {"submit_latency_ms": 20, "terminal_latency_ms": 200}},
         {"status": "queued", "metrics": {"submit_latency_ms": 30}},
     ])
-    assert summary["counts"]["total"] == 3
+    assert summary["counts"]["total"] == 4
     assert summary["counts"]["succeeded"] == 1
+    assert summary["counts"]["accepted"] == 1
     assert summary["counts"]["failed"] == 1
     assert summary["counts"]["queued"] == 1
     assert summary["latency"]["submit"]["p95_ms"] > 0
-    assert summary["latency"]["terminal"]["count"] == 2.0
-    assert summary["success_rate"] == 1 / 3
+    assert summary["latency"]["terminal"]["count"] == 3.0
+    assert summary["success_rate"] == 2 / 4
 
 
 def test_comparable_run_pair_rejects_mismatched_workloads():

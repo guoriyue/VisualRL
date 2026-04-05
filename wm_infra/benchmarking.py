@@ -193,6 +193,7 @@ def comparison_report(current: dict[str, Any], baseline: dict[str, Any]) -> dict
 def run_summary_from_samples(samples: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(samples)
     succeeded = sum(1 for item in samples if item.get("status") == "succeeded")
+    accepted = sum(1 for item in samples if item.get("status") == "accepted")
     failed = sum(1 for item in samples if item.get("status") == "failed")
     queued = sum(1 for item in samples if item.get("status") == "queued")
     running = sum(1 for item in samples if item.get("status") == "running")
@@ -210,6 +211,7 @@ def run_summary_from_samples(samples: list[dict[str, Any]]) -> dict[str, Any]:
         "counts": {
             "total": total,
             "succeeded": succeeded,
+            "accepted": accepted,
             "failed": failed,
             "queued": queued,
             "running": running,
@@ -218,7 +220,7 @@ def run_summary_from_samples(samples: list[dict[str, Any]]) -> dict[str, Any]:
             "submit": summarize_latency_ms(submit_latencies),
             "terminal": summarize_latency_ms(terminal_latencies),
         },
-        "success_rate": (succeeded / total) if total else 0.0,
+        "success_rate": ((succeeded + accepted) / total) if total else 0.0,
     }
 
 
