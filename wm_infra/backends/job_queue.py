@@ -104,6 +104,10 @@ class SampleJobQueue:
         self._queue.put_nowait(entry)
         return entry
 
+    def _retire_job(self, sample_id: str) -> None:
+        """Drop terminal bookkeeping so the in-memory job table stays bounded."""
+        self._jobs.pop(sample_id, None)
+
     def start(self) -> None:
         if self._running:
             return
@@ -150,6 +154,7 @@ class SampleJobQueue:
                 entry.status = record.status.value
                 entry.completed_at = time.time()
                 self._store.put(record)
+                self._retire_job(entry.sample_id)
                 logger.info("%s worker %d completed job %s → %s", self._queue_name, worker_id, entry.sample_id, entry.status)
             except Exception as exc:
                 entry.status = "failed"
@@ -166,6 +171,7 @@ class SampleJobQueue:
                     failed_record.runtime["queue_error"] = str(exc)
                     failed_record.metadata["runner_error"] = str(exc)
                     self._store.put(failed_record)
+                self._retire_job(entry.sample_id)
             finally:
                 self._queue.task_done()
 

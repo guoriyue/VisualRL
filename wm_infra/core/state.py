@@ -80,6 +80,26 @@ class LatentStateManager:
     def memory_used_gb(self) -> float:
         return self._current_memory / (1024**3)
 
+    def _ensure_capacity(self, required_bytes: int, *, protected_ids: set[str] | None = None) -> None:
+        protected_ids = protected_ids or set()
+        if required_bytes > self.max_memory_bytes:
+            raise MemoryError(
+                f"Required state allocation {required_bytes} bytes exceeds budget {self.max_memory_bytes} bytes"
+            )
+
+        while self._current_memory + required_bytes > self.max_memory_bytes:
+            evictable = [
+                (rid, state)
+                for rid, state in self._states.items()
+                if rid not in protected_ids
+            ]
+            if not evictable:
+                raise MemoryError(
+                    f"Latent state budget exceeded: need {required_bytes} more bytes with {self._current_memory} bytes already tracked"
+                )
+            oldest_id, _ = min(evictable, key=lambda item: item[1].last_accessed)
+            self.remove(oldest_id)
+
     def create(
         self,
         rollout_id: str,
@@ -101,6 +121,9 @@ class LatentStateManager:
 
         if self.num_active >= self.max_concurrent:
             self._evict_lru()
+
+        initial_bytes = initial_state.element_size() * initial_state.nelement()
+        self._ensure_capacity(initial_bytes)
 
         now = time.monotonic()
         state = RolloutState(
@@ -132,14 +155,13 @@ class LatentStateManager:
             Updated RolloutState
         """
         state = self._states[rollout_id]
+        required_bytes = action.element_size() * action.nelement() + predicted_state.element_size() * predicted_state.nelement()
+        self._ensure_capacity(required_bytes, protected_ids={rollout_id})
         state.actions.append(action.to(self.device))
         state.latent_states.append(predicted_state.to(self.device))
         state.current_step += 1
         state.last_accessed = time.monotonic()
-        self._current_memory += (
-            action.element_size() * action.nelement()
-            + predicted_state.element_size() * predicted_state.nelement()
-        )
+        self._current_memory += required_bytes
         return state
 
     def get(self, rollout_id: str) -> RolloutState:
@@ -167,6 +189,7 @@ class LatentStateManager:
             created_at=now,
             last_accessed=now,
         )
+        self._ensure_capacity(forked.memory_bytes, protected_ids={source_id})
         self._states[new_id] = forked
         self._current_memory += forked.memory_bytes
         return forked

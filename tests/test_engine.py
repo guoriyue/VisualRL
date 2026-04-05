@@ -170,6 +170,22 @@ class TestLatentStateManager:
         assert mgr.num_active == 2
         assert "r1" not in mgr._states
 
+    def test_memory_budget_evicts_oldest_state(self):
+        mgr = LatentStateManager(max_concurrent=4, max_memory_gb=0.0000001, device="cpu")
+        mgr.create("r1", torch.zeros(4, 4), max_steps=5)
+        mgr.create("r2", torch.zeros(4, 4), max_steps=5)
+
+        assert mgr.num_active == 1
+        assert "r1" not in mgr._states
+        assert "r2" in mgr._states
+
+    def test_memory_budget_raises_when_no_state_can_be_evicted(self):
+        mgr = LatentStateManager(max_concurrent=4, max_memory_gb=0.00000009, device="cpu")
+        mgr.create("r1", torch.zeros(4, 4), max_steps=5)
+
+        with pytest.raises(MemoryError, match="Latent state budget exceeded"):
+            mgr.append_step("r1", torch.zeros(8), torch.zeros(4, 4))
+
 
 class TestRolloutScheduler:
     def test_submit_and_schedule(self):
