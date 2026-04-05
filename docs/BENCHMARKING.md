@@ -41,6 +41,19 @@ This measures:
 - polling counts until completion
 - per-iteration status and terminal payloads
 - aggregated p50 / p95 / p99 latency summaries
+- reproducibility metadata such as Python, platform, and git context
+
+To embed a baseline comparison directly into the artifact, add `--baseline-file`:
+
+```bash
+python benchmarks/bench_samples_api.py \
+  --in-process \
+  --workload wan \
+  --iterations 5 \
+  --baseline-file benchmarks/results/wan-baseline.json
+```
+
+When the baseline and current run share the same workload axes, the artifact includes metric deltas for submit latency, terminal latency, and success rate.
 
 The output is written to a structured JSON artifact under `benchmarks/results/` by default.
 
@@ -48,7 +61,9 @@ The output is written to a structured JSON artifact under `benchmarks/results/` 
 
 Benchmark outputs follow a simple structured schema:
 - `system`: who produced the run (`wm-infra`, `vllm`, `sglang`, etc.)
+- `run_context`: runtime, platform, and git metadata captured at benchmark time
 - `workload`: canonical workload definition used for comparability checks
+- `baseline`: optional embedded comparison against a prior run file
 - `summary`: aggregated counts and latency stats
 - `samples`: raw per-iteration observations
 

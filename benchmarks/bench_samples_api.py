@@ -23,7 +23,7 @@ import httpx
 from asgi_lifespan import LifespanManager
 
 from wm_infra.api.server import create_app
-from wm_infra.benchmarking import run_summary_from_samples, utc_timestamp, write_json
+from wm_infra.benchmarking import capture_runtime_context, comparison_report, load_json, run_summary_from_samples, utc_timestamp, write_json
 from wm_infra.config import ControlPlaneConfig, DynamicsConfig, EngineConfig, StateCacheConfig, TokenizerConfig
 from wm_infra.controlplane import SampleManifestStore
 
@@ -164,6 +164,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--system-name", default="wm-infra")
     parser.add_argument("--runner-name", default="unknown")
     parser.add_argument("--output", default="benchmarks/results/sample_api_benchmark.json")
+    parser.add_argument("--baseline-file", help="Optional benchmark JSON file to compare against and embed in the output artifact")
     return parser.parse_args()
 
 
@@ -189,10 +190,21 @@ async def _main_async() -> None:
     result = {
         "schema_version": 1,
         "recorded_at": utc_timestamp(),
+        "run_context": capture_runtime_context(),
         "system": {
             "name": args.system_name,
             "runner": args.runner_name,
             "execution_mode": execution_mode,
+        },
+        "execution": {
+            "mode": execution_mode,
+            "iterations": args.iterations,
+            "concurrency": args.concurrency,
+            "timeout_s": args.timeout_s,
+            "base_url": args.base_url,
+            "in_process": args.in_process,
+            "workload": args.workload,
+            "payload_file": args.payload_file,
         },
         "workload": {
             "workload_kind": "sample_api",
@@ -215,6 +227,14 @@ async def _main_async() -> None:
             "Comparisons against vLLM or sglang are only valid when the workload definition matches and the external system can actually execute that workload.",
         ],
     }
+    if args.baseline_file:
+        baseline = load_json(args.baseline_file)
+        result["baseline"] = {
+            "path": args.baseline_file,
+            "recorded_at": baseline.get("recorded_at"),
+            "system": baseline.get("system"),
+            "comparison": comparison_report(result, baseline),
+        }
     write_json(args.output, result)
     print(f"Wrote benchmark artifact to {args.output}")
     print(summary)

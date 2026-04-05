@@ -7,18 +7,30 @@ systems such as wm-infra, vLLM, and sglang.
 
 from __future__ import annotations
 
+import json
+import platform
+import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
 from typing import Any
-import json
 
 
 @dataclass(frozen=True)
 class ComparableAxis:
     name: str
     value: Any
+
+
+_COMPARISON_METRICS = [
+    ("submit_mean_ms", ("summary", "latency", "submit", "mean_ms")),
+    ("submit_p95_ms", ("summary", "latency", "submit", "p95_ms")),
+    ("terminal_mean_ms", ("summary", "latency", "terminal", "mean_ms")),
+    ("terminal_p95_ms", ("summary", "latency", "terminal", "p95_ms")),
+    ("success_rate", ("summary", "success_rate")),
+]
 
 
 def utc_timestamp() -> str:
@@ -81,6 +93,62 @@ def canonical_workload_key(workload: dict[str, Any]) -> dict[str, Any]:
     return {key: workload.get(key) for key in keys if workload.get(key) is not None}
 
 
+def _dig(payload: dict[str, Any], path: tuple[str, ...]) -> Any:
+    cur: Any = payload
+    for key in path:
+        if not isinstance(cur, dict) or key not in cur:
+            return None
+        cur = cur[key]
+    return cur
+
+
+def _run_git(args: list[str], cwd: Path) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2.0,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return None
+    if completed.returncode != 0:
+        return None
+    value = completed.stdout.strip()
+    return value or None
+
+
+def capture_runtime_context(cwd: str | Path | None = None) -> dict[str, Any]:
+    root = Path(cwd) if cwd is not None else Path.cwd()
+    git_commit = _run_git(["rev-parse", "HEAD"], root)
+    git_branch = _run_git(["branch", "--show-current"], root)
+    git_remote = _run_git(["remote", "get-url", "origin"], root)
+    git_dirty = _run_git(["status", "--short"], root)
+    return {
+        "captured_at": utc_timestamp(),
+        "python": {
+            "implementation": platform.python_implementation(),
+            "version": sys.version.split()[0],
+            "executable": sys.executable,
+        },
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "version": platform.version(),
+            "machine": platform.machine(),
+            "processor": platform.processor(),
+        },
+        "git": {
+            "commit": git_commit,
+            "branch": git_branch,
+            "remote": git_remote,
+            "dirty": bool(git_dirty),
+        },
+    }
+
+
 def comparable_run_pair(left: dict[str, Any], right: dict[str, Any]) -> tuple[bool, list[str]]:
     left_key = canonical_workload_key(left.get("workload", {}))
     right_key = canonical_workload_key(right.get("workload", {}))
@@ -89,6 +157,37 @@ def comparable_run_pair(left: dict[str, Any], right: dict[str, Any]) -> tuple[bo
         if left_key.get(key) != right_key.get(key):
             mismatches.append(f"{key}: {left_key.get(key)!r} != {right_key.get(key)!r}")
     return len(mismatches) == 0, mismatches
+
+
+def comparison_report(current: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
+    ok, mismatches = comparable_run_pair(baseline, current)
+    report: dict[str, Any] = {
+        "comparable": ok,
+        "mismatches": mismatches,
+        "baseline_workload": canonical_workload_key(baseline.get("workload", {})),
+        "current_workload": canonical_workload_key(current.get("workload", {})),
+        "metrics": {},
+    }
+    if not ok:
+        return report
+
+    metrics: dict[str, Any] = {}
+    for metric_name, path in _COMPARISON_METRICS:
+        base_value = _dig(baseline, path)
+        current_value = _dig(current, path)
+        if base_value is None or current_value is None:
+            continue
+        base_f = float(base_value)
+        current_f = float(current_value)
+        delta = current_f - base_f
+        metrics[metric_name] = {
+            "baseline": base_f,
+            "current": current_f,
+            "delta": delta,
+            "delta_pct": (delta / base_f * 100.0) if base_f else None,
+        }
+    report["metrics"] = metrics
+    return report
 
 
 def run_summary_from_samples(samples: list[dict[str, Any]]) -> dict[str, Any]:
