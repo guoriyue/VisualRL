@@ -84,6 +84,7 @@ class ServerConfig:
     port: int = 8400
     max_concurrent_requests: int = 128
     stream_chunk_interval_ms: float = 33.0  # ~30fps streaming
+    api_key: Optional[str] = None
 
 
 @dataclass
@@ -161,6 +162,7 @@ def _env_overrides() -> dict:
         WM_MODEL_PATH=/path            → {"model_path": "/path"}
         WM_PORT=9000                   → {"server": {"port": 9000}}
         WM_HOST=127.0.0.1              → {"server": {"host": "127.0.0.1"}}
+        WM_API_KEY=secret              → {"server": {"api_key": "secret"}}
         WM_MAX_BATCH_SIZE=16           → {"scheduler": {"max_batch_size": 16}}
         WM_MANIFEST_STORE_ROOT=/data   → {"controlplane": {"manifest_store_root": "/data"}}
         WM_WAN_OUTPUT_ROOT=/data/wan   → {"controlplane": {"wan_output_root": "/data/wan"}}
@@ -183,6 +185,7 @@ def _env_overrides() -> dict:
         "WM_SEED": (["seed"], int),
         "WM_PORT": (["server", "port"], int),
         "WM_HOST": (["server", "host"], str),
+        "WM_API_KEY": (["server", "api_key"], str),
         "WM_MAX_BATCH_SIZE": (["scheduler", "max_batch_size"], int),
         "WM_MAX_CONCURRENT_ROLLOUTS": (["scheduler", "max_concurrent_rollouts"], int),
         "WM_MANIFEST_STORE_ROOT": (["controlplane", "manifest_store_root"], str),
@@ -257,6 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dtype", type=str, choices=["float16", "float32", "bfloat16"], default=None)
     parser.add_argument("--port", type=int, default=None, help="Server port (default: 8400)")
     parser.add_argument("--host", type=str, default=None, help="Server host (default: 0.0.0.0)")
+    parser.add_argument("--api-key", type=str, default=None, help="Optional API key required for protected endpoints")
     parser.add_argument("--max-batch-size", type=int, default=None, help="Max batch size for scheduling")
     parser.add_argument("--seed", type=int, default=None)
     return parser
@@ -305,6 +309,8 @@ def load_config(
         cli_overrides.setdefault("server", {})["port"] = args.port
     if args.host is not None:
         cli_overrides.setdefault("server", {})["host"] = args.host
+    if args.api_key is not None:
+        cli_overrides.setdefault("server", {})["api_key"] = args.api_key
     if args.max_batch_size is not None:
         cli_overrides.setdefault("scheduler", {})["max_batch_size"] = args.max_batch_size
 

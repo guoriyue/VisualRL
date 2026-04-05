@@ -22,6 +22,25 @@ REQUEST_DURATION = Histogram(
     buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0],
 )
 
+API_AUTH_FAILURES = Counter(
+    "wm_api_auth_failures_total",
+    "API authentication failures",
+    ["endpoint"],
+)
+
+SAMPLE_TOTAL = Counter(
+    "wm_sample_total",
+    "Total sample-production requests",
+    ["backend", "status"],
+)
+
+SAMPLE_DURATION = Histogram(
+    "wm_sample_duration_seconds",
+    "End-to-end sample-production request duration",
+    ["backend", "status"],
+    buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0],
+)
+
 # ─── Engine-level metrics ───
 
 BATCH_SIZE = Histogram(

@@ -35,7 +35,7 @@ from urllib.parse import unquote
 import numpy as np
 import torch
 
-from wm_infra.api.metrics import REQUEST_DURATION, REQUEST_TOTAL
+from wm_infra.api.metrics import ACTIVE_ROLLOUTS, API_AUTH_FAILURES, QUEUE_DEPTH, REQUEST_DURATION, REQUEST_TOTAL, SAMPLE_DURATION, SAMPLE_TOTAL
 from wm_infra.api.protocol import HealthResponse, RolloutRequest, RolloutResponse, SSE_DONE, StepResult
 from wm_infra.backends import BackendRegistry, GenieJobQueue, GenieRolloutBackend, RolloutBackend, WanJobQueue, WanVideoBackend
 from wm_infra.backends.genie_runner import GenieRunner
@@ -116,7 +116,7 @@ def create_app(
     temporal_store: Optional[TemporalStore] = None,
 ):
     from fastapi import FastAPI, HTTPException
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import JSONResponse, StreamingResponse
 
     if config is None:
         config = EngineConfig()
@@ -213,9 +213,31 @@ def create_app(
 
     app = FastAPI(title="wm-infra", description="Temporal model serving and control-plane infrastructure", version="0.1.0", lifespan=lifespan)
 
+    @app.middleware("http")
+    async def api_key_guard(request, call_next):
+        api_key = config.server.api_key
+        if api_key is None:
+            return await call_next(request)
+
+        path = request.url.path
+        if (
+            path in {"/v1/health", "/v1/models", "/metrics", "/openapi.json"}
+            or path.startswith("/docs")
+            or path.startswith("/redoc")
+            or request.method in {"OPTIONS", "HEAD"}
+        ):
+            return await call_next(request)
+
+        provided = request.headers.get("X-API-Key")
+        if provided != api_key:
+            API_AUTH_FAILURES.labels(endpoint=path).inc()
+            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
+        return await call_next(request)
+
     @app.get("/v1/health", response_model=HealthResponse)
     async def health():
         ready = _engine is not None and _engine.is_running
+        ACTIVE_ROLLOUTS.set(_engine.engine.state_manager.num_active if _engine else 0)
         return HealthResponse(
             status="ready" if ready else "not_ready",
             model_loaded=_engine is not None,
@@ -330,6 +352,10 @@ def create_app(
 
     @app.post("/v1/samples")
     async def produce_sample(request: ProduceSampleRequest):
+        import time as _time
+
+        sample_t0 = _time.monotonic()
+        sample_status = "error"
         registry: BackendRegistry = app.state.backend_registry
         store: SampleManifestStore = app.state.sample_store
 
@@ -337,25 +363,33 @@ def create_app(
         if backend is None:
             raise HTTPException(status_code=404, detail=f"Unknown backend: {request.backend}")
 
-        if (isinstance(backend, WanVideoBackend) and backend._job_queue is not None) or (
-            isinstance(backend, GenieRolloutBackend) and backend._job_queue is not None
-        ):
-            try:
-                record = backend.submit_async(request)
-            except ValueError as exc:
-                raise HTTPException(status_code=400, detail=str(exc)) from exc
-            except RuntimeError as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-            store.put(record)
-            return record.model_dump(mode="json")
-
         try:
-            record = await backend.produce_sample(request)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            if (isinstance(backend, WanVideoBackend) and backend._job_queue is not None) or (
+                isinstance(backend, GenieRolloutBackend) and backend._job_queue is not None
+            ):
+                try:
+                    record = backend.submit_async(request)
+                except ValueError as exc:
+                    SAMPLE_TOTAL.labels(backend=request.backend, status="error").inc()
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+                except RuntimeError as exc:
+                    SAMPLE_TOTAL.labels(backend=request.backend, status="error").inc()
+                    raise HTTPException(status_code=503, detail=str(exc)) from exc
+                store.put(record)
+                SAMPLE_TOTAL.labels(backend=request.backend, status=record.status.value).inc()
+                sample_status = record.status.value
+                return record.model_dump(mode="json")
 
-        store.put(record)
-        return record.model_dump(mode="json")
+            record = await backend.produce_sample(request)
+            store.put(record)
+            SAMPLE_TOTAL.labels(backend=request.backend, status=record.status.value).inc()
+            sample_status = record.status.value
+            return record.model_dump(mode="json")
+        except ValueError as exc:
+            SAMPLE_TOTAL.labels(backend=request.backend, status="error").inc()
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        finally:
+            SAMPLE_DURATION.labels(backend=request.backend, status=sample_status).observe(_time.monotonic() - sample_t0)
 
     @app.get("/v1/samples")
     async def list_samples(status: str | None = None, backend: str | None = None, experiment_id: str | None = None, limit: int = 50):
@@ -426,11 +460,15 @@ def create_app(
         wan_queue = app.state.wan_job_queue
         genie_queue = app.state.genie_job_queue
         if wan_queue is None and genie_queue is None:
+            QUEUE_DEPTH.set(0)
             return {"queue_enabled": False}
+        pending = (wan_queue.pending_count if wan_queue else 0) + (genie_queue.pending_count if genie_queue else 0)
+        running = (wan_queue.running_count if wan_queue else 0) + (genie_queue.running_count if genie_queue else 0)
+        QUEUE_DEPTH.set(pending)
         return {
             "queue_enabled": True,
-            "pending": (wan_queue.pending_count if wan_queue else 0) + (genie_queue.pending_count if genie_queue else 0),
-            "running": (wan_queue.running_count if wan_queue else 0) + (genie_queue.running_count if genie_queue else 0),
+            "pending": pending,
+            "running": running,
             "total_tracked": (wan_queue.total_count if wan_queue else 0) + (genie_queue.total_count if genie_queue else 0),
             "queues": {
                 "wan": None if wan_queue is None else wan_queue.snapshot(),
