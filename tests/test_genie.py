@@ -101,6 +101,37 @@ class TestGenieRunner:
         assert result.elapsed_s >= 0
         assert result.error is None
 
+    def test_real_mode_failure_falls_back_to_stub(self, tmp_path, monkeypatch):
+        runner = GenieRunner()
+        runner._mode = "real"
+        runner._model = object()
+
+        def fake_run_real(output_dir, prompt, seed, num_frames, input_tokens):
+            return GenieRunResult(
+                mode="real",
+                tokens_generated=0,
+                frames_generated=0,
+                prompt_frames=8,
+                total_frames=16,
+                spatial_h=16,
+                spatial_w=16,
+                vocab_size=262144,
+                elapsed_s=0.1,
+                model_name="genie-local",
+                device="cuda",
+                error="unsupported device",
+            )
+
+        monkeypatch.setattr(runner, "_run_real", fake_run_real)
+
+        result = runner.run(output_dir=tmp_path / "out", prompt="fallback", seed=7, num_frames=16)
+        assert result.mode == "stub"
+        assert result.error is None
+        assert result.extra["fallback_from"] == "real"
+        assert result.extra["fallback_error"] == "unsupported device"
+        tokens = np.load(result.tokens_path)
+        assert tokens.shape == (result.total_frames, result.spatial_h, result.spatial_w)
+
 
 # ---------------------------------------------------------------------------
 # GenieRolloutBackend unit tests

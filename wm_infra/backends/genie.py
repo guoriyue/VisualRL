@@ -218,8 +218,6 @@ class GenieRolloutBackend(ProduceSampleBackend):
         request_path.write_text(json.dumps(request_payload, indent=2, sort_keys=True))
 
         started_at = time.time()
-        mode = self._runner.mode
-
         rollout = self.temporal_store.create_rollout(
             RolloutCreate(
                 episode_id=episode.episode_id,
@@ -232,7 +230,7 @@ class GenieRolloutBackend(ProduceSampleBackend):
                 step_count=step_count,
                 priority=request.priority,
                 metadata={
-                    "runner_mode": mode,
+                    "runner_mode": self._runner.mode,
                     "prompt": request.sample_spec.prompt,
                     "controls": request.sample_spec.controls,
                     "token_input": token_input_runtime,
@@ -249,12 +247,23 @@ class GenieRolloutBackend(ProduceSampleBackend):
             num_frames=num_frames,
             input_tokens=input_tokens,
         )
+        mode = run_result.mode
+        request_payload["runner_mode"] = mode
+        if run_result.extra.get("fallback_from"):
+            request_payload["fallback_from"] = run_result.extra["fallback_from"]
+            request_payload["fallback_error"] = run_result.extra.get("fallback_error")
+        request_path.write_text(json.dumps(request_payload, indent=2, sort_keys=True))
 
         status = SampleStatus.SUCCEEDED
         error_info: str | None = None
         if run_result.error:
             status = SampleStatus.FAILED
             error_info = run_result.error
+
+        rollout.metadata["runner_mode"] = mode
+        if run_result.extra.get("fallback_from"):
+            rollout.metadata["fallback_from"] = run_result.extra["fallback_from"]
+            rollout.metadata["fallback_error"] = run_result.extra.get("fallback_error")
 
         log_lines = [
             f"Genie runner mode: {mode}",
@@ -269,6 +278,8 @@ class GenieRolloutBackend(ProduceSampleBackend):
             log_lines.append("MAGVIT2 scaffold present: raw token path accepted; native MAGVIT2 tokenization is not implemented yet.")
         if run_result.error:
             log_lines.append(f"ERROR: {run_result.error}")
+        if run_result.extra.get("fallback_from"):
+            log_lines.append(f"FALLBACK: {run_result.extra['fallback_from']} -> {mode}")
         log_path.write_text("\n".join(log_lines) + "\n")
 
         state_uri = f"file://{run_result.tokens_path}" if run_result.tokens_path else None
@@ -478,6 +489,9 @@ class GenieRolloutBackend(ProduceSampleBackend):
             "completed_at": completed_at,
             "elapsed_ms": round((completed_at - started_at) * 1000, 2),
         }
+        if run_result.extra.get("fallback_from"):
+            runtime["fallback_from"] = run_result.extra["fallback_from"]
+            runtime["fallback_error"] = run_result.extra.get("fallback_error")
         if error_info:
             runtime["error"] = error_info
         runtime_path.write_text(json.dumps(runtime, indent=2, sort_keys=True))
@@ -511,6 +525,7 @@ class GenieRolloutBackend(ProduceSampleBackend):
                 "priority": request.priority,
                 "labels": request.labels,
                 "runner_mode": mode,
+                "fallback_from": run_result.extra.get("fallback_from"),
                 "stubbed": mode == "stub",
                 "async": False,
                 "notes": (
