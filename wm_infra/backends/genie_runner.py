@@ -198,7 +198,22 @@ class GenieRunner:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         if self._mode == "real" and self._model is not None:
-            return self._run_real(output_dir, prompt, seed, num_frames, input_tokens)
+            result = self._run_real(output_dir, prompt, seed, num_frames, input_tokens)
+            if result.error:
+                logger.warning(
+                    "Genie real-mode execution failed; falling back to stub mode: %s",
+                    result.error,
+                )
+                self._mode = "stub"
+                fallback = self._run_stub(output_dir, prompt, seed, num_frames, input_tokens)
+                fallback.extra.update(
+                    {
+                        "fallback_from": "real",
+                        "fallback_error": result.error,
+                    }
+                )
+                return fallback
+            return result
         return self._run_stub(output_dir, prompt, seed, num_frames, input_tokens)
 
     # ------------------------------------------------------------------
