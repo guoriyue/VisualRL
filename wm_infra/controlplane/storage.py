@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
+
+from pydantic import ValidationError
 
 from wm_infra.controlplane.schemas import SampleRecord
 
@@ -30,29 +34,64 @@ class SampleManifestStore:
     def _record_path(self, record: SampleRecord) -> Path:
         return self.samples_dir / self._experiment_bucket(record) / f"{record.sample_id}.json"
 
-    def _find_path(self, sample_id: str) -> Path | None:
+    def _candidate_paths(self, sample_id: str) -> list[Path]:
+        candidates: list[Path] = []
         legacy_path = self.samples_dir / f"{sample_id}.json"
         if legacy_path.exists():
-            return legacy_path
+            candidates.append(legacy_path)
 
         for path in sorted(self.samples_dir.glob(f"**/{sample_id}.json")):
-            return path
-        return None
+            if path not in candidates:
+                candidates.append(path)
+        return candidates
+
+    @staticmethod
+    def _atomic_write_text(path: Path, content: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            delete=False,
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+        )
+        tmp_path = Path(tmp.name)
+        try:
+            with tmp:
+                tmp.write(content)
+                tmp.flush()
+                os.fsync(tmp.fileno())
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                tmp_path.unlink()
+            except FileNotFoundError:
+                pass
+            raise
+
+    def _load_record(self, path: Path) -> SampleRecord | None:
+        try:
+            return SampleRecord.model_validate_json(path.read_text())
+        except (FileNotFoundError, json.JSONDecodeError, ValidationError):
+            return None
 
     def put(self, record: SampleRecord) -> SampleRecord:
         path = self._record_path(record)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(record.model_dump(mode="json"), indent=2, sort_keys=True))
+        self._atomic_write_text(path, json.dumps(record.model_dump(mode="json"), indent=2, sort_keys=True))
         return record
 
     def get(self, sample_id: str) -> SampleRecord | None:
-        path = self._find_path(sample_id)
-        if path is None:
-            return None
-        return SampleRecord.model_validate_json(path.read_text())
+        for path in self._candidate_paths(sample_id):
+            record = self._load_record(path)
+            if record is not None:
+                return record
+        return None
 
     def list(self) -> list[SampleRecord]:
         records = []
         for path in sorted(self.samples_dir.glob("**/*.json")):
-            records.append(SampleRecord.model_validate_json(path.read_text()))
+            record = self._load_record(path)
+            if record is not None:
+                records.append(record)
         return records
