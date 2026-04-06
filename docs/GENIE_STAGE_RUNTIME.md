@@ -26,6 +26,7 @@ This document is a backend-specific refinement of the broader execution directio
 
 - `docs/ECS_EXECUTION_RUNTIME.md`
 - `docs/GENIE_ECS_BASELINE.md`
+- `docs/GENIE_ECS_BATCHING_POLICY.md`
 
 ## Why this redesign exists
 

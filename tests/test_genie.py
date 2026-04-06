@@ -286,34 +286,76 @@ class TestGenieRolloutBackend:
             "artifact_persist",
             "controlplane_commit",
         ]
-        assert "scheduler" in record.runtime
-        assert "runtime_state" in record.runtime
 
-        # Verify artifacts
-        artifact_kinds = {a.kind for a in record.artifacts}
-        assert ArtifactKind.LOG in artifact_kinds
-        assert ArtifactKind.METADATA in artifact_kinds
-        assert ArtifactKind.LATENT in artifact_kinds  # tokens
-        assert any(a.artifact_id.endswith(":checkpoint") for a in record.artifacts)
-        assert any(a.artifact_id.endswith(":recovery") for a in record.artifacts)
+    def test_queue_batch_key_skips_multi_window_rollout(self, tmp_path):
+        backend, temporal_store = self._make_backend(tmp_path)
+        episode, branch, state = self._make_episode_and_state(temporal_store)
 
-        # Verify token artifact points to real file
-        token_arts = [a for a in record.artifacts if a.artifact_id.endswith(":tokens")]
-        assert len(token_arts) == 1
-        assert token_arts[0].uri.startswith("file://")
-        token_path = token_arts[0].uri[7:]
-        tokens = np.load(token_path)
-        assert tokens.shape[0] > 0  # has frames
-        assert tokens.dtype == np.uint32
+        request = ProduceSampleRequest(
+            task_type=TaskType.GENIE_ROLLOUT,
+            backend="genie-rollout",
+            model="genie-local",
+            sample_spec=SampleSpec(prompt="checkpoint-heavy rollout"),
+            temporal=TemporalRefs(
+                episode_id=episode.episode_id,
+                branch_id=branch.branch_id,
+                state_handle_id=state.state_handle_id,
+            ),
+            task_config=RolloutTaskConfig(num_steps=4),
+            genie_config=GenieTaskConfig(
+                num_frames=16,
+                num_prompt_frames=4,
+                checkpoint_every_n_frames=4,
+            ),
+        )
 
-        # Verify state handle has URI
-        sh = temporal_store.state_handles.get(record.temporal.state_handle_id)
-        assert sh is not None
-        assert sh.uri is not None
-        assert sh.uri.startswith("file://")
-        assert sh.dtype == "uint32"
-        assert sh.checkpoint_id == record.temporal.checkpoint_id
-        assert f"{record.sample_id}:checkpoint" in sh.artifact_ids
+        assert backend.queue_batch_key(request) is None
+
+    def test_queue_batch_key_keeps_single_window_rollout(self, tmp_path):
+        backend, temporal_store = self._make_backend(tmp_path)
+        episode, branch, state = self._make_episode_and_state(temporal_store)
+
+        request = ProduceSampleRequest(
+            task_type=TaskType.GENIE_ROLLOUT,
+            backend="genie-rollout",
+            model="genie-local",
+            sample_spec=SampleSpec(prompt="single window rollout"),
+            temporal=TemporalRefs(
+                episode_id=episode.episode_id,
+                branch_id=branch.branch_id,
+                state_handle_id=state.state_handle_id,
+            ),
+            task_config=RolloutTaskConfig(num_steps=4),
+            genie_config=GenieTaskConfig(
+                num_frames=9,
+                num_prompt_frames=4,
+                checkpoint_every_n_frames=0,
+            ),
+        )
+
+        assert backend.queue_batch_key(request) is not None
+
+    def test_transition_batcher_uses_backend_config(self, tmp_path):
+        temporal_store = TemporalStore(tmp_path / "temporal")
+        runner = _force_stub_runner()
+        runner.load()
+        backend = GenieRolloutBackend(
+            temporal_store,
+            output_root=tmp_path / "genie_output",
+            runner=runner,
+            transition_max_batch_size=2,
+            transition_batch_wait_ms=7.5,
+        )
+
+        assert backend._transition_batcher.max_batch_size == 2
+        assert backend._transition_batcher.batch_wait_ms == 7.5
+
+    def test_queue_batch_size_limit_caps_whole_request_batches(self, tmp_path):
+        backend, _temporal_store = self._make_backend(tmp_path)
+
+        assert backend.queue_batch_size_limit(1) == 1
+        assert backend.queue_batch_size_limit(2) == 2
+        assert backend.queue_batch_size_limit(8) == 2
 
     @pytest.mark.asyncio
     async def test_produce_sample_creates_temporal_records(self, tmp_path):

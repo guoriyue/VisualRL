@@ -152,6 +152,8 @@ def create_app(
                 temporal_store,
                 output_root=genie_output,
                 runner=genie_runner,
+                transition_max_batch_size=config.controlplane.genie_max_batch_size,
+                transition_batch_wait_ms=config.controlplane.genie_batch_wait_ms,
             )
             registry.register(genie_backend)
         if registry.get("wan-video") is None:
@@ -214,6 +216,7 @@ def create_app(
         genie_job_queue = None
         genie_backend = registry.get("genie-rollout")
         if isinstance(genie_backend, GenieRolloutBackend):
+            genie_queue_batch_size = genie_backend.queue_batch_size_limit(config.controlplane.genie_max_batch_size)
             genie_job_queue = GenieJobQueue(
                 execute_fn=genie_backend.execute_job,
                 execute_many_fn=genie_backend.execute_job_batch,
@@ -222,7 +225,7 @@ def create_app(
                 queue_name="genie",
                 max_queue_size=config.controlplane.genie_max_queue_size,
                 max_concurrent=config.controlplane.genie_max_concurrent_jobs,
-                max_batch_size=config.controlplane.genie_max_batch_size,
+                max_batch_size=genie_queue_batch_size,
                 batch_wait_ms=config.controlplane.genie_batch_wait_ms,
             )
             genie_backend._job_queue = genie_job_queue

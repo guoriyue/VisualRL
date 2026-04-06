@@ -3,9 +3,9 @@
   "blocked": false,
   "blocker": null,
   "branch": "codex/ecs-runtime-int4-cleanup",
-  "last_completed_step": "step_1_baseline",
-  "current_step": "step_2_batching_policy",
-  "next_step": "step_2_batching_policy",
+  "last_completed_step": "step_2_batching_policy",
+  "current_step": "step_3_runtime_profile",
+  "next_step": "step_3_runtime_profile",
   "dirty_worktree_at_start": [
     "M AGENTS.md",
     "M tests/test_bench_samples_api.py",
@@ -53,64 +53,65 @@
     "genie_profile_batched": "benchmarks/results/genie_profile_batched.json",
     "genie_heavy_off": "benchmarks/results/genie_heavy_off.json",
     "genie_heavy_on": "benchmarks/results/genie_heavy_on.json",
-    "baseline_doc": "docs/GENIE_ECS_BASELINE.md"
+    "baseline_doc": "docs/GENIE_ECS_BASELINE.md",
+    "batching_policy_doc": "docs/GENIE_ECS_BATCHING_POLICY.md"
   },
   "benchmarks": {
     "genie_default_baseline": {
-      "submit_mean_ms": 1105.245,
-      "submit_p95_ms": 1837.43035,
-      "terminal_mean_ms": 2382.764875,
-      "terminal_p95_ms": 3830.27875,
+      "submit_mean_ms": 2424.265125,
+      "submit_p95_ms": 3473.7300999999998,
+      "terminal_mean_ms": 2428.410125,
+      "terminal_p95_ms": 3478.4401500000004,
       "success_rate": 1.0
     },
     "genie_default_batched": {
-      "submit_mean_ms": 707.580375,
-      "submit_p95_ms": 1408.49935,
-      "terminal_mean_ms": 2427.50475,
-      "terminal_p95_ms": 3444.31905,
+      "submit_mean_ms": 5.1405,
+      "submit_p95_ms": 5.3355,
+      "terminal_mean_ms": 2389.425875,
+      "terminal_p95_ms": 3456.3505,
       "success_rate": 1.0,
-      "terminal_mean_ratio_vs_baseline": 1.0187764539713556,
-      "terminal_p95_ratio_vs_baseline": 0.8992345661526593,
+      "terminal_mean_ratio_vs_baseline": 0.9839465955117445,
+      "terminal_p95_ratio_vs_baseline": 0.9936495529468861,
       "gate_pass": true
     },
     "genie_profile_baseline": {
-      "submit_mean_ms": 2035.5674999999999,
-      "submit_p95_ms": 2035.7285499999998,
-      "terminal_mean_ms": 6694.12375,
-      "terminal_p95_ms": 9207.270349999999,
+      "submit_mean_ms": 9069.378625,
+      "submit_p95_ms": 9069.532,
+      "terminal_mean_ms": 9076.2415,
+      "terminal_p95_ms": 9076.3212,
       "success_rate": 1.0
     },
     "genie_profile_batched": {
-      "submit_mean_ms": 11.392125,
-      "submit_p95_ms": 11.53035,
-      "terminal_mean_ms": 10066.317875,
-      "terminal_p95_ms": 10066.3891,
+      "submit_mean_ms": 1961.656,
+      "submit_p95_ms": 1961.82485,
+      "terminal_mean_ms": 6084.44525,
+      "terminal_p95_ms": 8398.7696,
       "success_rate": 1.0,
-      "terminal_mean_ratio_vs_baseline": 1.5037543748724396,
-      "terminal_p95_ratio_vs_baseline": 1.0933087350910687,
-      "gate_pass": false
+      "terminal_mean_ratio_vs_baseline": 0.6703705768516625,
+      "terminal_p95_ratio_vs_baseline": 0.925349534787288,
+      "gate_pass": true
     },
     "genie_heavy_off": {
-      "submit_mean_ms": 841.121,
-      "submit_p95_ms": 1667.7308,
-      "terminal_mean_ms": 4114.00175,
-      "terminal_p95_ms": 5043.3,
+      "submit_mean_ms": 4172.982625000001,
+      "submit_p95_ms": 5083.019,
+      "terminal_mean_ms": 4177.4135,
+      "terminal_p95_ms": 5088.083549999999,
       "success_rate": 1.0
     },
     "genie_heavy_on": {
-      "submit_mean_ms": 5.73275,
-      "submit_p95_ms": 5.84565,
-      "terminal_mean_ms": 4446.339125,
-      "terminal_p95_ms": 5709.77265,
+      "submit_mean_ms": 1626.89075,
+      "submit_p95_ms": 2199.6282,
+      "terminal_mean_ms": 4373.812,
+      "terminal_p95_ms": 5565.04225,
       "success_rate": 1.0,
-      "terminal_mean_ratio_vs_baseline": 1.0807820208146484,
-      "terminal_p95_ratio_vs_baseline": 1.132150110046993,
-      "gate_pass": false
+      "terminal_mean_ratio_vs_baseline": 1.047014378634052,
+      "terminal_p95_ratio_vs_baseline": 1.0937403435523382,
+      "gate_pass": true
     },
     "cleanup_gate": {
       "semantic_equivalence": "pending",
       "default_workload": true,
-      "heavy_workload": false,
+      "heavy_workload": true,
       "manifest_lineage_artifacts": "pending"
     }
   },
@@ -118,15 +119,22 @@
     {
       "command": "pytest tests/test_benchmarking.py tests/test_bench_samples_api.py tests/test_genie.py tests/test_genie_batcher.py tests/test_genie_runtime.py",
       "status": "passed"
+    },
+    {
+      "command": "pytest tests/test_genie.py tests/test_genie_batcher.py tests/test_server.py tests/test_bench_samples_api.py",
+      "status": "passed"
     }
   ],
-  "commits": [],
+  "commits": [
+    "3cff53e"
+  ],
   "notes": [
     "Execution started with unrelated dirty changes present in the worktree.",
     "This run is constrained to genie-rollout and the plan/status files.",
     "Step 1 baseline is complete on the current HEAD.",
-    "Default batched workload is within gate.",
-    "Heavy batched workload currently fails the cleanup gate.",
-    "Profile batched workload currently regresses and needs runtime/policy investigation."
+    "Step 2 converged the batching policy so that off disables both queue and transition cross-request batching.",
+    "Whole-request queue batching is now restricted to single-window workloads and capped at batch size 2.",
+    "Default and heavy benchmark gates are both green after the policy change.",
+    "Profile workload also improved after removing the earlier head-of-line behavior."
   ]
 }

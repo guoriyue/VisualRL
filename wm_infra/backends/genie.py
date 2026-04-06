@@ -25,6 +25,7 @@ from wm_infra.backends.genie_runtime import (
     GenieResidencyTier,
     GenieRuntimeState,
     build_transition_entities,
+    frame_windows,
     make_stage_signature,
     prompt_cache_key,
 )
@@ -61,13 +62,19 @@ class GenieRolloutBackend(ProduceSampleBackend):
         output_root: str | Path | None = None,
         backend_name: str = "genie-rollout",
         runner: GenieRunner | None = None,
+        transition_max_batch_size: int = 8,
+        transition_batch_wait_ms: float = 2.0,
     ) -> None:
         self.temporal_store = temporal_store
         self.backend_name = backend_name
         self._runner = runner or GenieRunner()
         self._job_queue = None
         self._prompt_state_cache = GeniePromptStateCache()
-        self._transition_batcher = GenieTransitionBatcher(self._runner)
+        self._transition_batcher = GenieTransitionBatcher(
+            self._runner,
+            max_batch_size=max(1, transition_max_batch_size),
+            batch_wait_ms=max(transition_batch_wait_ms, 0.0),
+        )
 
         if output_root is not None:
             self.output_root: Path | None = Path(output_root)
@@ -1059,11 +1066,19 @@ class GenieRolloutBackend(ProduceSampleBackend):
             },
         )
 
-    def queue_batch_key(self, request: ProduceSampleRequest) -> tuple[Any, ...]:
+    def queue_batch_key(self, request: ProduceSampleRequest) -> tuple[Any, ...] | None:
         """Best-effort queue key for grouping compatible Genie requests."""
 
         task_config = self._effective_task_config(request)
         genie_config = self._effective_genie_config(request, task_config)
+        if len(
+            frame_windows(
+                total_frames=genie_config.num_frames,
+                num_prompt_frames=genie_config.num_prompt_frames,
+                checkpoint_every_n_frames=genie_config.checkpoint_every_n_frames,
+            )
+        ) > 1:
+            return None
         token_shape = tuple(request.token_input.shape) if request.token_input and request.token_input.shape else None
         return (
             request.backend,
@@ -1079,6 +1094,12 @@ class GenieRolloutBackend(ProduceSampleBackend):
             bool(request.genie_config and request.genie_config.input_tokens_b64),
             bool(request.temporal and request.temporal.state_handle_id),
         )
+
+    @staticmethod
+    def queue_batch_size_limit(configured_max_batch_size: int) -> int:
+        """Cap whole-request queue batching to avoid head-of-line spikes."""
+
+        return max(1, min(configured_max_batch_size, 2))
 
     async def execute_job_batch(self, items: list[tuple[ProduceSampleRequest, str]]) -> list[SampleRecord]:
         """Execute multiple compatible Genie jobs with cross-request transition batching."""

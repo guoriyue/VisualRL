@@ -22,30 +22,30 @@
   "gpu_profile": {
     "available": true,
     "device_index": 0,
-    "duration_s": 5.048268284997903,
+    "duration_s": 4.964006404974498,
     "enabled": true,
     "error": null,
     "first_sample": {
       "gpu_index": "0",
       "gpu_name": "NVIDIA GeForce RTX 5090",
-      "timestamp": "2026/04/06 00:17:29.939"
+      "timestamp": "2026/04/06 00:30:20.258"
     },
     "last_sample": {
       "gpu_index": "0",
       "gpu_name": "NVIDIA GeForce RTX 5090",
-      "timestamp": "2026/04/06 00:17:34.907"
+      "timestamp": "2026/04/06 00:30:25.198"
     },
     "peak": {
       "memory_total_mib": 32607.0,
-      "memory_used_mib": 2224.0,
-      "utilization_gpu_pct": 98.0,
-      "utilization_memory_pct": 18.0
+      "memory_used_mib": 2135.0,
+      "utilization_gpu_pct": 89.0,
+      "utilization_memory_pct": 17.0
     },
     "poll_interval_s": 0.1,
-    "sample_count": 43,
+    "sample_count": 42,
     "series": {
       "memory_total_mib": {
-        "count": 43.0,
+        "count": 42.0,
         "max": 32607.0,
         "mean": 32607.0,
         "min": 32607.0,
@@ -54,31 +54,31 @@
         "p99": 32607.0
       },
       "memory_used_mib": {
-        "count": 43.0,
-        "max": 2224.0,
-        "mean": 1864.8372093023256,
-        "min": 863.0,
-        "p50": 2172.0,
-        "p95": 2216.0,
-        "p99": 2224.0
+        "count": 42.0,
+        "max": 2135.0,
+        "mean": 1810.452380952381,
+        "min": 846.0,
+        "p50": 2135.0,
+        "p95": 2135.0,
+        "p99": 2135.0
       },
       "utilization_gpu_pct": {
-        "count": 43.0,
-        "max": 98.0,
-        "mean": 51.16279069767442,
+        "count": 42.0,
+        "max": 89.0,
+        "mean": 45.30952380952381,
         "min": 0.0,
-        "p50": 96.0,
-        "p95": 98.0,
-        "p99": 98.0
+        "p50": 73.0,
+        "p95": 89.0,
+        "p99": 89.0
       },
       "utilization_memory_pct": {
-        "count": 43.0,
-        "max": 18.0,
-        "mean": 9.30232558139535,
+        "count": 42.0,
+        "max": 17.0,
+        "mean": 8.666666666666666,
         "min": 0.0,
-        "p50": 18.0,
-        "p95": 18.0,
-        "p99": 18.0
+        "p50": 14.0,
+        "p95": 17.0,
+        "p99": 17.0
       }
     },
     "source": "nvidia-smi"
@@ -87,7 +87,7 @@
     "This harness measures wm-infra API and queue behavior, not model quality.",
     "Comparisons against vLLM or sglang are only valid when the workload definition matches and the external system can actually execute that workload."
   ],
-  "recorded_at": "2026-04-06T07:17:34.965057+00:00",
+  "recorded_at": "2026-04-06T07:30:25.202419+00:00",
   "request_payload": {
     "backend": "genie-rollout",
     "genie_config": {
@@ -113,10 +113,10 @@
     "task_type": "genie_rollout"
   },
   "run_context": {
-    "captured_at": "2026-04-06T07:17:34.971712+00:00",
+    "captured_at": "2026-04-06T07:30:25.209782+00:00",
     "git": {
       "branch": "codex/ecs-runtime-int4-cleanup",
-      "commit": "bd1c095717f23f2e655fad6a5e1d52f2aab4b2a1",
+      "commit": "3cff53e235f2a811cf96aa1616efccb7f6833eaa",
       "dirty": true,
       "remote": "git@github.com:guoriyue/wm-infra.git"
     },
@@ -138,16 +138,16 @@
       "initial_status": "queued",
       "iteration": 0,
       "metrics": {
-        "poll_count": 2.0,
-        "submit_latency_ms": 1836.744,
-        "terminal_latency_ms": 3090.385
+        "poll_count": 1.0,
+        "submit_latency_ms": 3473.482,
+        "terminal_latency_ms": 3478.433
       },
-      "sample_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549",
+      "sample_id": "fe8acc66-7e1f-455a-96d9-4a925180826b",
       "status": "succeeded",
       "terminal_payload": {
         "artifacts": [
           {
-            "artifact_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549:request",
+            "artifact_id": "fe8acc66-7e1f-455a-96d9-4a925180826b:request",
             "bytes": 1370,
             "kind": "metadata",
             "metadata": {
@@ -155,22 +155,22 @@
               "role": "request"
             },
             "mime_type": "application/json",
-            "sha256": "3993ab99c0976a7c607650dd18d49bbf4c6216550c08d45447ac7bb4e163fc5e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/request.json"
+            "sha256": "434b8754b9a785015426776fcb5201aec2e902c6e9d1df66f0b7553d9e2483c1",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/request.json"
           },
           {
-            "artifact_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549:log",
+            "artifact_id": "fe8acc66-7e1f-455a-96d9-4a925180826b:log",
             "bytes": 386,
             "kind": "log",
             "metadata": {
               "exists": true
             },
             "mime_type": "text/plain",
-            "sha256": "687809f627386d6f15bd74c9200b03b6410d8194b4ffa99677d55f5ae9681785",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/runner.log"
+            "sha256": "f9544319ef0f6b698740b19f8ec99641006be4dd9c1d7b92231c3345d383066a",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/runner.log"
           },
           {
-            "artifact_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549:runtime",
+            "artifact_id": "fe8acc66-7e1f-455a-96d9-4a925180826b:runtime",
             "bytes": 5863,
             "kind": "metadata",
             "metadata": {
@@ -178,11 +178,11 @@
               "role": "runtime"
             },
             "mime_type": "application/json",
-            "sha256": "3dbbf5bf97e27cb0369ede104e53afa9952104a15bab224cd3e49dc23af51f3a",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/runtime.json"
+            "sha256": "b249830ed33d803ff5673795c1dad25d82d68d98116ec9822f08d83bdfc4ea61",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/runtime.json"
           },
           {
-            "artifact_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549:checkpoint",
+            "artifact_id": "fe8acc66-7e1f-455a-96d9-4a925180826b:checkpoint",
             "bytes": 1322,
             "kind": "metadata",
             "metadata": {
@@ -190,11 +190,11 @@
               "role": "checkpoint"
             },
             "mime_type": "application/json",
-            "sha256": "be7c5127b8c2d0eab9c7598e2d27fb770b6d42cf193b74b1cf841005207557ee",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/checkpoint.json"
+            "sha256": "54a562aadb33976d449777a4399464c49165d84e2c1c77024d4f48d0f603aa5c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/checkpoint.json"
           },
           {
-            "artifact_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549:recovery",
+            "artifact_id": "fe8acc66-7e1f-455a-96d9-4a925180826b:recovery",
             "bytes": 1428,
             "kind": "metadata",
             "metadata": {
@@ -202,11 +202,11 @@
               "role": "recovery"
             },
             "mime_type": "application/json",
-            "sha256": "6269cf5844b8284475fb021eeed83fc1fc319e3561c137368bc7d78d2c1d2b14",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/recovery.json"
+            "sha256": "7ed5f83b0f3fd4dbbcd5add0037843c303655f8cd229e6dbf1ba25e4da1c49fe",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/recovery.json"
           },
           {
-            "artifact_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549:tokens",
+            "artifact_id": "fe8acc66-7e1f-455a-96d9-4a925180826b:tokens",
             "bytes": 14528,
             "kind": "latent",
             "metadata": {
@@ -220,35 +220,35 @@
               ]
             },
             "mime_type": "application/octet-stream",
-            "sha256": "1d7677d062c6f379351ea26ce7f4fede408f2ccdcb18e7e43282f295509c6e1e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/tokens.npy"
+            "sha256": "73b15a08e70a6b3c25278c9902dbedfd453ffd2605f8444ca2ffe44a451e268c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/tokens.npy"
           },
           {
-            "artifact_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549:state",
-            "bytes": 369,
+            "artifact_id": "fe8acc66-7e1f-455a-96d9-4a925180826b:state",
+            "bytes": 368,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "state"
             },
             "mime_type": "application/json",
-            "sha256": "131bceaec4decd7643238d901e8a1cbe44d5de239de0a99f99f24d3576bfb911",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/state.json"
+            "sha256": "6ea3e86fe191c63e1aa75475b47abecaf5707d0c329549c23a75d4c64ebeb6f9",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/state.json"
           },
           {
-            "artifact_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549:temporal-rollout",
+            "artifact_id": "fe8acc66-7e1f-455a-96d9-4a925180826b:temporal-rollout",
             "bytes": null,
             "kind": "metadata",
             "metadata": {
-              "checkpoint_id": "732e242a-cc0f-46cb-a089-f5bb10cef688",
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-              "rollout_id": "5f1d4e84-4954-4e6e-9411-423f6d125eb5",
+              "checkpoint_id": "eced25fb-234b-422a-8a59-1114173e0484",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+              "rollout_id": "226b32d3-0c26-4551-b78d-063b887e01a5",
               "runner_mode": "real",
-              "state_handle_id": "2447b687-de56-44bf-a78e-c3fa4538a21c"
+              "state_handle_id": "253f81a9-c9bf-4c5b-8ce9-97764cfe001d"
             },
             "mime_type": null,
             "sha256": null,
-            "uri": "temporal://rollouts/5f1d4e84-4954-4e6e-9411-423f6d125eb5"
+            "uri": "temporal://rollouts/226b32d3-0c26-4551-b78d-063b887e01a5"
           }
         ],
         "backend": "genie-rollout",
@@ -285,18 +285,18 @@
             "controlplane_commit"
           ],
           "stage_timings_ms": {
-            "admission_ms": 0.004,
-            "artifact_persist_ms": 3.253,
+            "admission_ms": 0.005,
+            "artifact_persist_ms": 2.908,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.671,
-            "prompt_prepare_ms": 3.826,
-            "runner_exec_ms": 520.636,
-            "runner_load_ms": 1824.124,
-            "state_materialize_ms": 0.037,
-            "state_token_prep_ms": 3.863,
-            "temporal_persist_ms": 0.671,
-            "total_elapsed_ms": 2358.173,
-            "transition_ms": 520.636
+            "controlplane_commit_ms": 0.669,
+            "prompt_prepare_ms": 4.227,
+            "runner_exec_ms": 484.988,
+            "runner_load_ms": 1943.181,
+            "state_materialize_ms": 0.032,
+            "state_token_prep_ms": 4.259,
+            "temporal_persist_ms": 0.669,
+            "total_elapsed_ms": 2438.097,
+            "transition_ms": 484.988
           },
           "stubbed": false
         },
@@ -315,12 +315,12 @@
         "runtime": {
           "async": false,
           "checkpoint_deltas": [],
-          "checkpoint_id": "732e242a-cc0f-46cb-a089-f5bb10cef688",
-          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/checkpoint.json",
-          "completed_at": 1775459852.3774354,
+          "checkpoint_id": "eced25fb-234b-422a-8a59-1114173e0484",
+          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/checkpoint.json",
+          "completed_at": 1775460622.776237,
           "device": "cuda",
-          "elapsed_ms": 527.07,
-          "elapsed_s": 0.5206,
+          "elapsed_ms": 487.67,
+          "elapsed_s": 0.485,
           "frames_generated": 5,
           "genie_config": {
             "checkpoint_every_n_frames": 0,
@@ -331,16 +331,16 @@
             "temperature": 0.0,
             "tokenizer_kind": "genie_stmaskgit"
           },
-          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/runner.log",
+          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/runner.log",
           "model": "1x-technologies/GENIE_210M_v0",
           "prompt_frames": 4,
           "queue_lane": "hot_continuation",
-          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/recovery.json",
-          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/request.json",
-          "rollout_id": "5f1d4e84-4954-4e6e-9411-423f6d125eb5",
+          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/recovery.json",
+          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/request.json",
+          "rollout_id": "226b32d3-0c26-4551-b78d-063b887e01a5",
           "runner": "genie-real",
           "runner_mode": "real",
-          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/runtime.json",
+          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/runtime.json",
           "runtime_state": {
             "checkpoint_delta_ref": null,
             "last_completed_frame": 9,
@@ -363,10 +363,10 @@
               }
             ],
             "cross_request_batcher": {
-              "batch_wait_ms": 2.0,
+              "batch_wait_ms": 0.0,
               "batched_requests": 0,
               "largest_batch_size": 1,
-              "max_batch_size": 8,
+              "max_batch_size": 1,
               "max_observed_batch_size": 1,
               "mean_batch_size": 1.0,
               "total_flushed_batches": 1,
@@ -407,15 +407,15 @@
           ],
           "stage_history": [
             {
-              "elapsed_ms": 0.004,
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
+              "elapsed_ms": 0.005,
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
               "queue_lane": "cold_materialize",
               "runner_mode": "real",
-              "sample_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549",
+              "sample_id": "fe8acc66-7e1f-455a-96d9-4a925180826b",
               "stage": "admission"
             },
             {
-              "elapsed_ms": 0.037,
+              "elapsed_ms": 0.032,
               "materialized_bytes": 0,
               "queue_lane": "cold_materialize",
               "resident_tier": "cold_file",
@@ -423,7 +423,7 @@
               "stage": "state_materialize"
             },
             {
-              "elapsed_ms": 3.826,
+              "elapsed_ms": 4.227,
               "prompt_frames": 4,
               "queue_lane": "hot_continuation",
               "runner_mode": "real",
@@ -435,9 +435,9 @@
               "chunk_size": 1,
               "cross_request_batch_id": "transition:4:9:1",
               "cross_request_sample_ids": [
-                "41dc7b85-2fbd-4d6f-aec8-15ce69a54549"
+                "fe8acc66-7e1f-455a-96d9-4a925180826b"
               ],
-              "elapsed_ms": 520.636,
+              "elapsed_ms": 484.988,
               "expected_occupancy": 1.0,
               "frame_range": [
                 4,
@@ -461,48 +461,48 @@
             },
             {
               "checkpoint_delta_count": 0,
-              "elapsed_ms": 3.253,
+              "elapsed_ms": 2.908,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "artifact_persist"
             },
             {
               "checkpoint_count": 1,
-              "elapsed_ms": 0.671,
+              "elapsed_ms": 0.669,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "controlplane_commit"
             }
           ],
           "stage_timings_ms": {
-            "admission_ms": 0.004,
-            "artifact_persist_ms": 3.253,
+            "admission_ms": 0.005,
+            "artifact_persist_ms": 2.908,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.671,
-            "prompt_prepare_ms": 3.826,
-            "runner_exec_ms": 520.636,
-            "runner_load_ms": 1824.124,
-            "state_materialize_ms": 0.037,
-            "state_token_prep_ms": 3.863,
-            "temporal_persist_ms": 0.671,
-            "total_elapsed_ms": 2358.173,
-            "transition_ms": 520.636
+            "controlplane_commit_ms": 0.669,
+            "prompt_prepare_ms": 4.227,
+            "runner_exec_ms": 484.988,
+            "runner_load_ms": 1943.181,
+            "state_materialize_ms": 0.032,
+            "state_token_prep_ms": 4.259,
+            "temporal_persist_ms": 0.669,
+            "total_elapsed_ms": 2438.097,
+            "transition_ms": 484.988
           },
-          "started_at": 1775459851.850365,
-          "state_handle_id": "2447b687-de56-44bf-a78e-c3fa4538a21c",
-          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/state.json",
+          "started_at": 1775460622.2885635,
+          "state_handle_id": "253f81a9-c9bf-4c5b-8ce9-97764cfe001d",
+          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/state.json",
           "status_history": [
             {
               "status": "queued",
-              "timestamp": 1775459851.850365
+              "timestamp": 1775460622.2885635
             },
             {
               "status": "running",
-              "timestamp": 1775459851.850365
+              "timestamp": 1775460622.2885635
             },
             {
               "status": "succeeded",
-              "timestamp": 1775459852.3774354
+              "timestamp": 1775460622.776237
             }
           ],
           "temporal": true,
@@ -510,10 +510,10 @@
             "token_input_mode": "none"
           },
           "tokens_generated": 2000,
-          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/41dc7b85-2fbd-4d6f-aec8-15ce69a54549/tokens.npy",
+          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/fe8acc66-7e1f-455a-96d9-4a925180826b/tokens.npy",
           "total_frames": 9
         },
-        "sample_id": "41dc7b85-2fbd-4d6f-aec8-15ce69a54549",
+        "sample_id": "fe8acc66-7e1f-455a-96d9-4a925180826b",
         "sample_spec": {
           "controls": {},
           "duration_seconds": null,
@@ -539,12 +539,12 @@
         },
         "task_type": "genie_rollout",
         "temporal": {
-          "branch_id": "5071f91d-486e-4b81-b089-1147af7290ac",
-          "checkpoint_id": "732e242a-cc0f-46cb-a089-f5bb10cef688",
-          "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-          "parent_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-          "rollout_id": "5f1d4e84-4954-4e6e-9411-423f6d125eb5",
-          "state_handle_id": "2447b687-de56-44bf-a78e-c3fa4538a21c"
+          "branch_id": "5defacbd-e5b9-4c5a-84e7-1e9ca4fc0262",
+          "checkpoint_id": "eced25fb-234b-422a-8a59-1114173e0484",
+          "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+          "parent_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
+          "rollout_id": "226b32d3-0c26-4551-b78d-063b887e01a5",
+          "state_handle_id": "253f81a9-c9bf-4c5b-8ce9-97764cfe001d"
         },
         "token_input": null,
         "wan_config": null
@@ -554,16 +554,16 @@
       "initial_status": "queued",
       "iteration": 1,
       "metrics": {
-        "poll_count": 2.0,
-        "submit_latency_ms": 1837.145,
-        "terminal_latency_ms": 3090.394
+        "poll_count": 1.0,
+        "submit_latency_ms": 3473.721,
+        "terminal_latency_ms": 3478.444
       },
-      "sample_id": "677f9378-aa04-438c-af17-4e9f408f316b",
+      "sample_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4",
       "status": "succeeded",
       "terminal_payload": {
         "artifacts": [
           {
-            "artifact_id": "677f9378-aa04-438c-af17-4e9f408f316b:request",
+            "artifact_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4:request",
             "bytes": 1370,
             "kind": "metadata",
             "metadata": {
@@ -571,58 +571,58 @@
               "role": "request"
             },
             "mime_type": "application/json",
-            "sha256": "8fd1114f7698dcb5af8b6f2de3eda6f3e4e2310a2f3f0bbeae9c3a1906d00561",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/request.json"
+            "sha256": "0130f6ffd07d2e222e5f724803bf91145914935ec6aa583e9b2afdbf48e5c1be",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/request.json"
           },
           {
-            "artifact_id": "677f9378-aa04-438c-af17-4e9f408f316b:log",
+            "artifact_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4:log",
             "bytes": 394,
             "kind": "log",
             "metadata": {
               "exists": true
             },
             "mime_type": "text/plain",
-            "sha256": "fe5d9ad51c97518b040080e2f14fb2fb130bd072e30e63a20e9f27d1afe42103",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/runner.log"
+            "sha256": "83800eadaa206d609d2afef2d2ae4b9161a37b4fc39841fc1cf39ed0fccb24d3",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/runner.log"
           },
           {
-            "artifact_id": "677f9378-aa04-438c-af17-4e9f408f316b:runtime",
-            "bytes": 6018,
+            "artifact_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4:runtime",
+            "bytes": 6015,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "runtime"
             },
             "mime_type": "application/json",
-            "sha256": "3d7656f76e6e827a46ead2095083ef97e8b0b187c07e40754b9e441ecca7a2f1",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/runtime.json"
+            "sha256": "a47700f12b5750578a19291b472a9f536f1d308967eb1a6671643f600fdc1018",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/runtime.json"
           },
           {
-            "artifact_id": "677f9378-aa04-438c-af17-4e9f408f316b:checkpoint",
-            "bytes": 1471,
+            "artifact_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4:checkpoint",
+            "bytes": 1470,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "checkpoint"
             },
             "mime_type": "application/json",
-            "sha256": "ebbbfd926e623a0b4bdcdf10bdb162ca058febac201f5ac84a45dcc202abf2ff",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/checkpoint.json"
+            "sha256": "386c8a07e7380a8c2dd2bd5a7a59188e61d8cd1a2dacfc9d73a6dedededcd1c3",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/checkpoint.json"
           },
           {
-            "artifact_id": "677f9378-aa04-438c-af17-4e9f408f316b:recovery",
-            "bytes": 1577,
+            "artifact_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4:recovery",
+            "bytes": 1576,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "recovery"
             },
             "mime_type": "application/json",
-            "sha256": "d124d6526ea7da8371a9b21b7192db1263f536747ab3ca3c91e324182d364bd4",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/recovery.json"
+            "sha256": "40c17afea7ac011ba2b0e8ae536ac1f0a452748e6b7f2c265cef3265478cfa07",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/recovery.json"
           },
           {
-            "artifact_id": "677f9378-aa04-438c-af17-4e9f408f316b:tokens",
+            "artifact_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4:tokens",
             "bytes": 14528,
             "kind": "latent",
             "metadata": {
@@ -636,11 +636,11 @@
               ]
             },
             "mime_type": "application/octet-stream",
-            "sha256": "1d7677d062c6f379351ea26ce7f4fede408f2ccdcb18e7e43282f295509c6e1e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/tokens.npy"
+            "sha256": "73b15a08e70a6b3c25278c9902dbedfd453ffd2605f8444ca2ffe44a451e268c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/tokens.npy"
           },
           {
-            "artifact_id": "677f9378-aa04-438c-af17-4e9f408f316b:state",
+            "artifact_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4:state",
             "bytes": 369,
             "kind": "metadata",
             "metadata": {
@@ -648,23 +648,23 @@
               "role": "state"
             },
             "mime_type": "application/json",
-            "sha256": "8fc7024cdc32d698b1ade9a27880eaa86e85f53b0deadde0affa3f15a1b75418",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/state.json"
+            "sha256": "045d3d787b215f4873b8398b6074ad2bb667e232cd7ce160cb2aa979f8f6d110",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/state.json"
           },
           {
-            "artifact_id": "677f9378-aa04-438c-af17-4e9f408f316b:temporal-rollout",
+            "artifact_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4:temporal-rollout",
             "bytes": null,
             "kind": "metadata",
             "metadata": {
-              "checkpoint_id": "19fdb52f-9764-4228-8959-01ed9cdf5577",
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-              "rollout_id": "c2e6c528-7fdb-4b19-8878-a21f9235c322",
+              "checkpoint_id": "3dec1ff5-b95c-4a84-90f8-14dad4c43d5c",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+              "rollout_id": "913b0f56-c72e-4bcb-be96-38ad6a57c428",
               "runner_mode": "real",
-              "state_handle_id": "8d56c39b-d2dc-46cc-80b1-7f70bff6999e"
+              "state_handle_id": "667ea1ce-3a9c-43db-a584-6483a89996d7"
             },
             "mime_type": null,
             "sha256": null,
-            "uri": "temporal://rollouts/c2e6c528-7fdb-4b19-8878-a21f9235c322"
+            "uri": "temporal://rollouts/913b0f56-c72e-4bcb-be96-38ad6a57c428"
           }
         ],
         "backend": "genie-rollout",
@@ -702,17 +702,17 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 3.675,
+            "artifact_persist_ms": 2.551,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.474,
-            "prompt_prepare_ms": 0.56,
-            "runner_exec_ms": 337.829,
+            "controlplane_commit_ms": 0.547,
+            "prompt_prepare_ms": 0.498,
+            "runner_exec_ms": 333.492,
             "runner_load_ms": 0.003,
-            "state_materialize_ms": 0.031,
-            "state_token_prep_ms": 0.591,
-            "temporal_persist_ms": 0.474,
-            "total_elapsed_ms": 346.605,
-            "transition_ms": 337.829
+            "state_materialize_ms": 0.032,
+            "state_token_prep_ms": 0.53,
+            "temporal_persist_ms": 0.547,
+            "total_elapsed_ms": 338.169,
+            "transition_ms": 333.492
           },
           "stubbed": false
         },
@@ -731,12 +731,12 @@
         "runtime": {
           "async": false,
           "checkpoint_deltas": [],
-          "checkpoint_id": "19fdb52f-9764-4228-8959-01ed9cdf5577",
-          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/checkpoint.json",
-          "completed_at": 1775459852.7283418,
+          "checkpoint_id": "3dec1ff5-b95c-4a84-90f8-14dad4c43d5c",
+          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/checkpoint.json",
+          "completed_at": 1775460623.1182854,
           "device": "cuda",
-          "elapsed_ms": 343.13,
-          "elapsed_s": 0.3378,
+          "elapsed_ms": 335.5,
+          "elapsed_s": 0.3335,
           "frames_generated": 5,
           "genie_config": {
             "checkpoint_every_n_frames": 0,
@@ -747,16 +747,16 @@
             "temperature": 0.0,
             "tokenizer_kind": "genie_stmaskgit"
           },
-          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/runner.log",
+          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/runner.log",
           "model": "1x-technologies/GENIE_210M_v0",
           "prompt_frames": 4,
           "queue_lane": "hot_continuation",
-          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/recovery.json",
-          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/request.json",
-          "rollout_id": "c2e6c528-7fdb-4b19-8878-a21f9235c322",
+          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/recovery.json",
+          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/request.json",
+          "rollout_id": "913b0f56-c72e-4bcb-be96-38ad6a57c428",
           "runner": "genie-real",
           "runner_mode": "real",
-          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/runtime.json",
+          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/runtime.json",
           "runtime_state": {
             "checkpoint_delta_ref": null,
             "last_completed_frame": 9,
@@ -779,10 +779,10 @@
               }
             ],
             "cross_request_batcher": {
-              "batch_wait_ms": 2.0,
+              "batch_wait_ms": 0.0,
               "batched_requests": 0,
               "largest_batch_size": 1,
-              "max_batch_size": 8,
+              "max_batch_size": 1,
               "max_observed_batch_size": 1,
               "mean_batch_size": 1.0,
               "total_flushed_batches": 2,
@@ -824,14 +824,14 @@
           "stage_history": [
             {
               "elapsed_ms": 0.002,
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
               "queue_lane": "cold_materialize",
               "runner_mode": "real",
-              "sample_id": "677f9378-aa04-438c-af17-4e9f408f316b",
+              "sample_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4",
               "stage": "admission"
             },
             {
-              "elapsed_ms": 0.031,
+              "elapsed_ms": 0.032,
               "materialized_bytes": 6400,
               "queue_lane": "cold_materialize",
               "resident_tier": "hot_gpu",
@@ -839,7 +839,7 @@
               "stage": "state_materialize"
             },
             {
-              "elapsed_ms": 0.56,
+              "elapsed_ms": 0.498,
               "prompt_frames": 4,
               "queue_lane": "hot_continuation",
               "runner_mode": "real",
@@ -851,9 +851,9 @@
               "chunk_size": 1,
               "cross_request_batch_id": "transition:4:9:1",
               "cross_request_sample_ids": [
-                "677f9378-aa04-438c-af17-4e9f408f316b"
+                "2aa3067f-88be-4fbd-8e3b-48905b9b70f4"
               ],
-              "elapsed_ms": 337.829,
+              "elapsed_ms": 333.492,
               "expected_occupancy": 1.0,
               "frame_range": [
                 4,
@@ -877,14 +877,14 @@
             },
             {
               "checkpoint_delta_count": 0,
-              "elapsed_ms": 3.675,
+              "elapsed_ms": 2.551,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "artifact_persist"
             },
             {
               "checkpoint_count": 1,
-              "elapsed_ms": 0.474,
+              "elapsed_ms": 0.547,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "controlplane_commit"
@@ -892,46 +892,46 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 3.675,
+            "artifact_persist_ms": 2.551,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.474,
-            "prompt_prepare_ms": 0.56,
-            "runner_exec_ms": 337.829,
+            "controlplane_commit_ms": 0.547,
+            "prompt_prepare_ms": 0.498,
+            "runner_exec_ms": 333.492,
             "runner_load_ms": 0.003,
-            "state_materialize_ms": 0.031,
-            "state_token_prep_ms": 0.591,
-            "temporal_persist_ms": 0.474,
-            "total_elapsed_ms": 346.605,
-            "transition_ms": 337.829
+            "state_materialize_ms": 0.032,
+            "state_token_prep_ms": 0.53,
+            "temporal_persist_ms": 0.547,
+            "total_elapsed_ms": 338.169,
+            "transition_ms": 333.492
           },
-          "started_at": 1775459852.3852131,
-          "state_handle_id": "8d56c39b-d2dc-46cc-80b1-7f70bff6999e",
-          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/state.json",
+          "started_at": 1775460622.782781,
+          "state_handle_id": "667ea1ce-3a9c-43db-a584-6483a89996d7",
+          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/state.json",
           "status_history": [
             {
               "status": "queued",
-              "timestamp": 1775459852.3852131
+              "timestamp": 1775460622.782781
             },
             {
               "status": "running",
-              "timestamp": 1775459852.3852131
+              "timestamp": 1775460622.782781
             },
             {
               "status": "succeeded",
-              "timestamp": 1775459852.7283418
+              "timestamp": 1775460623.1182854
             }
           ],
           "temporal": true,
           "token_input": {
-            "cache_key": "state_handle:a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-            "source_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
+            "cache_key": "state_handle:17723cb7-2190-4807-9e1e-e8f3974ad563",
+            "source_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
             "token_input_mode": "prompt_cache"
           },
           "tokens_generated": 2000,
-          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/677f9378-aa04-438c-af17-4e9f408f316b/tokens.npy",
+          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/2aa3067f-88be-4fbd-8e3b-48905b9b70f4/tokens.npy",
           "total_frames": 9
         },
-        "sample_id": "677f9378-aa04-438c-af17-4e9f408f316b",
+        "sample_id": "2aa3067f-88be-4fbd-8e3b-48905b9b70f4",
         "sample_spec": {
           "controls": {},
           "duration_seconds": null,
@@ -957,12 +957,12 @@
         },
         "task_type": "genie_rollout",
         "temporal": {
-          "branch_id": "5071f91d-486e-4b81-b089-1147af7290ac",
-          "checkpoint_id": "19fdb52f-9764-4228-8959-01ed9cdf5577",
-          "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-          "parent_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-          "rollout_id": "c2e6c528-7fdb-4b19-8878-a21f9235c322",
-          "state_handle_id": "8d56c39b-d2dc-46cc-80b1-7f70bff6999e"
+          "branch_id": "5defacbd-e5b9-4c5a-84e7-1e9ca4fc0262",
+          "checkpoint_id": "3dec1ff5-b95c-4a84-90f8-14dad4c43d5c",
+          "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+          "parent_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
+          "rollout_id": "913b0f56-c72e-4bcb-be96-38ad6a57c428",
+          "state_handle_id": "667ea1ce-3a9c-43db-a584-6483a89996d7"
         },
         "token_input": null,
         "wan_config": null
@@ -972,16 +972,16 @@
       "initial_status": "queued",
       "iteration": 2,
       "metrics": {
-        "poll_count": 3.0,
-        "submit_latency_ms": 1837.314,
-        "terminal_latency_ms": 3830.256
+        "poll_count": 1.0,
+        "submit_latency_ms": 3473.705,
+        "terminal_latency_ms": 3478.384
       },
-      "sample_id": "87d03b91-a6c6-434a-bc5a-552b37888c28",
+      "sample_id": "bf3d101b-96ca-4c70-9516-7be805064fd5",
       "status": "succeeded",
       "terminal_payload": {
         "artifacts": [
           {
-            "artifact_id": "87d03b91-a6c6-434a-bc5a-552b37888c28:request",
+            "artifact_id": "bf3d101b-96ca-4c70-9516-7be805064fd5:request",
             "bytes": 1370,
             "kind": "metadata",
             "metadata": {
@@ -989,22 +989,22 @@
               "role": "request"
             },
             "mime_type": "application/json",
-            "sha256": "ec9c60c9e62a44dd9db9561ad895919e536dcfe13c5e143ed5b4e5625158ab24",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/request.json"
+            "sha256": "a346b555da882d6141cb4111f9c8cc8d81ee523c29d49d97cd72fc7c3dc04a80",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/request.json"
           },
           {
-            "artifact_id": "87d03b91-a6c6-434a-bc5a-552b37888c28:log",
+            "artifact_id": "bf3d101b-96ca-4c70-9516-7be805064fd5:log",
             "bytes": 394,
             "kind": "log",
             "metadata": {
               "exists": true
             },
             "mime_type": "text/plain",
-            "sha256": "2428b9c20ddab52c306488001ec759420bd478a90a8c4836cafb85ab3016e3cd",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/runner.log"
+            "sha256": "3c7c2e1e527ec08d1232104ffa335dd7cd593aba44e442744c461f24456e62c7",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/runner.log"
           },
           {
-            "artifact_id": "87d03b91-a6c6-434a-bc5a-552b37888c28:runtime",
+            "artifact_id": "bf3d101b-96ca-4c70-9516-7be805064fd5:runtime",
             "bytes": 6019,
             "kind": "metadata",
             "metadata": {
@@ -1012,11 +1012,11 @@
               "role": "runtime"
             },
             "mime_type": "application/json",
-            "sha256": "f38641c97b40cbb0bdd102ff87d1231ded0a0ab1a72cb5a0e22cb0e37307318c",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/runtime.json"
+            "sha256": "451e4249c4c5230a428f82a6f4e9deff8213a1c24fc1b27ca65caa3ccf8250f1",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/runtime.json"
           },
           {
-            "artifact_id": "87d03b91-a6c6-434a-bc5a-552b37888c28:checkpoint",
+            "artifact_id": "bf3d101b-96ca-4c70-9516-7be805064fd5:checkpoint",
             "bytes": 1471,
             "kind": "metadata",
             "metadata": {
@@ -1024,11 +1024,11 @@
               "role": "checkpoint"
             },
             "mime_type": "application/json",
-            "sha256": "1598bd34f904317a7ca435e2baf60e47d2d775ecda76e44719c545ed1707112e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/checkpoint.json"
+            "sha256": "facbc8caafcb11ee2d16990fb4bdcb7c0181dccb3cddcce4f7f94c202ea4f94b",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/checkpoint.json"
           },
           {
-            "artifact_id": "87d03b91-a6c6-434a-bc5a-552b37888c28:recovery",
+            "artifact_id": "bf3d101b-96ca-4c70-9516-7be805064fd5:recovery",
             "bytes": 1577,
             "kind": "metadata",
             "metadata": {
@@ -1036,11 +1036,11 @@
               "role": "recovery"
             },
             "mime_type": "application/json",
-            "sha256": "269ebd93c3bf92fa77b508cea69ceaa6709e70b197e27a23464d0f731e08a5ff",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/recovery.json"
+            "sha256": "a35b1395e6c539214578e5a84486fb27f299e28b667abf5c2ad5ba1e60e9b4dc",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/recovery.json"
           },
           {
-            "artifact_id": "87d03b91-a6c6-434a-bc5a-552b37888c28:tokens",
+            "artifact_id": "bf3d101b-96ca-4c70-9516-7be805064fd5:tokens",
             "bytes": 14528,
             "kind": "latent",
             "metadata": {
@@ -1054,11 +1054,11 @@
               ]
             },
             "mime_type": "application/octet-stream",
-            "sha256": "1d7677d062c6f379351ea26ce7f4fede408f2ccdcb18e7e43282f295509c6e1e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/tokens.npy"
+            "sha256": "73b15a08e70a6b3c25278c9902dbedfd453ffd2605f8444ca2ffe44a451e268c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/tokens.npy"
           },
           {
-            "artifact_id": "87d03b91-a6c6-434a-bc5a-552b37888c28:state",
+            "artifact_id": "bf3d101b-96ca-4c70-9516-7be805064fd5:state",
             "bytes": 369,
             "kind": "metadata",
             "metadata": {
@@ -1066,23 +1066,23 @@
               "role": "state"
             },
             "mime_type": "application/json",
-            "sha256": "724be2098c0a0ffe7178933e873638da457241322bfc129a7971d516fe086890",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/state.json"
+            "sha256": "445561e22c0ed97a63982c767a7a4fef48b6fad9a78312f23491b925d816b647",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/state.json"
           },
           {
-            "artifact_id": "87d03b91-a6c6-434a-bc5a-552b37888c28:temporal-rollout",
+            "artifact_id": "bf3d101b-96ca-4c70-9516-7be805064fd5:temporal-rollout",
             "bytes": null,
             "kind": "metadata",
             "metadata": {
-              "checkpoint_id": "efcc7342-0fd5-4ec1-9e12-2c91629ef898",
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-              "rollout_id": "ccdd2661-6dde-48b4-bd46-5273df1b1c0d",
+              "checkpoint_id": "6604164f-ed81-4800-a5dc-7fbdaa216c29",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+              "rollout_id": "a410ca3c-802f-48ff-9c55-5015f299d01c",
               "runner_mode": "real",
-              "state_handle_id": "847228ec-152f-4bf4-8e5e-2d26d9355e7e"
+              "state_handle_id": "ae0a964d-4998-4c86-8cd5-20f33d9dd42e"
             },
             "mime_type": null,
             "sha256": null,
-            "uri": "temporal://rollouts/ccdd2661-6dde-48b4-bd46-5273df1b1c0d"
+            "uri": "temporal://rollouts/a410ca3c-802f-48ff-9c55-5015f299d01c"
           }
         ],
         "backend": "genie-rollout",
@@ -1120,17 +1120,17 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 4.536,
+            "artifact_persist_ms": 2.486,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.956,
-            "prompt_prepare_ms": 0.485,
-            "runner_exec_ms": 356.764,
-            "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.029,
-            "state_token_prep_ms": 0.514,
-            "temporal_persist_ms": 0.956,
-            "total_elapsed_ms": 366.34,
-            "transition_ms": 356.764
+            "controlplane_commit_ms": 0.874,
+            "prompt_prepare_ms": 0.486,
+            "runner_exec_ms": 333.165,
+            "runner_load_ms": 0.002,
+            "state_materialize_ms": 0.031,
+            "state_token_prep_ms": 0.517,
+            "temporal_persist_ms": 0.874,
+            "total_elapsed_ms": 338.04,
+            "transition_ms": 333.165
           },
           "stubbed": false
         },
@@ -1149,12 +1149,12 @@
         "runtime": {
           "async": false,
           "checkpoint_deltas": [],
-          "checkpoint_id": "efcc7342-0fd5-4ec1-9e12-2c91629ef898",
-          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/checkpoint.json",
-          "completed_at": 1775459853.0963619,
+          "checkpoint_id": "6604164f-ed81-4800-a5dc-7fbdaa216c29",
+          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/checkpoint.json",
+          "completed_at": 1775460623.4593906,
           "device": "cuda",
-          "elapsed_ms": 361.69,
-          "elapsed_s": 0.3568,
+          "elapsed_ms": 335.06,
+          "elapsed_s": 0.3332,
           "frames_generated": 5,
           "genie_config": {
             "checkpoint_every_n_frames": 0,
@@ -1165,16 +1165,16 @@
             "temperature": 0.0,
             "tokenizer_kind": "genie_stmaskgit"
           },
-          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/runner.log",
+          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/runner.log",
           "model": "1x-technologies/GENIE_210M_v0",
           "prompt_frames": 4,
           "queue_lane": "hot_continuation",
-          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/recovery.json",
-          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/request.json",
-          "rollout_id": "ccdd2661-6dde-48b4-bd46-5273df1b1c0d",
+          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/recovery.json",
+          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/request.json",
+          "rollout_id": "a410ca3c-802f-48ff-9c55-5015f299d01c",
           "runner": "genie-real",
           "runner_mode": "real",
-          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/runtime.json",
+          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/runtime.json",
           "runtime_state": {
             "checkpoint_delta_ref": null,
             "last_completed_frame": 9,
@@ -1197,10 +1197,10 @@
               }
             ],
             "cross_request_batcher": {
-              "batch_wait_ms": 2.0,
+              "batch_wait_ms": 0.0,
               "batched_requests": 0,
               "largest_batch_size": 1,
-              "max_batch_size": 8,
+              "max_batch_size": 1,
               "max_observed_batch_size": 1,
               "mean_batch_size": 1.0,
               "total_flushed_batches": 3,
@@ -1242,14 +1242,14 @@
           "stage_history": [
             {
               "elapsed_ms": 0.002,
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
               "queue_lane": "cold_materialize",
               "runner_mode": "real",
-              "sample_id": "87d03b91-a6c6-434a-bc5a-552b37888c28",
+              "sample_id": "bf3d101b-96ca-4c70-9516-7be805064fd5",
               "stage": "admission"
             },
             {
-              "elapsed_ms": 0.029,
+              "elapsed_ms": 0.031,
               "materialized_bytes": 6400,
               "queue_lane": "cold_materialize",
               "resident_tier": "hot_gpu",
@@ -1257,7 +1257,7 @@
               "stage": "state_materialize"
             },
             {
-              "elapsed_ms": 0.485,
+              "elapsed_ms": 0.486,
               "prompt_frames": 4,
               "queue_lane": "hot_continuation",
               "runner_mode": "real",
@@ -1269,9 +1269,9 @@
               "chunk_size": 1,
               "cross_request_batch_id": "transition:4:9:1",
               "cross_request_sample_ids": [
-                "87d03b91-a6c6-434a-bc5a-552b37888c28"
+                "bf3d101b-96ca-4c70-9516-7be805064fd5"
               ],
-              "elapsed_ms": 356.764,
+              "elapsed_ms": 333.165,
               "expected_occupancy": 1.0,
               "frame_range": [
                 4,
@@ -1295,14 +1295,14 @@
             },
             {
               "checkpoint_delta_count": 0,
-              "elapsed_ms": 4.536,
+              "elapsed_ms": 2.486,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "artifact_persist"
             },
             {
               "checkpoint_count": 1,
-              "elapsed_ms": 0.956,
+              "elapsed_ms": 0.874,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "controlplane_commit"
@@ -1310,46 +1310,46 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 4.536,
+            "artifact_persist_ms": 2.486,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.956,
-            "prompt_prepare_ms": 0.485,
-            "runner_exec_ms": 356.764,
-            "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.029,
-            "state_token_prep_ms": 0.514,
-            "temporal_persist_ms": 0.956,
-            "total_elapsed_ms": 366.34,
-            "transition_ms": 356.764
+            "controlplane_commit_ms": 0.874,
+            "prompt_prepare_ms": 0.486,
+            "runner_exec_ms": 333.165,
+            "runner_load_ms": 0.002,
+            "state_materialize_ms": 0.031,
+            "state_token_prep_ms": 0.517,
+            "temporal_persist_ms": 0.874,
+            "total_elapsed_ms": 338.04,
+            "transition_ms": 333.165
           },
-          "started_at": 1775459852.7346718,
-          "state_handle_id": "847228ec-152f-4bf4-8e5e-2d26d9355e7e",
-          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/state.json",
+          "started_at": 1775460623.1243274,
+          "state_handle_id": "ae0a964d-4998-4c86-8cd5-20f33d9dd42e",
+          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/state.json",
           "status_history": [
             {
               "status": "queued",
-              "timestamp": 1775459852.7346718
+              "timestamp": 1775460623.1243274
             },
             {
               "status": "running",
-              "timestamp": 1775459852.7346718
+              "timestamp": 1775460623.1243274
             },
             {
               "status": "succeeded",
-              "timestamp": 1775459853.0963619
+              "timestamp": 1775460623.4593906
             }
           ],
           "temporal": true,
           "token_input": {
-            "cache_key": "state_handle:a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-            "source_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
+            "cache_key": "state_handle:17723cb7-2190-4807-9e1e-e8f3974ad563",
+            "source_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
             "token_input_mode": "prompt_cache"
           },
           "tokens_generated": 2000,
-          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/87d03b91-a6c6-434a-bc5a-552b37888c28/tokens.npy",
+          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/bf3d101b-96ca-4c70-9516-7be805064fd5/tokens.npy",
           "total_frames": 9
         },
-        "sample_id": "87d03b91-a6c6-434a-bc5a-552b37888c28",
+        "sample_id": "bf3d101b-96ca-4c70-9516-7be805064fd5",
         "sample_spec": {
           "controls": {},
           "duration_seconds": null,
@@ -1375,12 +1375,12 @@
         },
         "task_type": "genie_rollout",
         "temporal": {
-          "branch_id": "5071f91d-486e-4b81-b089-1147af7290ac",
-          "checkpoint_id": "efcc7342-0fd5-4ec1-9e12-2c91629ef898",
-          "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-          "parent_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-          "rollout_id": "ccdd2661-6dde-48b4-bd46-5273df1b1c0d",
-          "state_handle_id": "847228ec-152f-4bf4-8e5e-2d26d9355e7e"
+          "branch_id": "5defacbd-e5b9-4c5a-84e7-1e9ca4fc0262",
+          "checkpoint_id": "6604164f-ed81-4800-a5dc-7fbdaa216c29",
+          "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+          "parent_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
+          "rollout_id": "a410ca3c-802f-48ff-9c55-5015f299d01c",
+          "state_handle_id": "ae0a964d-4998-4c86-8cd5-20f33d9dd42e"
         },
         "token_input": null,
         "wan_config": null
@@ -1390,16 +1390,16 @@
       "initial_status": "queued",
       "iteration": 3,
       "metrics": {
-        "poll_count": 3.0,
-        "submit_latency_ms": 1837.493,
-        "terminal_latency_ms": 3830.291
+        "poll_count": 1.0,
+        "submit_latency_ms": 3473.735,
+        "terminal_latency_ms": 3478.383
       },
-      "sample_id": "788c7476-0762-451c-8b85-945f0367e1bb",
+      "sample_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca",
       "status": "succeeded",
       "terminal_payload": {
         "artifacts": [
           {
-            "artifact_id": "788c7476-0762-451c-8b85-945f0367e1bb:request",
+            "artifact_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca:request",
             "bytes": 1370,
             "kind": "metadata",
             "metadata": {
@@ -1407,58 +1407,58 @@
               "role": "request"
             },
             "mime_type": "application/json",
-            "sha256": "c393a3bbbf434e4c337a42daa5209dd9acb0ed8c3ff0491e462ec5ef207fa14a",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/request.json"
+            "sha256": "9ccabd05040c0e21d15443c03d9dc9244acef6f1edad053c587c4963c593e71b",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/request.json"
           },
           {
-            "artifact_id": "788c7476-0762-451c-8b85-945f0367e1bb:log",
+            "artifact_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca:log",
             "bytes": 394,
             "kind": "log",
             "metadata": {
               "exists": true
             },
             "mime_type": "text/plain",
-            "sha256": "2428b9c20ddab52c306488001ec759420bd478a90a8c4836cafb85ab3016e3cd",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/runner.log"
+            "sha256": "66580e55aab76f7ffad4dde4798b15779dd95df886589d29ab8e80a3e5c50560",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/runner.log"
           },
           {
-            "artifact_id": "788c7476-0762-451c-8b85-945f0367e1bb:runtime",
-            "bytes": 6010,
+            "artifact_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca:runtime",
+            "bytes": 6019,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "runtime"
             },
             "mime_type": "application/json",
-            "sha256": "ee7e14af404926277623b1090b03944bcd24c94050ae81d9499e9dc3f649adbb",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/runtime.json"
+            "sha256": "e102461ed92ed7c2103afd6710b9ef8290e159d191d4318a66c65ddce36d38ae",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/runtime.json"
           },
           {
-            "artifact_id": "788c7476-0762-451c-8b85-945f0367e1bb:checkpoint",
-            "bytes": 1470,
+            "artifact_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca:checkpoint",
+            "bytes": 1471,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "checkpoint"
             },
             "mime_type": "application/json",
-            "sha256": "68a6d6a0ad1e19ed2f85afa1fc3a5bc6230da502cc94bca35aa2add9f45ff6a9",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/checkpoint.json"
+            "sha256": "37ab8712fe6e6c16d3ca62dde96faa3eee1e3f143b5a2f3c0bda0409dbc294f9",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/checkpoint.json"
           },
           {
-            "artifact_id": "788c7476-0762-451c-8b85-945f0367e1bb:recovery",
-            "bytes": 1576,
+            "artifact_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca:recovery",
+            "bytes": 1577,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "recovery"
             },
             "mime_type": "application/json",
-            "sha256": "effeba25f77989300ff8aa70b081e3a581cbb6a4ef21643a62d219da120a9531",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/recovery.json"
+            "sha256": "846685c9fb82a30791b086f76f26f46929328ed965fbf6d75f1fbcd3ab987a6d",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/recovery.json"
           },
           {
-            "artifact_id": "788c7476-0762-451c-8b85-945f0367e1bb:tokens",
+            "artifact_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca:tokens",
             "bytes": 14528,
             "kind": "latent",
             "metadata": {
@@ -1472,11 +1472,11 @@
               ]
             },
             "mime_type": "application/octet-stream",
-            "sha256": "1d7677d062c6f379351ea26ce7f4fede408f2ccdcb18e7e43282f295509c6e1e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/tokens.npy"
+            "sha256": "73b15a08e70a6b3c25278c9902dbedfd453ffd2605f8444ca2ffe44a451e268c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/tokens.npy"
           },
           {
-            "artifact_id": "788c7476-0762-451c-8b85-945f0367e1bb:state",
+            "artifact_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca:state",
             "bytes": 369,
             "kind": "metadata",
             "metadata": {
@@ -1484,23 +1484,23 @@
               "role": "state"
             },
             "mime_type": "application/json",
-            "sha256": "0f3ed9bd74629395d6aa938910cdcdc11b47b496b0da783f2cdc790015127fc4",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/state.json"
+            "sha256": "50c98f0d4d048aef7b55e64f4cc39c54d9cef687027c08ab692e557afd7a80e9",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/state.json"
           },
           {
-            "artifact_id": "788c7476-0762-451c-8b85-945f0367e1bb:temporal-rollout",
+            "artifact_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca:temporal-rollout",
             "bytes": null,
             "kind": "metadata",
             "metadata": {
-              "checkpoint_id": "dc3e7bf3-bb5e-46d4-a915-4c5c2b7dd187",
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-              "rollout_id": "411c104c-ade3-476a-9bec-da5819aeca62",
+              "checkpoint_id": "88dc1ddb-a23b-41db-9b21-1b907ef55339",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+              "rollout_id": "cba845b2-426e-4664-a8d8-a308e7347814",
               "runner_mode": "real",
-              "state_handle_id": "cc0ff2a8-3dc9-48af-aa15-05a8e5065ad4"
+              "state_handle_id": "9a310086-8045-42cb-bea7-390f869eaf6a"
             },
             "mime_type": null,
             "sha256": null,
-            "uri": "temporal://rollouts/411c104c-ade3-476a-9bec-da5819aeca62"
+            "uri": "temporal://rollouts/cba845b2-426e-4664-a8d8-a308e7347814"
           }
         ],
         "backend": "genie-rollout",
@@ -1538,17 +1538,17 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 3.185,
+            "artifact_persist_ms": 3.029,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.88,
-            "prompt_prepare_ms": 0.53,
-            "runner_exec_ms": 357.421,
+            "controlplane_commit_ms": 0.638,
+            "prompt_prepare_ms": 0.426,
+            "runner_exec_ms": 334.776,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.03,
-            "state_token_prep_ms": 0.56,
-            "temporal_persist_ms": 0.88,
-            "total_elapsed_ms": 367.238,
-            "transition_ms": 357.421
+            "state_materialize_ms": 0.028,
+            "state_token_prep_ms": 0.454,
+            "temporal_persist_ms": 0.638,
+            "total_elapsed_ms": 339.82,
+            "transition_ms": 334.776
           },
           "stubbed": false
         },
@@ -1567,12 +1567,12 @@
         "runtime": {
           "async": false,
           "checkpoint_deltas": [],
-          "checkpoint_id": "dc3e7bf3-bb5e-46d4-a915-4c5c2b7dd187",
-          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/checkpoint.json",
-          "completed_at": 1775459853.468156,
+          "checkpoint_id": "88dc1ddb-a23b-41db-9b21-1b907ef55339",
+          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/checkpoint.json",
+          "completed_at": 1775460623.8028522,
           "device": "cuda",
-          "elapsed_ms": 363.77,
-          "elapsed_s": 0.3574,
+          "elapsed_ms": 337.07,
+          "elapsed_s": 0.3348,
           "frames_generated": 5,
           "genie_config": {
             "checkpoint_every_n_frames": 0,
@@ -1583,16 +1583,16 @@
             "temperature": 0.0,
             "tokenizer_kind": "genie_stmaskgit"
           },
-          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/runner.log",
+          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/runner.log",
           "model": "1x-technologies/GENIE_210M_v0",
           "prompt_frames": 4,
           "queue_lane": "hot_continuation",
-          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/recovery.json",
-          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/request.json",
-          "rollout_id": "411c104c-ade3-476a-9bec-da5819aeca62",
+          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/recovery.json",
+          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/request.json",
+          "rollout_id": "cba845b2-426e-4664-a8d8-a308e7347814",
           "runner": "genie-real",
           "runner_mode": "real",
-          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/runtime.json",
+          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/runtime.json",
           "runtime_state": {
             "checkpoint_delta_ref": null,
             "last_completed_frame": 9,
@@ -1615,10 +1615,10 @@
               }
             ],
             "cross_request_batcher": {
-              "batch_wait_ms": 2.0,
+              "batch_wait_ms": 0.0,
               "batched_requests": 0,
               "largest_batch_size": 1,
-              "max_batch_size": 8,
+              "max_batch_size": 1,
               "max_observed_batch_size": 1,
               "mean_batch_size": 1.0,
               "total_flushed_batches": 4,
@@ -1660,14 +1660,14 @@
           "stage_history": [
             {
               "elapsed_ms": 0.002,
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
               "queue_lane": "cold_materialize",
               "runner_mode": "real",
-              "sample_id": "788c7476-0762-451c-8b85-945f0367e1bb",
+              "sample_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca",
               "stage": "admission"
             },
             {
-              "elapsed_ms": 0.03,
+              "elapsed_ms": 0.028,
               "materialized_bytes": 6400,
               "queue_lane": "cold_materialize",
               "resident_tier": "hot_gpu",
@@ -1675,7 +1675,7 @@
               "stage": "state_materialize"
             },
             {
-              "elapsed_ms": 0.53,
+              "elapsed_ms": 0.426,
               "prompt_frames": 4,
               "queue_lane": "hot_continuation",
               "runner_mode": "real",
@@ -1687,9 +1687,9 @@
               "chunk_size": 1,
               "cross_request_batch_id": "transition:4:9:1",
               "cross_request_sample_ids": [
-                "788c7476-0762-451c-8b85-945f0367e1bb"
+                "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca"
               ],
-              "elapsed_ms": 357.421,
+              "elapsed_ms": 334.776,
               "expected_occupancy": 1.0,
               "frame_range": [
                 4,
@@ -1713,14 +1713,14 @@
             },
             {
               "checkpoint_delta_count": 0,
-              "elapsed_ms": 3.185,
+              "elapsed_ms": 3.029,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "artifact_persist"
             },
             {
               "checkpoint_count": 1,
-              "elapsed_ms": 0.88,
+              "elapsed_ms": 0.638,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "controlplane_commit"
@@ -1728,46 +1728,46 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 3.185,
+            "artifact_persist_ms": 3.029,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.88,
-            "prompt_prepare_ms": 0.53,
-            "runner_exec_ms": 357.421,
+            "controlplane_commit_ms": 0.638,
+            "prompt_prepare_ms": 0.426,
+            "runner_exec_ms": 334.776,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.03,
-            "state_token_prep_ms": 0.56,
-            "temporal_persist_ms": 0.88,
-            "total_elapsed_ms": 367.238,
-            "transition_ms": 357.421
+            "state_materialize_ms": 0.028,
+            "state_token_prep_ms": 0.454,
+            "temporal_persist_ms": 0.638,
+            "total_elapsed_ms": 339.82,
+            "transition_ms": 334.776
           },
-          "started_at": 1775459853.1043859,
-          "state_handle_id": "cc0ff2a8-3dc9-48af-aa15-05a8e5065ad4",
-          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/state.json",
+          "started_at": 1775460623.4657795,
+          "state_handle_id": "9a310086-8045-42cb-bea7-390f869eaf6a",
+          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/state.json",
           "status_history": [
             {
               "status": "queued",
-              "timestamp": 1775459853.1043859
+              "timestamp": 1775460623.4657795
             },
             {
               "status": "running",
-              "timestamp": 1775459853.1043859
+              "timestamp": 1775460623.4657795
             },
             {
               "status": "succeeded",
-              "timestamp": 1775459853.468156
+              "timestamp": 1775460623.8028522
             }
           ],
           "temporal": true,
           "token_input": {
-            "cache_key": "state_handle:a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-            "source_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
+            "cache_key": "state_handle:17723cb7-2190-4807-9e1e-e8f3974ad563",
+            "source_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
             "token_input_mode": "prompt_cache"
           },
           "tokens_generated": 2000,
-          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/788c7476-0762-451c-8b85-945f0367e1bb/tokens.npy",
+          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/8fb2322a-6c72-44e3-b1f8-6ed2041c67ca/tokens.npy",
           "total_frames": 9
         },
-        "sample_id": "788c7476-0762-451c-8b85-945f0367e1bb",
+        "sample_id": "8fb2322a-6c72-44e3-b1f8-6ed2041c67ca",
         "sample_spec": {
           "controls": {},
           "duration_seconds": null,
@@ -1793,12 +1793,12 @@
         },
         "task_type": "genie_rollout",
         "temporal": {
-          "branch_id": "5071f91d-486e-4b81-b089-1147af7290ac",
-          "checkpoint_id": "dc3e7bf3-bb5e-46d4-a915-4c5c2b7dd187",
-          "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-          "parent_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-          "rollout_id": "411c104c-ade3-476a-9bec-da5819aeca62",
-          "state_handle_id": "cc0ff2a8-3dc9-48af-aa15-05a8e5065ad4"
+          "branch_id": "5defacbd-e5b9-4c5a-84e7-1e9ca4fc0262",
+          "checkpoint_id": "88dc1ddb-a23b-41db-9b21-1b907ef55339",
+          "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+          "parent_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
+          "rollout_id": "cba845b2-426e-4664-a8d8-a308e7347814",
+          "state_handle_id": "9a310086-8045-42cb-bea7-390f869eaf6a"
         },
         "token_input": null,
         "wan_config": null
@@ -1808,16 +1808,16 @@
       "initial_status": "queued",
       "iteration": 4,
       "metrics": {
-        "poll_count": 2.0,
-        "submit_latency_ms": 371.028,
-        "terminal_latency_ms": 1492.178
+        "poll_count": 1.0,
+        "submit_latency_ms": 1374.729,
+        "terminal_latency_ms": 1378.419
       },
-      "sample_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363",
+      "sample_id": "127faa11-cdd5-4f84-83b5-08d552ba243a",
       "status": "succeeded",
       "terminal_payload": {
         "artifacts": [
           {
-            "artifact_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363:request",
+            "artifact_id": "127faa11-cdd5-4f84-83b5-08d552ba243a:request",
             "bytes": 1370,
             "kind": "metadata",
             "metadata": {
@@ -1825,34 +1825,34 @@
               "role": "request"
             },
             "mime_type": "application/json",
-            "sha256": "c8d8d86962951bd6251b3cce50f9ca707f377109c6597ae2e5c82fb06a72e134",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/request.json"
+            "sha256": "1570312c50fc59a15c65d05560b36d339073b7853c2c3ae84b17f5e0e205af2c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/request.json"
           },
           {
-            "artifact_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363:log",
+            "artifact_id": "127faa11-cdd5-4f84-83b5-08d552ba243a:log",
             "bytes": 394,
             "kind": "log",
             "metadata": {
               "exists": true
             },
             "mime_type": "text/plain",
-            "sha256": "2428b9c20ddab52c306488001ec759420bd478a90a8c4836cafb85ab3016e3cd",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/runner.log"
+            "sha256": "83800eadaa206d609d2afef2d2ae4b9161a37b4fc39841fc1cf39ed0fccb24d3",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/runner.log"
           },
           {
-            "artifact_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363:runtime",
-            "bytes": 6017,
+            "artifact_id": "127faa11-cdd5-4f84-83b5-08d552ba243a:runtime",
+            "bytes": 6018,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "runtime"
             },
             "mime_type": "application/json",
-            "sha256": "c56a1b644df58e224480eac3e9d9566ade55f26a241c32366e97331917b46a93",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/runtime.json"
+            "sha256": "f4055b0ea3aed10da166bf36f88046cde596bd559ed114431a95d83a165c820a",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/runtime.json"
           },
           {
-            "artifact_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363:checkpoint",
+            "artifact_id": "127faa11-cdd5-4f84-83b5-08d552ba243a:checkpoint",
             "bytes": 1470,
             "kind": "metadata",
             "metadata": {
@@ -1860,11 +1860,11 @@
               "role": "checkpoint"
             },
             "mime_type": "application/json",
-            "sha256": "9e38ddc1c71f998ce8d15a7c8c8c781ba5c32db266dcf396292d7313e9edba16",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/checkpoint.json"
+            "sha256": "547b2d4aa973cf5d810e03ae038873ac474d18937cefadf77c243c6ce4ad7b25",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/checkpoint.json"
           },
           {
-            "artifact_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363:recovery",
+            "artifact_id": "127faa11-cdd5-4f84-83b5-08d552ba243a:recovery",
             "bytes": 1576,
             "kind": "metadata",
             "metadata": {
@@ -1872,11 +1872,11 @@
               "role": "recovery"
             },
             "mime_type": "application/json",
-            "sha256": "5cce86d83c4449331f3411eb9a3c393ca525086b39565f97438dfad6085517bc",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/recovery.json"
+            "sha256": "798b7fc32060d8525b0b298e2628d26a9b399578053c5e02f889166dacae5bc6",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/recovery.json"
           },
           {
-            "artifact_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363:tokens",
+            "artifact_id": "127faa11-cdd5-4f84-83b5-08d552ba243a:tokens",
             "bytes": 14528,
             "kind": "latent",
             "metadata": {
@@ -1890,11 +1890,11 @@
               ]
             },
             "mime_type": "application/octet-stream",
-            "sha256": "1d7677d062c6f379351ea26ce7f4fede408f2ccdcb18e7e43282f295509c6e1e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/tokens.npy"
+            "sha256": "73b15a08e70a6b3c25278c9902dbedfd453ffd2605f8444ca2ffe44a451e268c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/tokens.npy"
           },
           {
-            "artifact_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363:state",
+            "artifact_id": "127faa11-cdd5-4f84-83b5-08d552ba243a:state",
             "bytes": 369,
             "kind": "metadata",
             "metadata": {
@@ -1902,23 +1902,23 @@
               "role": "state"
             },
             "mime_type": "application/json",
-            "sha256": "a61c6f31e32965f3ff9db0794a1d4e85d47331e8c9b52ca6e35a4cce592fa98b",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/state.json"
+            "sha256": "5980779d1879700cd7a86029ed6b77a639d0981ff9d4bae0cb70d1f725ff5fe6",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/state.json"
           },
           {
-            "artifact_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363:temporal-rollout",
+            "artifact_id": "127faa11-cdd5-4f84-83b5-08d552ba243a:temporal-rollout",
             "bytes": null,
             "kind": "metadata",
             "metadata": {
-              "checkpoint_id": "74e017eb-d76c-4f90-ba3b-56ca185c32f3",
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-              "rollout_id": "2826cd6c-ee71-43ab-b629-8035f3fc78a2",
+              "checkpoint_id": "707f57fe-095c-49c2-85f9-29d80a9540ef",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+              "rollout_id": "43676962-3839-47db-b813-b8cccab5a057",
               "runner_mode": "real",
-              "state_handle_id": "188ddd94-907b-4308-b9ec-629d133cec28"
+              "state_handle_id": "99e3b7c3-01c1-4fcd-adb8-f29e59ab05e3"
             },
             "mime_type": null,
             "sha256": null,
-            "uri": "temporal://rollouts/2826cd6c-ee71-43ab-b629-8035f3fc78a2"
+            "uri": "temporal://rollouts/43676962-3839-47db-b813-b8cccab5a057"
           }
         ],
         "backend": "genie-rollout",
@@ -1955,18 +1955,18 @@
             "controlplane_commit"
           ],
           "stage_timings_ms": {
-            "admission_ms": 0.002,
-            "artifact_persist_ms": 3.983,
+            "admission_ms": 0.001,
+            "artifact_persist_ms": 4.234,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 1.065,
-            "prompt_prepare_ms": 0.372,
-            "runner_exec_ms": 357.117,
+            "controlplane_commit_ms": 0.598,
+            "prompt_prepare_ms": 0.541,
+            "runner_exec_ms": 333.586,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.026,
-            "state_token_prep_ms": 0.398,
-            "temporal_persist_ms": 1.065,
-            "total_elapsed_ms": 366.534,
-            "transition_ms": 357.117
+            "state_materialize_ms": 0.032,
+            "state_token_prep_ms": 0.573,
+            "temporal_persist_ms": 0.598,
+            "total_elapsed_ms": 340.275,
+            "transition_ms": 333.586
           },
           "stubbed": false
         },
@@ -1985,12 +1985,12 @@
         "runtime": {
           "async": false,
           "checkpoint_deltas": [],
-          "checkpoint_id": "74e017eb-d76c-4f90-ba3b-56ca185c32f3",
-          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/checkpoint.json",
-          "completed_at": 1775459853.8369687,
+          "checkpoint_id": "707f57fe-095c-49c2-85f9-29d80a9540ef",
+          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/checkpoint.json",
+          "completed_at": 1775460624.157528,
           "device": "cuda",
-          "elapsed_ms": 362.58,
-          "elapsed_s": 0.3571,
+          "elapsed_ms": 336.95,
+          "elapsed_s": 0.3336,
           "frames_generated": 5,
           "genie_config": {
             "checkpoint_every_n_frames": 0,
@@ -2001,16 +2001,16 @@
             "temperature": 0.0,
             "tokenizer_kind": "genie_stmaskgit"
           },
-          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/runner.log",
+          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/runner.log",
           "model": "1x-technologies/GENIE_210M_v0",
           "prompt_frames": 4,
           "queue_lane": "hot_continuation",
-          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/recovery.json",
-          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/request.json",
-          "rollout_id": "2826cd6c-ee71-43ab-b629-8035f3fc78a2",
+          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/recovery.json",
+          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/request.json",
+          "rollout_id": "43676962-3839-47db-b813-b8cccab5a057",
           "runner": "genie-real",
           "runner_mode": "real",
-          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/runtime.json",
+          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/runtime.json",
           "runtime_state": {
             "checkpoint_delta_ref": null,
             "last_completed_frame": 9,
@@ -2033,10 +2033,10 @@
               }
             ],
             "cross_request_batcher": {
-              "batch_wait_ms": 2.0,
+              "batch_wait_ms": 0.0,
               "batched_requests": 0,
               "largest_batch_size": 1,
-              "max_batch_size": 8,
+              "max_batch_size": 1,
               "max_observed_batch_size": 1,
               "mean_batch_size": 1.0,
               "total_flushed_batches": 5,
@@ -2077,15 +2077,15 @@
           ],
           "stage_history": [
             {
-              "elapsed_ms": 0.002,
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
+              "elapsed_ms": 0.001,
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
               "queue_lane": "cold_materialize",
               "runner_mode": "real",
-              "sample_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363",
+              "sample_id": "127faa11-cdd5-4f84-83b5-08d552ba243a",
               "stage": "admission"
             },
             {
-              "elapsed_ms": 0.026,
+              "elapsed_ms": 0.032,
               "materialized_bytes": 6400,
               "queue_lane": "cold_materialize",
               "resident_tier": "hot_gpu",
@@ -2093,7 +2093,7 @@
               "stage": "state_materialize"
             },
             {
-              "elapsed_ms": 0.372,
+              "elapsed_ms": 0.541,
               "prompt_frames": 4,
               "queue_lane": "hot_continuation",
               "runner_mode": "real",
@@ -2105,9 +2105,9 @@
               "chunk_size": 1,
               "cross_request_batch_id": "transition:4:9:1",
               "cross_request_sample_ids": [
-                "02ae5145-9a87-402c-8ede-5b6d0c2fb363"
+                "127faa11-cdd5-4f84-83b5-08d552ba243a"
               ],
-              "elapsed_ms": 357.117,
+              "elapsed_ms": 333.586,
               "expected_occupancy": 1.0,
               "frame_range": [
                 4,
@@ -2131,61 +2131,61 @@
             },
             {
               "checkpoint_delta_count": 0,
-              "elapsed_ms": 3.983,
+              "elapsed_ms": 4.234,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "artifact_persist"
             },
             {
               "checkpoint_count": 1,
-              "elapsed_ms": 1.065,
+              "elapsed_ms": 0.598,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "controlplane_commit"
             }
           ],
           "stage_timings_ms": {
-            "admission_ms": 0.002,
-            "artifact_persist_ms": 3.983,
+            "admission_ms": 0.001,
+            "artifact_persist_ms": 4.234,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 1.065,
-            "prompt_prepare_ms": 0.372,
-            "runner_exec_ms": 357.117,
+            "controlplane_commit_ms": 0.598,
+            "prompt_prepare_ms": 0.541,
+            "runner_exec_ms": 333.586,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.026,
-            "state_token_prep_ms": 0.398,
-            "temporal_persist_ms": 1.065,
-            "total_elapsed_ms": 366.534,
-            "transition_ms": 357.117
+            "state_materialize_ms": 0.032,
+            "state_token_prep_ms": 0.573,
+            "temporal_persist_ms": 0.598,
+            "total_elapsed_ms": 340.275,
+            "transition_ms": 333.586
           },
-          "started_at": 1775459853.474393,
-          "state_handle_id": "188ddd94-907b-4308-b9ec-629d133cec28",
-          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/state.json",
+          "started_at": 1775460623.8205793,
+          "state_handle_id": "99e3b7c3-01c1-4fcd-adb8-f29e59ab05e3",
+          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/state.json",
           "status_history": [
             {
               "status": "queued",
-              "timestamp": 1775459853.474393
+              "timestamp": 1775460623.8205793
             },
             {
               "status": "running",
-              "timestamp": 1775459853.474393
+              "timestamp": 1775460623.8205793
             },
             {
               "status": "succeeded",
-              "timestamp": 1775459853.8369687
+              "timestamp": 1775460624.157528
             }
           ],
           "temporal": true,
           "token_input": {
-            "cache_key": "state_handle:a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-            "source_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
+            "cache_key": "state_handle:17723cb7-2190-4807-9e1e-e8f3974ad563",
+            "source_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
             "token_input_mode": "prompt_cache"
           },
           "tokens_generated": 2000,
-          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/02ae5145-9a87-402c-8ede-5b6d0c2fb363/tokens.npy",
+          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/127faa11-cdd5-4f84-83b5-08d552ba243a/tokens.npy",
           "total_frames": 9
         },
-        "sample_id": "02ae5145-9a87-402c-8ede-5b6d0c2fb363",
+        "sample_id": "127faa11-cdd5-4f84-83b5-08d552ba243a",
         "sample_spec": {
           "controls": {},
           "duration_seconds": null,
@@ -2211,12 +2211,12 @@
         },
         "task_type": "genie_rollout",
         "temporal": {
-          "branch_id": "5071f91d-486e-4b81-b089-1147af7290ac",
-          "checkpoint_id": "74e017eb-d76c-4f90-ba3b-56ca185c32f3",
-          "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-          "parent_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-          "rollout_id": "2826cd6c-ee71-43ab-b629-8035f3fc78a2",
-          "state_handle_id": "188ddd94-907b-4308-b9ec-629d133cec28"
+          "branch_id": "5defacbd-e5b9-4c5a-84e7-1e9ca4fc0262",
+          "checkpoint_id": "707f57fe-095c-49c2-85f9-29d80a9540ef",
+          "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+          "parent_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
+          "rollout_id": "43676962-3839-47db-b813-b8cccab5a057",
+          "state_handle_id": "99e3b7c3-01c1-4fcd-adb8-f29e59ab05e3"
         },
         "token_input": null,
         "wan_config": null
@@ -2226,16 +2226,16 @@
       "initial_status": "queued",
       "iteration": 5,
       "metrics": {
-        "poll_count": 2.0,
-        "submit_latency_ms": 371.002,
-        "terminal_latency_ms": 1492.099
+        "poll_count": 1.0,
+        "submit_latency_ms": 1374.859,
+        "terminal_latency_ms": 1378.395
       },
-      "sample_id": "64e2ef59-365e-4afb-8f59-e402f68efdea",
+      "sample_id": "f756e653-7b02-4924-97e4-c826c9fee0bc",
       "status": "succeeded",
       "terminal_payload": {
         "artifacts": [
           {
-            "artifact_id": "64e2ef59-365e-4afb-8f59-e402f68efdea:request",
+            "artifact_id": "f756e653-7b02-4924-97e4-c826c9fee0bc:request",
             "bytes": 1370,
             "kind": "metadata",
             "metadata": {
@@ -2243,58 +2243,58 @@
               "role": "request"
             },
             "mime_type": "application/json",
-            "sha256": "3378ff7ce27f3385e3d00c1443f67f6d5846f583e49ac8dfd58cf738b5f8ca3a",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/request.json"
+            "sha256": "5b7934742fbe244178807679dd4b50babaa2732527c149dd162893668c298917",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/request.json"
           },
           {
-            "artifact_id": "64e2ef59-365e-4afb-8f59-e402f68efdea:log",
+            "artifact_id": "f756e653-7b02-4924-97e4-c826c9fee0bc:log",
             "bytes": 394,
             "kind": "log",
             "metadata": {
               "exists": true
             },
             "mime_type": "text/plain",
-            "sha256": "582ed987a2e4df36529e9a17141314cd7e359a61d67817e3a983647e219f7bb4",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/runner.log"
+            "sha256": "3c7c2e1e527ec08d1232104ffa335dd7cd593aba44e442744c461f24456e62c7",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/runner.log"
           },
           {
-            "artifact_id": "64e2ef59-365e-4afb-8f59-e402f68efdea:runtime",
-            "bytes": 6016,
+            "artifact_id": "f756e653-7b02-4924-97e4-c826c9fee0bc:runtime",
+            "bytes": 6013,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "runtime"
             },
             "mime_type": "application/json",
-            "sha256": "759b9735b7dcd74a6c22fd020816708933a55be6d44442e3f8d8d9168c264cf7",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/runtime.json"
+            "sha256": "a4ec1a30f7f0757e3f8ff3f7a5cbe98c80be30b92f76ff09a7196840486def89",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/runtime.json"
           },
           {
-            "artifact_id": "64e2ef59-365e-4afb-8f59-e402f68efdea:checkpoint",
-            "bytes": 1471,
+            "artifact_id": "f756e653-7b02-4924-97e4-c826c9fee0bc:checkpoint",
+            "bytes": 1469,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "checkpoint"
             },
             "mime_type": "application/json",
-            "sha256": "e5c7ed4418c365c16f5f11a6aa3a196507cf19da4c002ee8441a49b2798dd788",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/checkpoint.json"
+            "sha256": "d718b4920c45893b7ce80013cd20a9cd91170fa931c873dda773af58877310bc",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/checkpoint.json"
           },
           {
-            "artifact_id": "64e2ef59-365e-4afb-8f59-e402f68efdea:recovery",
-            "bytes": 1577,
+            "artifact_id": "f756e653-7b02-4924-97e4-c826c9fee0bc:recovery",
+            "bytes": 1575,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "recovery"
             },
             "mime_type": "application/json",
-            "sha256": "753e29ad4af767aec63a8f107240ed618e0606e9c60dc448175aa31ccf75de84",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/recovery.json"
+            "sha256": "e70a809cb1cce5351603a97eac0b73cc9913e322674eb467afe67888bbdf80fc",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/recovery.json"
           },
           {
-            "artifact_id": "64e2ef59-365e-4afb-8f59-e402f68efdea:tokens",
+            "artifact_id": "f756e653-7b02-4924-97e4-c826c9fee0bc:tokens",
             "bytes": 14528,
             "kind": "latent",
             "metadata": {
@@ -2308,11 +2308,11 @@
               ]
             },
             "mime_type": "application/octet-stream",
-            "sha256": "1d7677d062c6f379351ea26ce7f4fede408f2ccdcb18e7e43282f295509c6e1e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/tokens.npy"
+            "sha256": "73b15a08e70a6b3c25278c9902dbedfd453ffd2605f8444ca2ffe44a451e268c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/tokens.npy"
           },
           {
-            "artifact_id": "64e2ef59-365e-4afb-8f59-e402f68efdea:state",
+            "artifact_id": "f756e653-7b02-4924-97e4-c826c9fee0bc:state",
             "bytes": 369,
             "kind": "metadata",
             "metadata": {
@@ -2320,23 +2320,23 @@
               "role": "state"
             },
             "mime_type": "application/json",
-            "sha256": "859d2b5b188af00f8d212171a7a130d2c2a389cbd03ffa22053e9ede8fec5905",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/state.json"
+            "sha256": "78dee1f8841b6c9a05ab95941ed5fed2914c6fed22e6b88fcb0594885a8100a7",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/state.json"
           },
           {
-            "artifact_id": "64e2ef59-365e-4afb-8f59-e402f68efdea:temporal-rollout",
+            "artifact_id": "f756e653-7b02-4924-97e4-c826c9fee0bc:temporal-rollout",
             "bytes": null,
             "kind": "metadata",
             "metadata": {
-              "checkpoint_id": "693ff252-65ba-4115-bce4-67a12ab44160",
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-              "rollout_id": "7da3b831-af15-418a-87b1-9ad43a63f8f9",
+              "checkpoint_id": "b4781f11-099c-4040-b909-d228150167d8",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+              "rollout_id": "5f10e691-3d37-4e50-a025-adb0ac770e37",
               "runner_mode": "real",
-              "state_handle_id": "fcd87527-d30b-4c28-a347-e4e6f862d89c"
+              "state_handle_id": "a91ac3a2-2424-45f4-890a-22b988d49477"
             },
             "mime_type": null,
             "sha256": null,
-            "uri": "temporal://rollouts/7da3b831-af15-418a-87b1-9ad43a63f8f9"
+            "uri": "temporal://rollouts/5f10e691-3d37-4e50-a025-adb0ac770e37"
           }
         ],
         "backend": "genie-rollout",
@@ -2374,17 +2374,17 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 4.7,
+            "artifact_persist_ms": 2.692,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.904,
-            "prompt_prepare_ms": 0.504,
-            "runner_exec_ms": 359.634,
+            "controlplane_commit_ms": 0.717,
+            "prompt_prepare_ms": 0.467,
+            "runner_exec_ms": 332.48,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.029,
-            "state_token_prep_ms": 0.533,
-            "temporal_persist_ms": 0.904,
-            "total_elapsed_ms": 370.682,
-            "transition_ms": 359.634
+            "state_materialize_ms": 0.032,
+            "state_token_prep_ms": 0.499,
+            "temporal_persist_ms": 0.717,
+            "total_elapsed_ms": 337.486,
+            "transition_ms": 332.48
           },
           "stubbed": false
         },
@@ -2403,12 +2403,12 @@
         "runtime": {
           "async": false,
           "checkpoint_deltas": [],
-          "checkpoint_id": "693ff252-65ba-4115-bce4-67a12ab44160",
-          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/checkpoint.json",
-          "completed_at": 1775459854.2112737,
+          "checkpoint_id": "b4781f11-099c-4040-b909-d228150167d8",
+          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/checkpoint.json",
+          "completed_at": 1775460624.49842,
           "device": "cuda",
-          "elapsed_ms": 366.78,
-          "elapsed_s": 0.3596,
+          "elapsed_ms": 334.62,
+          "elapsed_s": 0.3325,
           "frames_generated": 5,
           "genie_config": {
             "checkpoint_every_n_frames": 0,
@@ -2419,16 +2419,16 @@
             "temperature": 0.0,
             "tokenizer_kind": "genie_stmaskgit"
           },
-          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/runner.log",
+          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/runner.log",
           "model": "1x-technologies/GENIE_210M_v0",
           "prompt_frames": 4,
           "queue_lane": "hot_continuation",
-          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/recovery.json",
-          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/request.json",
-          "rollout_id": "7da3b831-af15-418a-87b1-9ad43a63f8f9",
+          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/recovery.json",
+          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/request.json",
+          "rollout_id": "5f10e691-3d37-4e50-a025-adb0ac770e37",
           "runner": "genie-real",
           "runner_mode": "real",
-          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/runtime.json",
+          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/runtime.json",
           "runtime_state": {
             "checkpoint_delta_ref": null,
             "last_completed_frame": 9,
@@ -2451,10 +2451,10 @@
               }
             ],
             "cross_request_batcher": {
-              "batch_wait_ms": 2.0,
+              "batch_wait_ms": 0.0,
               "batched_requests": 0,
               "largest_batch_size": 1,
-              "max_batch_size": 8,
+              "max_batch_size": 1,
               "max_observed_batch_size": 1,
               "mean_batch_size": 1.0,
               "total_flushed_batches": 6,
@@ -2496,14 +2496,14 @@
           "stage_history": [
             {
               "elapsed_ms": 0.002,
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
               "queue_lane": "cold_materialize",
               "runner_mode": "real",
-              "sample_id": "64e2ef59-365e-4afb-8f59-e402f68efdea",
+              "sample_id": "f756e653-7b02-4924-97e4-c826c9fee0bc",
               "stage": "admission"
             },
             {
-              "elapsed_ms": 0.029,
+              "elapsed_ms": 0.032,
               "materialized_bytes": 6400,
               "queue_lane": "cold_materialize",
               "resident_tier": "hot_gpu",
@@ -2511,7 +2511,7 @@
               "stage": "state_materialize"
             },
             {
-              "elapsed_ms": 0.504,
+              "elapsed_ms": 0.467,
               "prompt_frames": 4,
               "queue_lane": "hot_continuation",
               "runner_mode": "real",
@@ -2523,9 +2523,9 @@
               "chunk_size": 1,
               "cross_request_batch_id": "transition:4:9:1",
               "cross_request_sample_ids": [
-                "64e2ef59-365e-4afb-8f59-e402f68efdea"
+                "f756e653-7b02-4924-97e4-c826c9fee0bc"
               ],
-              "elapsed_ms": 359.634,
+              "elapsed_ms": 332.48,
               "expected_occupancy": 1.0,
               "frame_range": [
                 4,
@@ -2549,14 +2549,14 @@
             },
             {
               "checkpoint_delta_count": 0,
-              "elapsed_ms": 4.7,
+              "elapsed_ms": 2.692,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "artifact_persist"
             },
             {
               "checkpoint_count": 1,
-              "elapsed_ms": 0.904,
+              "elapsed_ms": 0.717,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "controlplane_commit"
@@ -2564,46 +2564,46 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 4.7,
+            "artifact_persist_ms": 2.692,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.904,
-            "prompt_prepare_ms": 0.504,
-            "runner_exec_ms": 359.634,
+            "controlplane_commit_ms": 0.717,
+            "prompt_prepare_ms": 0.467,
+            "runner_exec_ms": 332.48,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.029,
-            "state_token_prep_ms": 0.533,
-            "temporal_persist_ms": 0.904,
-            "total_elapsed_ms": 370.682,
-            "transition_ms": 359.634
+            "state_materialize_ms": 0.032,
+            "state_token_prep_ms": 0.499,
+            "temporal_persist_ms": 0.717,
+            "total_elapsed_ms": 337.486,
+            "transition_ms": 332.48
           },
-          "started_at": 1775459853.8444896,
-          "state_handle_id": "fcd87527-d30b-4c28-a347-e4e6f862d89c",
-          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/state.json",
+          "started_at": 1775460624.1638024,
+          "state_handle_id": "a91ac3a2-2424-45f4-890a-22b988d49477",
+          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/state.json",
           "status_history": [
             {
               "status": "queued",
-              "timestamp": 1775459853.8444896
+              "timestamp": 1775460624.1638024
             },
             {
               "status": "running",
-              "timestamp": 1775459853.8444896
+              "timestamp": 1775460624.1638024
             },
             {
               "status": "succeeded",
-              "timestamp": 1775459854.2112737
+              "timestamp": 1775460624.49842
             }
           ],
           "temporal": true,
           "token_input": {
-            "cache_key": "state_handle:a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-            "source_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
+            "cache_key": "state_handle:17723cb7-2190-4807-9e1e-e8f3974ad563",
+            "source_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
             "token_input_mode": "prompt_cache"
           },
           "tokens_generated": 2000,
-          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/64e2ef59-365e-4afb-8f59-e402f68efdea/tokens.npy",
+          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/f756e653-7b02-4924-97e4-c826c9fee0bc/tokens.npy",
           "total_frames": 9
         },
-        "sample_id": "64e2ef59-365e-4afb-8f59-e402f68efdea",
+        "sample_id": "f756e653-7b02-4924-97e4-c826c9fee0bc",
         "sample_spec": {
           "controls": {},
           "duration_seconds": null,
@@ -2629,12 +2629,12 @@
         },
         "task_type": "genie_rollout",
         "temporal": {
-          "branch_id": "5071f91d-486e-4b81-b089-1147af7290ac",
-          "checkpoint_id": "693ff252-65ba-4115-bce4-67a12ab44160",
-          "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-          "parent_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-          "rollout_id": "7da3b831-af15-418a-87b1-9ad43a63f8f9",
-          "state_handle_id": "fcd87527-d30b-4c28-a347-e4e6f862d89c"
+          "branch_id": "5defacbd-e5b9-4c5a-84e7-1e9ca4fc0262",
+          "checkpoint_id": "b4781f11-099c-4040-b909-d228150167d8",
+          "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+          "parent_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
+          "rollout_id": "5f10e691-3d37-4e50-a025-adb0ac770e37",
+          "state_handle_id": "a91ac3a2-2424-45f4-890a-22b988d49477"
         },
         "token_input": null,
         "wan_config": null
@@ -2644,16 +2644,16 @@
       "initial_status": "queued",
       "iteration": 6,
       "metrics": {
-        "poll_count": 2.0,
-        "submit_latency_ms": 375.581,
-        "terminal_latency_ms": 1118.302
+        "poll_count": 1.0,
+        "submit_latency_ms": 1374.917,
+        "terminal_latency_ms": 1378.402
       },
-      "sample_id": "d42b100e-2912-486b-8d6d-29c275f6f28f",
+      "sample_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b",
       "status": "succeeded",
       "terminal_payload": {
         "artifacts": [
           {
-            "artifact_id": "d42b100e-2912-486b-8d6d-29c275f6f28f:request",
+            "artifact_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b:request",
             "bytes": 1370,
             "kind": "metadata",
             "metadata": {
@@ -2661,34 +2661,34 @@
               "role": "request"
             },
             "mime_type": "application/json",
-            "sha256": "e1d5af5b82420aaa025b6435b980b4c9e9547fff1d05f152990a263dce044faa",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/request.json"
+            "sha256": "022f0b80ef5c3236db186b0acbfa253fcbe181d923ad82309f3f635ad5e310a9",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/request.json"
           },
           {
-            "artifact_id": "d42b100e-2912-486b-8d6d-29c275f6f28f:log",
+            "artifact_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b:log",
             "bytes": 394,
             "kind": "log",
             "metadata": {
               "exists": true
             },
             "mime_type": "text/plain",
-            "sha256": "2fc3d75a3375c528a6f0ab992031765ba9f36367b32e8cfbf000c7bbd96d3835",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/runner.log"
+            "sha256": "3c7c2e1e527ec08d1232104ffa335dd7cd593aba44e442744c461f24456e62c7",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/runner.log"
           },
           {
-            "artifact_id": "d42b100e-2912-486b-8d6d-29c275f6f28f:runtime",
-            "bytes": 6015,
+            "artifact_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b:runtime",
+            "bytes": 6013,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "runtime"
             },
             "mime_type": "application/json",
-            "sha256": "5d98c44e37695e2a09ea7856b0abf17b534770bb60c0a8be4faa85f9f2990a95",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/runtime.json"
+            "sha256": "4864823f38136fdb3585ba32d037d1c0003983ea2f76bc452efd61a72d2a6d52",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/runtime.json"
           },
           {
-            "artifact_id": "d42b100e-2912-486b-8d6d-29c275f6f28f:checkpoint",
+            "artifact_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b:checkpoint",
             "bytes": 1469,
             "kind": "metadata",
             "metadata": {
@@ -2696,11 +2696,11 @@
               "role": "checkpoint"
             },
             "mime_type": "application/json",
-            "sha256": "2982c5900e162245eadbea8be4b991f81e3fb8f281128fd49d86d3c9dbe2bd8a",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/checkpoint.json"
+            "sha256": "8177975cd0fc8a76c76882336f2a43b9c1702252ebf0808bcad6ebbfd5684b16",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/checkpoint.json"
           },
           {
-            "artifact_id": "d42b100e-2912-486b-8d6d-29c275f6f28f:recovery",
+            "artifact_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b:recovery",
             "bytes": 1575,
             "kind": "metadata",
             "metadata": {
@@ -2708,11 +2708,11 @@
               "role": "recovery"
             },
             "mime_type": "application/json",
-            "sha256": "bd96f7c233eb8c2738eee8d44acab4b01431e43a43727cf36511091ccc570321",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/recovery.json"
+            "sha256": "cf6d7da3fb8825964f9e2034886f9c6fa1dcf855591e5a82dcc10726606db6a8",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/recovery.json"
           },
           {
-            "artifact_id": "d42b100e-2912-486b-8d6d-29c275f6f28f:tokens",
+            "artifact_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b:tokens",
             "bytes": 14528,
             "kind": "latent",
             "metadata": {
@@ -2726,11 +2726,11 @@
               ]
             },
             "mime_type": "application/octet-stream",
-            "sha256": "1d7677d062c6f379351ea26ce7f4fede408f2ccdcb18e7e43282f295509c6e1e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/tokens.npy"
+            "sha256": "73b15a08e70a6b3c25278c9902dbedfd453ffd2605f8444ca2ffe44a451e268c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/tokens.npy"
           },
           {
-            "artifact_id": "d42b100e-2912-486b-8d6d-29c275f6f28f:state",
+            "artifact_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b:state",
             "bytes": 369,
             "kind": "metadata",
             "metadata": {
@@ -2738,23 +2738,23 @@
               "role": "state"
             },
             "mime_type": "application/json",
-            "sha256": "8eb24977c10e95d64c747e37104b7bddefac9c65f96de5591cb33cfc432ad99e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/state.json"
+            "sha256": "d36ec6c443f696d5969b0adb842d64b472b9afaebf56b459d3d7c8ee7cd4c1d5",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/state.json"
           },
           {
-            "artifact_id": "d42b100e-2912-486b-8d6d-29c275f6f28f:temporal-rollout",
+            "artifact_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b:temporal-rollout",
             "bytes": null,
             "kind": "metadata",
             "metadata": {
-              "checkpoint_id": "0830b830-238c-4b45-be1a-f6e18d8ffa9f",
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-              "rollout_id": "5df4f70a-8fcd-40da-9c10-0cded007cfa2",
+              "checkpoint_id": "c5d727d5-de5f-4164-94fc-48c2c78dc9e5",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+              "rollout_id": "5d8f652e-258e-4d60-bf18-0f13b9668620",
               "runner_mode": "real",
-              "state_handle_id": "0e65eb7c-217a-407f-8c47-489ddae0a875"
+              "state_handle_id": "d39746c0-7e67-426e-871c-bc3d2869bcbf"
             },
             "mime_type": null,
             "sha256": null,
-            "uri": "temporal://rollouts/5df4f70a-8fcd-40da-9c10-0cded007cfa2"
+            "uri": "temporal://rollouts/5d8f652e-258e-4d60-bf18-0f13b9668620"
           }
         ],
         "backend": "genie-rollout",
@@ -2792,17 +2792,17 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 3.834,
+            "artifact_persist_ms": 2.797,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.663,
-            "prompt_prepare_ms": 0.582,
-            "runner_exec_ms": 364.283,
+            "controlplane_commit_ms": 0.752,
+            "prompt_prepare_ms": 0.497,
+            "runner_exec_ms": 332.772,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.032,
-            "state_token_prep_ms": 0.614,
-            "temporal_persist_ms": 0.663,
-            "total_elapsed_ms": 374.163,
-            "transition_ms": 364.283
+            "state_materialize_ms": 0.027,
+            "state_token_prep_ms": 0.524,
+            "temporal_persist_ms": 0.752,
+            "total_elapsed_ms": 338.14,
+            "transition_ms": 332.772
           },
           "stubbed": false
         },
@@ -2821,12 +2821,12 @@
         "runtime": {
           "async": false,
           "checkpoint_deltas": [],
-          "checkpoint_id": "0830b830-238c-4b45-be1a-f6e18d8ffa9f",
-          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/checkpoint.json",
-          "completed_at": 1775459854.589546,
+          "checkpoint_id": "c5d727d5-de5f-4164-94fc-48c2c78dc9e5",
+          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/checkpoint.json",
+          "completed_at": 1775460624.8402278,
           "device": "cuda",
-          "elapsed_ms": 370.91,
-          "elapsed_s": 0.3643,
+          "elapsed_ms": 335.31,
+          "elapsed_s": 0.3328,
           "frames_generated": 5,
           "genie_config": {
             "checkpoint_every_n_frames": 0,
@@ -2837,16 +2837,16 @@
             "temperature": 0.0,
             "tokenizer_kind": "genie_stmaskgit"
           },
-          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/runner.log",
+          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/runner.log",
           "model": "1x-technologies/GENIE_210M_v0",
           "prompt_frames": 4,
           "queue_lane": "hot_continuation",
-          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/recovery.json",
-          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/request.json",
-          "rollout_id": "5df4f70a-8fcd-40da-9c10-0cded007cfa2",
+          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/recovery.json",
+          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/request.json",
+          "rollout_id": "5d8f652e-258e-4d60-bf18-0f13b9668620",
           "runner": "genie-real",
           "runner_mode": "real",
-          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/runtime.json",
+          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/runtime.json",
           "runtime_state": {
             "checkpoint_delta_ref": null,
             "last_completed_frame": 9,
@@ -2869,10 +2869,10 @@
               }
             ],
             "cross_request_batcher": {
-              "batch_wait_ms": 2.0,
+              "batch_wait_ms": 0.0,
               "batched_requests": 0,
               "largest_batch_size": 1,
-              "max_batch_size": 8,
+              "max_batch_size": 1,
               "max_observed_batch_size": 1,
               "mean_batch_size": 1.0,
               "total_flushed_batches": 7,
@@ -2914,14 +2914,14 @@
           "stage_history": [
             {
               "elapsed_ms": 0.002,
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
               "queue_lane": "cold_materialize",
               "runner_mode": "real",
-              "sample_id": "d42b100e-2912-486b-8d6d-29c275f6f28f",
+              "sample_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b",
               "stage": "admission"
             },
             {
-              "elapsed_ms": 0.032,
+              "elapsed_ms": 0.027,
               "materialized_bytes": 6400,
               "queue_lane": "cold_materialize",
               "resident_tier": "hot_gpu",
@@ -2929,7 +2929,7 @@
               "stage": "state_materialize"
             },
             {
-              "elapsed_ms": 0.582,
+              "elapsed_ms": 0.497,
               "prompt_frames": 4,
               "queue_lane": "hot_continuation",
               "runner_mode": "real",
@@ -2941,9 +2941,9 @@
               "chunk_size": 1,
               "cross_request_batch_id": "transition:4:9:1",
               "cross_request_sample_ids": [
-                "d42b100e-2912-486b-8d6d-29c275f6f28f"
+                "59778a3e-062c-4e50-a6f9-d11ca224cf9b"
               ],
-              "elapsed_ms": 364.283,
+              "elapsed_ms": 332.772,
               "expected_occupancy": 1.0,
               "frame_range": [
                 4,
@@ -2967,14 +2967,14 @@
             },
             {
               "checkpoint_delta_count": 0,
-              "elapsed_ms": 3.834,
+              "elapsed_ms": 2.797,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "artifact_persist"
             },
             {
               "checkpoint_count": 1,
-              "elapsed_ms": 0.663,
+              "elapsed_ms": 0.752,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "controlplane_commit"
@@ -2982,46 +2982,46 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 3.834,
+            "artifact_persist_ms": 2.797,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 0.663,
-            "prompt_prepare_ms": 0.582,
-            "runner_exec_ms": 364.283,
+            "controlplane_commit_ms": 0.752,
+            "prompt_prepare_ms": 0.497,
+            "runner_exec_ms": 332.772,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.032,
-            "state_token_prep_ms": 0.614,
-            "temporal_persist_ms": 0.663,
-            "total_elapsed_ms": 374.163,
-            "transition_ms": 364.283
+            "state_materialize_ms": 0.027,
+            "state_token_prep_ms": 0.524,
+            "temporal_persist_ms": 0.752,
+            "total_elapsed_ms": 338.14,
+            "transition_ms": 332.772
           },
-          "started_at": 1775459854.218632,
-          "state_handle_id": "0e65eb7c-217a-407f-8c47-489ddae0a875",
-          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/state.json",
+          "started_at": 1775460624.50492,
+          "state_handle_id": "d39746c0-7e67-426e-871c-bc3d2869bcbf",
+          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/state.json",
           "status_history": [
             {
               "status": "queued",
-              "timestamp": 1775459854.218632
+              "timestamp": 1775460624.50492
             },
             {
               "status": "running",
-              "timestamp": 1775459854.218632
+              "timestamp": 1775460624.50492
             },
             {
               "status": "succeeded",
-              "timestamp": 1775459854.589546
+              "timestamp": 1775460624.8402278
             }
           ],
           "temporal": true,
           "token_input": {
-            "cache_key": "state_handle:a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-            "source_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
+            "cache_key": "state_handle:17723cb7-2190-4807-9e1e-e8f3974ad563",
+            "source_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
             "token_input_mode": "prompt_cache"
           },
           "tokens_generated": 2000,
-          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/d42b100e-2912-486b-8d6d-29c275f6f28f/tokens.npy",
+          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/59778a3e-062c-4e50-a6f9-d11ca224cf9b/tokens.npy",
           "total_frames": 9
         },
-        "sample_id": "d42b100e-2912-486b-8d6d-29c275f6f28f",
+        "sample_id": "59778a3e-062c-4e50-a6f9-d11ca224cf9b",
         "sample_spec": {
           "controls": {},
           "duration_seconds": null,
@@ -3047,12 +3047,12 @@
         },
         "task_type": "genie_rollout",
         "temporal": {
-          "branch_id": "5071f91d-486e-4b81-b089-1147af7290ac",
-          "checkpoint_id": "0830b830-238c-4b45-be1a-f6e18d8ffa9f",
-          "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-          "parent_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-          "rollout_id": "5df4f70a-8fcd-40da-9c10-0cded007cfa2",
-          "state_handle_id": "0e65eb7c-217a-407f-8c47-489ddae0a875"
+          "branch_id": "5defacbd-e5b9-4c5a-84e7-1e9ca4fc0262",
+          "checkpoint_id": "c5d727d5-de5f-4164-94fc-48c2c78dc9e5",
+          "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+          "parent_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
+          "rollout_id": "5d8f652e-258e-4d60-bf18-0f13b9668620",
+          "state_handle_id": "d39746c0-7e67-426e-871c-bc3d2869bcbf"
         },
         "token_input": null,
         "wan_config": null
@@ -3062,16 +3062,16 @@
       "initial_status": "queued",
       "iteration": 7,
       "metrics": {
-        "poll_count": 2.0,
-        "submit_latency_ms": 375.653,
-        "terminal_latency_ms": 1118.214
+        "poll_count": 1.0,
+        "submit_latency_ms": 1374.973,
+        "terminal_latency_ms": 1378.421
       },
-      "sample_id": "73f20636-6216-4105-8aba-d2bba30d4992",
+      "sample_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8",
       "status": "succeeded",
       "terminal_payload": {
         "artifacts": [
           {
-            "artifact_id": "73f20636-6216-4105-8aba-d2bba30d4992:request",
+            "artifact_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8:request",
             "bytes": 1370,
             "kind": "metadata",
             "metadata": {
@@ -3079,34 +3079,34 @@
               "role": "request"
             },
             "mime_type": "application/json",
-            "sha256": "70201707b76dd6f30a36edfa2098ebf491809654605d2edd77781a3f5d9247a9",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/request.json"
+            "sha256": "b8ac0b6f5b68e23a92054c6864501f0b5835bad290eb23e966532c14a18b5653",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/request.json"
           },
           {
-            "artifact_id": "73f20636-6216-4105-8aba-d2bba30d4992:log",
+            "artifact_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8:log",
             "bytes": 394,
             "kind": "log",
             "metadata": {
               "exists": true
             },
             "mime_type": "text/plain",
-            "sha256": "8bf2be09bb65c992d7e3bbc7bbf31a4318a3a80437a6b745560e47a48406775d",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/runner.log"
+            "sha256": "daab378d65cd9d504f00de849cef435f5ef7811dd4657143e1f9ee7fc9eb6e5c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/runner.log"
           },
           {
-            "artifact_id": "73f20636-6216-4105-8aba-d2bba30d4992:runtime",
-            "bytes": 6013,
+            "artifact_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8:runtime",
+            "bytes": 6020,
             "kind": "metadata",
             "metadata": {
               "exists": true,
               "role": "runtime"
             },
             "mime_type": "application/json",
-            "sha256": "6b540d493205008b723e629984ad739140206c2dee27255fc8036ef979136de0",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/runtime.json"
+            "sha256": "f6e1c118a52ac7cc81cebe7e5aad8a0e58910f78954f488b478b3d4890b71a99",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/runtime.json"
           },
           {
-            "artifact_id": "73f20636-6216-4105-8aba-d2bba30d4992:checkpoint",
+            "artifact_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8:checkpoint",
             "bytes": 1471,
             "kind": "metadata",
             "metadata": {
@@ -3114,11 +3114,11 @@
               "role": "checkpoint"
             },
             "mime_type": "application/json",
-            "sha256": "f3a16d7338753685950b35c170f5871052e6ce9f03c7c325a10acd63eeff18ee",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/checkpoint.json"
+            "sha256": "fee78d44ba281ff9567ca51bcc2ad89a7e76e514cf16017ba69c6fd6a6560d87",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/checkpoint.json"
           },
           {
-            "artifact_id": "73f20636-6216-4105-8aba-d2bba30d4992:recovery",
+            "artifact_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8:recovery",
             "bytes": 1577,
             "kind": "metadata",
             "metadata": {
@@ -3126,11 +3126,11 @@
               "role": "recovery"
             },
             "mime_type": "application/json",
-            "sha256": "094fe31a3e0379e19cb38815b2d432f4a418ccc0291f7566462670c0b2e561a4",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/recovery.json"
+            "sha256": "f10d19548d9c15cd982903f9505f01ec7cd0271f7c56325b922c58d9862901e3",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/recovery.json"
           },
           {
-            "artifact_id": "73f20636-6216-4105-8aba-d2bba30d4992:tokens",
+            "artifact_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8:tokens",
             "bytes": 14528,
             "kind": "latent",
             "metadata": {
@@ -3144,11 +3144,11 @@
               ]
             },
             "mime_type": "application/octet-stream",
-            "sha256": "1d7677d062c6f379351ea26ce7f4fede408f2ccdcb18e7e43282f295509c6e1e",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/tokens.npy"
+            "sha256": "73b15a08e70a6b3c25278c9902dbedfd453ffd2605f8444ca2ffe44a451e268c",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/tokens.npy"
           },
           {
-            "artifact_id": "73f20636-6216-4105-8aba-d2bba30d4992:state",
+            "artifact_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8:state",
             "bytes": 369,
             "kind": "metadata",
             "metadata": {
@@ -3156,23 +3156,23 @@
               "role": "state"
             },
             "mime_type": "application/json",
-            "sha256": "9343b7f6339bd6b48a8237683e66bd9e05916cc1ea918b882ed9ac38bdeb7312",
-            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/state.json"
+            "sha256": "2d427700992a19da15b29f9f4c1b29ba7f500b0afcbf7150d44c3e0c5705e680",
+            "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/state.json"
           },
           {
-            "artifact_id": "73f20636-6216-4105-8aba-d2bba30d4992:temporal-rollout",
+            "artifact_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8:temporal-rollout",
             "bytes": null,
             "kind": "metadata",
             "metadata": {
-              "checkpoint_id": "8cdfe643-b305-4827-b6b2-1e9bf4840b65",
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-              "rollout_id": "75972fb8-8441-4eed-98f6-3b5b2fa00541",
+              "checkpoint_id": "7d7f1c94-3360-45a9-8a77-5ac4709f658c",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+              "rollout_id": "d559286f-b077-4b5c-a689-8c67d1e6c56e",
               "runner_mode": "real",
-              "state_handle_id": "4664444c-10ab-41f6-b617-89bed024eb23"
+              "state_handle_id": "4c95c17a-f80c-4d9c-871b-d450607a815a"
             },
             "mime_type": null,
             "sha256": null,
-            "uri": "temporal://rollouts/75972fb8-8441-4eed-98f6-3b5b2fa00541"
+            "uri": "temporal://rollouts/d559286f-b077-4b5c-a689-8c67d1e6c56e"
           }
         ],
         "backend": "genie-rollout",
@@ -3210,17 +3210,17 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 4.056,
+            "artifact_persist_ms": 2.915,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 1.1,
-            "prompt_prepare_ms": 0.624,
-            "runner_exec_ms": 354.165,
+            "controlplane_commit_ms": 2.183,
+            "prompt_prepare_ms": 0.449,
+            "runner_exec_ms": 332.234,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.035,
-            "state_token_prep_ms": 0.659,
-            "temporal_persist_ms": 1.1,
-            "total_elapsed_ms": 364.36,
-            "transition_ms": 354.165
+            "state_materialize_ms": 0.029,
+            "state_token_prep_ms": 0.478,
+            "temporal_persist_ms": 2.183,
+            "total_elapsed_ms": 339.104,
+            "transition_ms": 332.234
           },
           "stubbed": false
         },
@@ -3239,12 +3239,12 @@
         "runtime": {
           "async": false,
           "checkpoint_deltas": [],
-          "checkpoint_id": "8cdfe643-b305-4827-b6b2-1e9bf4840b65",
-          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/checkpoint.json",
-          "completed_at": 1775459854.9565904,
+          "checkpoint_id": "7d7f1c94-3360-45a9-8a77-5ac4709f658c",
+          "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/checkpoint.json",
+          "completed_at": 1775460625.1807334,
           "device": "cuda",
-          "elapsed_ms": 359.84,
-          "elapsed_s": 0.3542,
+          "elapsed_ms": 334.45,
+          "elapsed_s": 0.3322,
           "frames_generated": 5,
           "genie_config": {
             "checkpoint_every_n_frames": 0,
@@ -3255,16 +3255,16 @@
             "temperature": 0.0,
             "tokenizer_kind": "genie_stmaskgit"
           },
-          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/runner.log",
+          "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/runner.log",
           "model": "1x-technologies/GENIE_210M_v0",
           "prompt_frames": 4,
           "queue_lane": "hot_continuation",
-          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/recovery.json",
-          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/request.json",
-          "rollout_id": "75972fb8-8441-4eed-98f6-3b5b2fa00541",
+          "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/recovery.json",
+          "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/request.json",
+          "rollout_id": "d559286f-b077-4b5c-a689-8c67d1e6c56e",
           "runner": "genie-real",
           "runner_mode": "real",
-          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/runtime.json",
+          "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/runtime.json",
           "runtime_state": {
             "checkpoint_delta_ref": null,
             "last_completed_frame": 9,
@@ -3287,10 +3287,10 @@
               }
             ],
             "cross_request_batcher": {
-              "batch_wait_ms": 2.0,
+              "batch_wait_ms": 0.0,
               "batched_requests": 0,
               "largest_batch_size": 1,
-              "max_batch_size": 8,
+              "max_batch_size": 1,
               "max_observed_batch_size": 1,
               "mean_batch_size": 1.0,
               "total_flushed_batches": 8,
@@ -3332,14 +3332,14 @@
           "stage_history": [
             {
               "elapsed_ms": 0.002,
-              "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
+              "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
               "queue_lane": "cold_materialize",
               "runner_mode": "real",
-              "sample_id": "73f20636-6216-4105-8aba-d2bba30d4992",
+              "sample_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8",
               "stage": "admission"
             },
             {
-              "elapsed_ms": 0.035,
+              "elapsed_ms": 0.029,
               "materialized_bytes": 6400,
               "queue_lane": "cold_materialize",
               "resident_tier": "hot_gpu",
@@ -3347,7 +3347,7 @@
               "stage": "state_materialize"
             },
             {
-              "elapsed_ms": 0.624,
+              "elapsed_ms": 0.449,
               "prompt_frames": 4,
               "queue_lane": "hot_continuation",
               "runner_mode": "real",
@@ -3359,9 +3359,9 @@
               "chunk_size": 1,
               "cross_request_batch_id": "transition:4:9:1",
               "cross_request_sample_ids": [
-                "73f20636-6216-4105-8aba-d2bba30d4992"
+                "1d6048b8-f763-45b0-b2c4-48c908d56ad8"
               ],
-              "elapsed_ms": 354.165,
+              "elapsed_ms": 332.234,
               "expected_occupancy": 1.0,
               "frame_range": [
                 4,
@@ -3385,14 +3385,14 @@
             },
             {
               "checkpoint_delta_count": 0,
-              "elapsed_ms": 4.056,
+              "elapsed_ms": 2.915,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "artifact_persist"
             },
             {
               "checkpoint_count": 1,
-              "elapsed_ms": 1.1,
+              "elapsed_ms": 2.183,
               "queue_lane": "persist_only",
               "runner_mode": "real",
               "stage": "controlplane_commit"
@@ -3400,46 +3400,46 @@
           ],
           "stage_timings_ms": {
             "admission_ms": 0.002,
-            "artifact_persist_ms": 4.056,
+            "artifact_persist_ms": 2.915,
             "checkpoint_ms": 0.0,
-            "controlplane_commit_ms": 1.1,
-            "prompt_prepare_ms": 0.624,
-            "runner_exec_ms": 354.165,
+            "controlplane_commit_ms": 2.183,
+            "prompt_prepare_ms": 0.449,
+            "runner_exec_ms": 332.234,
             "runner_load_ms": 0.001,
-            "state_materialize_ms": 0.035,
-            "state_token_prep_ms": 0.659,
-            "temporal_persist_ms": 1.1,
-            "total_elapsed_ms": 364.36,
-            "transition_ms": 354.165
+            "state_materialize_ms": 0.029,
+            "state_token_prep_ms": 0.478,
+            "temporal_persist_ms": 2.183,
+            "total_elapsed_ms": 339.104,
+            "transition_ms": 332.234
           },
-          "started_at": 1775459854.5967548,
-          "state_handle_id": "4664444c-10ab-41f6-b617-89bed024eb23",
-          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/state.json",
+          "started_at": 1775460624.8462822,
+          "state_handle_id": "4c95c17a-f80c-4d9c-871b-d450607a815a",
+          "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/state.json",
           "status_history": [
             {
               "status": "queued",
-              "timestamp": 1775459854.5967548
+              "timestamp": 1775460624.8462822
             },
             {
               "status": "running",
-              "timestamp": 1775459854.5967548
+              "timestamp": 1775460624.8462822
             },
             {
               "status": "succeeded",
-              "timestamp": 1775459854.9565904
+              "timestamp": 1775460625.1807334
             }
           ],
           "temporal": true,
           "token_input": {
-            "cache_key": "state_handle:a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-            "source_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
+            "cache_key": "state_handle:17723cb7-2190-4807-9e1e-e8f3974ad563",
+            "source_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
             "token_input_mode": "prompt_cache"
           },
           "tokens_generated": 2000,
-          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/73f20636-6216-4105-8aba-d2bba30d4992/tokens.npy",
+          "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/1d6048b8-f763-45b0-b2c4-48c908d56ad8/tokens.npy",
           "total_frames": 9
         },
-        "sample_id": "73f20636-6216-4105-8aba-d2bba30d4992",
+        "sample_id": "1d6048b8-f763-45b0-b2c4-48c908d56ad8",
         "sample_spec": {
           "controls": {},
           "duration_seconds": null,
@@ -3465,12 +3465,12 @@
         },
         "task_type": "genie_rollout",
         "temporal": {
-          "branch_id": "5071f91d-486e-4b81-b089-1147af7290ac",
-          "checkpoint_id": "8cdfe643-b305-4827-b6b2-1e9bf4840b65",
-          "episode_id": "cecc6cf4-bbf6-4187-9941-9c1e21a01183",
-          "parent_state_handle_id": "a32f47cc-49ed-4a48-bb28-c0d5d3fedad5",
-          "rollout_id": "75972fb8-8441-4eed-98f6-3b5b2fa00541",
-          "state_handle_id": "4664444c-10ab-41f6-b617-89bed024eb23"
+          "branch_id": "5defacbd-e5b9-4c5a-84e7-1e9ca4fc0262",
+          "checkpoint_id": "7d7f1c94-3360-45a9-8a77-5ac4709f658c",
+          "episode_id": "52560630-730f-42e7-b85a-d6569bb00a1a",
+          "parent_state_handle_id": "17723cb7-2190-4807-9e1e-e8f3974ad563",
+          "rollout_id": "d559286f-b077-4b5c-a689-8c67d1e6c56e",
+          "state_handle_id": "4c95c17a-f80c-4d9c-871b-d450607a815a"
         },
         "token_input": null,
         "wan_config": null
@@ -3490,21 +3490,21 @@
     "latency": {
       "submit": {
         "count": 8.0,
-        "max_ms": 1837.493,
-        "mean_ms": 1105.245,
-        "min_ms": 371.002,
-        "p50_ms": 1106.1985,
-        "p95_ms": 1837.43035,
-        "p99_ms": 1837.48047
+        "max_ms": 3473.735,
+        "mean_ms": 2424.265125,
+        "min_ms": 1374.729,
+        "p50_ms": 2424.2275,
+        "p95_ms": 3473.7300999999998,
+        "p99_ms": 3473.7340200000003
       },
       "terminal": {
         "count": 8.0,
-        "max_ms": 3830.291,
-        "mean_ms": 2382.764875,
-        "min_ms": 1118.214,
-        "p50_ms": 2291.2815,
-        "p95_ms": 3830.27875,
-        "p99_ms": 3830.28855
+        "max_ms": 3478.444,
+        "mean_ms": 2428.410125,
+        "min_ms": 1378.395,
+        "p50_ms": 2428.402,
+        "p95_ms": 3478.4401500000004,
+        "p99_ms": 3478.44323
       }
     },
     "success_rate": 1.0
