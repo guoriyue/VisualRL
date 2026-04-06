@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import json
 import platform
+import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
+import threading
+import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from statistics import mean
@@ -22,6 +25,225 @@ from typing import Any
 class ComparableAxis:
     name: str
     value: Any
+
+
+@dataclass
+class GpuSampler:
+    """Best-effort GPU profiler based on `nvidia-smi` polling."""
+
+    poll_interval_s: float = 0.1
+    device_index: int = 0
+    enabled: bool = True
+    available: bool = True
+    source: str = "nvidia-smi"
+    error: str | None = None
+    samples: list[dict[str, Any]] = field(default_factory=list)
+    _stop_event: threading.Event | None = None
+    _thread: threading.Thread | None = None
+    _started_at_s: float | None = None
+    _stopped_at_s: float | None = None
+
+    def __post_init__(self) -> None:
+        self._stop_event = threading.Event()
+        self.available = self.enabled and shutil.which("nvidia-smi") is not None
+        if not self.available:
+            self.enabled = False
+
+    @classmethod
+    def disabled(cls) -> "GpuSampler":
+        return cls(enabled=False, available=False)
+
+    def start(self) -> "GpuSampler":
+        if not self.enabled or not self.available or self._thread is not None:
+            return self
+
+        self._started_at_s = time.perf_counter()
+
+        def _run() -> None:
+            while self._stop_event is not None and not self._stop_event.is_set():
+                sample = _sample_gpu_snapshot(self.device_index, self.source)
+                if sample is not None:
+                    self.samples.append(sample)
+                if self._stop_event.wait(self.poll_interval_s):
+                    break
+
+        self._thread = threading.Thread(target=_run, name="gpu-sampler", daemon=True)
+        self._thread.start()
+        return self
+
+    def stop(self) -> dict[str, Any]:
+        if self._stop_event is not None:
+            self._stop_event.set()
+        if self._thread is not None:
+            self._thread.join()
+            self._thread = None
+        self._stopped_at_s = time.perf_counter()
+        return self.summary()
+
+    def __enter__(self) -> "GpuSampler":
+        return self.start()
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        self.stop()
+
+    @property
+    def sample_count(self) -> int:
+        return len(self.samples)
+
+    def summary(self) -> dict[str, Any]:
+        return summarize_gpu_samples(
+            self.samples,
+            enabled=self.enabled,
+            available=self.available,
+            source=self.source,
+            device_index=self.device_index,
+            poll_interval_s=self.poll_interval_s,
+            error=self.error,
+            started_at_s=self._started_at_s,
+            stopped_at_s=self._stopped_at_s,
+        )
+
+
+def _summarize_numeric_series(values: list[float]) -> dict[str, float]:
+    if not values:
+        return {}
+    numbers = [float(value) for value in values]
+    return {
+        "count": float(len(numbers)),
+        "mean": mean(numbers),
+        "min": min(numbers),
+        "p50": percentile(numbers, 50),
+        "p95": percentile(numbers, 95),
+        "p99": percentile(numbers, 99),
+        "max": max(numbers),
+    }
+
+
+def _coerce_optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if text in {"", "N/A", "NA", "Unknown"}:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _sample_gpu_snapshot(device_index: int, source: str = "nvidia-smi") -> dict[str, Any] | None:
+    if source != "nvidia-smi":
+        raise ValueError(f"Unsupported GPU sampler source: {source}")
+    if shutil.which("nvidia-smi") is None:
+        return None
+
+    query = "timestamp,index,name,utilization.gpu,utilization.memory,memory.used,memory.total"
+    cmd = [
+        "nvidia-smi",
+        f"--query-gpu={query}",
+        "--format=csv,noheader,nounits",
+    ]
+    if device_index is not None:
+        cmd.append(f"--id={device_index}")
+
+    try:
+        completed = subprocess.run(cmd, capture_output=True, text=True, check=False, timeout=2.0)
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
+        return None
+
+    if completed.returncode != 0:
+        return None
+
+    line = completed.stdout.strip().splitlines()
+    if not line:
+        return None
+    parts = [part.strip() for part in line[0].split(",")]
+    if len(parts) < 7:
+        return None
+
+    return {
+        "captured_at_s": time.perf_counter(),
+        "timestamp": parts[0],
+        "gpu_index": parts[1],
+        "gpu_name": parts[2],
+        "utilization_gpu_pct": _coerce_optional_float(parts[3]),
+        "utilization_memory_pct": _coerce_optional_float(parts[4]),
+        "memory_used_mib": _coerce_optional_float(parts[5]),
+        "memory_total_mib": _coerce_optional_float(parts[6]),
+    }
+
+
+def summarize_gpu_samples(
+    samples: list[dict[str, Any]],
+    *,
+    enabled: bool = True,
+    available: bool = True,
+    source: str = "nvidia-smi",
+    device_index: int | None = None,
+    poll_interval_s: float | None = None,
+    error: str | None = None,
+    started_at_s: float | None = None,
+    stopped_at_s: float | None = None,
+) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "enabled": enabled,
+        "available": available,
+        "source": source,
+        "device_index": device_index,
+        "poll_interval_s": poll_interval_s,
+        "sample_count": len(samples),
+        "error": error,
+    }
+    if started_at_s is not None and stopped_at_s is not None:
+        summary["duration_s"] = max(stopped_at_s - started_at_s, 0.0)
+
+    if not samples:
+        summary["series"] = {}
+        return summary
+
+    numeric_series = {
+        "utilization_gpu_pct": [value for value in (_coerce_optional_float(item.get("utilization_gpu_pct")) for item in samples) if value is not None],
+        "utilization_memory_pct": [value for value in (_coerce_optional_float(item.get("utilization_memory_pct")) for item in samples) if value is not None],
+        "memory_used_mib": [value for value in (_coerce_optional_float(item.get("memory_used_mib")) for item in samples) if value is not None],
+        "memory_total_mib": [value for value in (_coerce_optional_float(item.get("memory_total_mib")) for item in samples) if value is not None],
+    }
+
+    summary["series"] = {name: _summarize_numeric_series(values) for name, values in numeric_series.items() if values}
+    summary["peak"] = {
+        name: series.get("max")
+        for name, series in summary["series"].items()
+        if series
+    }
+    summary["first_sample"] = {key: samples[0].get(key) for key in ("timestamp", "gpu_index", "gpu_name")}
+    summary["last_sample"] = {key: samples[-1].get(key) for key in ("timestamp", "gpu_index", "gpu_name")}
+    return summary
+
+
+def format_gpu_summary(summary: dict[str, Any] | None) -> str:
+    if not summary:
+        return "GPU profiling: unavailable"
+    if not summary.get("available"):
+        return "GPU profiling: unavailable"
+
+    series = summary.get("series", {})
+    gpu = series.get("utilization_gpu_pct", {})
+    mem = series.get("memory_used_mib", {})
+    gpu_mean = gpu.get("mean")
+    gpu_max = gpu.get("max")
+    mem_max = mem.get("max")
+    sample_count = summary.get("sample_count", 0)
+    parts = [f"samples={sample_count}"]
+    if gpu_mean is not None:
+        parts.append(f"gpu_mean={gpu_mean:.1f}%")
+    if gpu_max is not None:
+        parts.append(f"gpu_peak={gpu_max:.1f}%")
+    if mem_max is not None:
+        parts.append(f"mem_peak={mem_max:.0f} MiB")
+    if summary.get("duration_s") is not None:
+        parts.append(f"window={summary['duration_s']:.3f}s")
+    return "GPU profiling: " + " | ".join(parts)
 
 
 _COMPARISON_METRICS = [
@@ -55,18 +277,8 @@ def percentile(values: list[float], pct: float) -> float:
 
 
 def summarize_latency_ms(latencies_ms: list[float]) -> dict[str, float]:
-    if not latencies_ms:
-        return {}
-    values = [float(v) for v in latencies_ms]
-    return {
-        "count": float(len(values)),
-        "mean_ms": mean(values),
-        "min_ms": min(values),
-        "p50_ms": percentile(values, 50),
-        "p95_ms": percentile(values, 95),
-        "p99_ms": percentile(values, 99),
-        "max_ms": max(values),
-    }
+    summary = _summarize_numeric_series(latencies_ms)
+    return {("count" if name == "count" else f"{name}_ms"): value for name, value in summary.items()}
 
 
 def canonical_workload_key(workload: dict[str, Any]) -> dict[str, Any]:
@@ -89,6 +301,8 @@ def canonical_workload_key(workload: dict[str, Any]) -> dict[str, Any]:
         "input_modality",
         "tokenizer_kind",
         "prompt_frames",
+        "execution_device",
+        "runtime_execution_mode",
     ]
     return {key: workload.get(key) for key in keys if workload.get(key) is not None}
 

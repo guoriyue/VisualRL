@@ -25,6 +25,7 @@ import torch
 import torch.nn as nn
 
 from wm_infra.config import EngineConfig
+from wm_infra.core.execution import BatchSignature, ExecutionChunk, ExecutionEntity, ExecutionStats
 from wm_infra.core.state import LatentStateManager
 from wm_infra.core.scheduler import RolloutScheduler, RolloutRequest, ScheduledBatch
 from wm_infra.models.base import WorldModel, RolloutInput, RolloutOutput
@@ -76,10 +77,14 @@ class WorldModelEngine:
         config: EngineConfig,
         dynamics_model: nn.Module,
         tokenizer: Optional[VideoTokenizer] = None,
+        execution_mode: str = "chunked",
     ):
         self.config = config
         self.dynamics_model = dynamics_model
         self.tokenizer = tokenizer
+        if execution_mode not in {"legacy", "chunked"}:
+            raise ValueError(f"Unsupported execution_mode: {execution_mode}")
+        self.execution_mode = execution_mode
 
         dtype_map = {"float16": torch.float16, "float32": torch.float32, "bfloat16": torch.bfloat16}
         self.dtype = dtype_map.get(config.dtype, torch.float16)
@@ -106,6 +111,7 @@ class WorldModelEngine:
         # Job tracking
         self._jobs: dict[str, RolloutJob] = {}
         self._results: dict[str, RolloutResult] = {}
+        self._execution_stats = ExecutionStats(mode=execution_mode)
 
     def submit_job(self, job: RolloutJob) -> str:
         """Submit a rollout job. Returns job_id."""
@@ -167,6 +173,9 @@ class WorldModelEngine:
     def has_pending_work(self) -> bool:
         return self.scheduler.has_work()
 
+    def execution_stats_snapshot(self) -> dict[str, Any]:
+        return self._execution_stats.snapshot()
+
     # ─── Internal ───
 
     def _initialize_rollout(self, job_id: str) -> None:
@@ -193,6 +202,79 @@ class WorldModelEngine:
 
     def _execute_batch(self, batch: ScheduledBatch) -> list[str]:
         """Execute one prediction step for a batch of rollouts."""
+        if self.execution_mode == "legacy":
+            return self._execute_batch_legacy(batch)
+        return self._execute_batch_chunked(batch)
+
+    def _transition_signature(self, current_state: torch.Tensor, action: torch.Tensor) -> BatchSignature:
+        state_shape = tuple(current_state.shape[-2:])
+        action_dim = int(action.shape[-1])
+        return BatchSignature(
+            stage="transition",
+            latent_shape=state_shape,
+            action_dim=action_dim,
+            dtype=str(self.dtype).replace("torch.", ""),
+            device=str(self.device),
+            needs_decode=False,
+        )
+
+    def _normalize_current_state(self, state_tensor: torch.Tensor) -> torch.Tensor:
+        if state_tensor.ndim == 3 and state_tensor.shape[0] == 1:
+            return state_tensor.squeeze(0)
+        if state_tensor.ndim != 2:
+            raise ValueError(f"Expected rollout state to be [N, D] or [1, N, D], got {tuple(state_tensor.shape)}")
+        return state_tensor
+
+    def _build_transition_chunks(self, batch: ScheduledBatch) -> list[ExecutionChunk]:
+        chunks: dict[BatchSignature, list[tuple[ExecutionEntity, torch.Tensor, torch.Tensor]]] = {}
+        for i, job_id in enumerate(batch.request_ids):
+            step_idx = batch.step_indices[i]
+            job = self._jobs[job_id]
+            state = self.state_manager.get(job_id)
+
+            if job.actions is not None and step_idx < job.actions.shape[0]:
+                action = job.actions[step_idx].to(self.device, self.dtype)
+            else:
+                action = torch.zeros(self.config.dynamics.action_dim, device=self.device, dtype=self.dtype)
+
+            current_state = self._normalize_current_state(state.latent_states[-1]).to(self.device, self.dtype)
+            signature = self._transition_signature(current_state, action)
+            entity = ExecutionEntity(
+                entity_id=f"{job_id}:transition:{step_idx}",
+                rollout_id=job_id,
+                stage="transition",
+                step_idx=step_idx,
+                batch_signature=signature,
+            )
+            chunks.setdefault(signature, []).append((entity, current_state, action))
+
+        execution_chunks: list[ExecutionChunk] = []
+        for chunk_idx, (signature, items) in enumerate(chunks.items()):
+            entities = [item[0] for item in items]
+            latent_batch = torch.stack([item[1] for item in items], dim=0)
+            action_batch = torch.stack([item[2] for item in items], dim=0)
+            execution_chunks.append(
+                ExecutionChunk(
+                    chunk_id=f"{signature.stage}:{chunk_idx}",
+                    signature=signature,
+                    entities=entities,
+                    latent_batch=latent_batch,
+                    action_batch=action_batch,
+                )
+            )
+        return execution_chunks
+
+    def _record_transition_chunk(self, size: int, logical_batch_size: int) -> None:
+        from wm_infra.api.metrics import BATCH_FILL_RATIO, EXECUTION_CHUNK_SIZE, EXECUTION_CHUNK_TOTAL
+
+        EXECUTION_CHUNK_TOTAL.labels(stage="transition", mode=self.execution_mode).inc()
+        EXECUTION_CHUNK_SIZE.labels(stage="transition", mode=self.execution_mode).observe(size)
+        if logical_batch_size > 0:
+            BATCH_FILL_RATIO.observe(size / logical_batch_size)
+        self._execution_stats.record_transition_chunk(size)
+
+    def _execute_batch_legacy(self, batch: ScheduledBatch) -> list[str]:
+        """Legacy per-job execution path kept for benchmarking."""
         completed = []
 
         for i, job_id in enumerate(batch.request_ids):
@@ -215,6 +297,7 @@ class WorldModelEngine:
 
             # Predict next state
             next_state = self.dynamics_model.predict_next(current_state, action)
+            self._record_transition_chunk(1, batch.size)
 
             # Update state
             self.state_manager.append_step(job_id, action.squeeze(0), next_state.squeeze(0))
@@ -230,6 +313,30 @@ class WorldModelEngine:
             if self.scheduler.step_completed(job_id):
                 self.scheduler.complete(job_id)
                 completed.append(job_id)
+
+        return completed
+
+    def _execute_batch_chunked(self, batch: ScheduledBatch) -> list[str]:
+        """Chunked execution path that batches homogeneous transition work."""
+        completed: list[str] = []
+        for chunk in self._build_transition_chunks(batch):
+            self._record_transition_chunk(chunk.size, batch.size)
+            next_states = self.dynamics_model.predict_next(chunk.latent_batch, chunk.action_batch)
+
+            for entity, next_state, action in zip(chunk.entities, next_states, chunk.action_batch):
+                job_id = entity.rollout_id
+                job = self._jobs[job_id]
+                self.state_manager.append_step(job_id, action, next_state)
+
+                if job.step_callback is not None:
+                    try:
+                        job.step_callback(job_id, entity.step_idx, next_state)
+                    except Exception:
+                        logger.exception("Step callback failed for job %s step %d", job_id, entity.step_idx)
+
+                if self.scheduler.step_completed(job_id):
+                    self.scheduler.complete(job_id)
+                    completed.append(job_id)
 
         return completed
 
@@ -283,8 +390,9 @@ class AsyncWorldModelEngine:
         config: EngineConfig,
         dynamics_model: nn.Module,
         tokenizer: Optional[VideoTokenizer] = None,
+        execution_mode: str = "chunked",
     ):
-        self.engine = WorldModelEngine(config, dynamics_model, tokenizer)
+        self.engine = WorldModelEngine(config, dynamics_model, tokenizer, execution_mode=execution_mode)
         self._queue: asyncio.Queue[tuple[RolloutJob, asyncio.Future]] = asyncio.Queue()
         self._pending_futures: dict[str, asyncio.Future] = {}
         self._loop_task: Optional[asyncio.Task] = None

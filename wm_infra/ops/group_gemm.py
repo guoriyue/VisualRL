@@ -9,8 +9,6 @@ from wm_infra.kernels.group_gemm_kernel import (
     grouped_gemm_bwd_dB_kernel,
     grouped_gemm_fp8_kernel,
 )
-from wm_infra.kernels.group_gemm_int4_kernel import grouped_gemm_int4_kernel
-
 
 def _select_block_m(expert_offsets, num_experts, decode_mode=False):
     """Select optimal BLOCK_M based on max expert load.
@@ -371,58 +369,3 @@ def grouped_gemm_fp8(A_fp8, A_scale, B_fp8, B_scales, expert_offsets, num_expert
     return GroupedGEMMFP8Function.apply(
         A_fp8, A_scale, B_fp8, B_scales, expert_offsets, num_experts,
         output_dtype, decode_mode)
-
-
-# ─── INT4 Grouped GEMM ───
-
-def grouped_gemm_int4(A, B_packed, scales, zeros, expert_offsets, num_experts,
-                      group_size=128, decode_mode=False):
-    """INT4 Grouped GEMM: C[e] = A_e @ dequant(B_packed[e]) for all experts.
-
-    Inference only (no backward). Weights are INT4 packed as uint8 with
-    per-group asymmetric quantization (scales + zeros).
-
-    Args:
-        A: [total_tokens, K] — fp16 activations sorted by expert.
-        B_packed: [num_experts, K, N//2] — uint8 packed INT4 weights.
-        scales: [num_experts, K//group_size, N] — fp16 per-group scales.
-        zeros: [num_experts, K//group_size, N] — fp16 per-group zeros.
-        expert_offsets: [num_experts + 1] — start index per expert.
-        num_experts: int.
-        group_size: INT4 quantization group size.
-        decode_mode: skip GPU→CPU syncs (safe when num_tokens is small).
-
-    Returns:
-        C: [total_tokens, N] in same dtype as A.
-    """
-    total_tokens, K = A.shape
-    N = scales.shape[-1]
-
-    C = torch.empty(total_tokens, N, dtype=A.dtype, device=A.device)
-
-    BLOCK_M = _select_block_m(expert_offsets, num_experts,
-                              decode_mode=decode_mode)
-
-    tile_expert_ids, tile_m_offsets, tile_m_ends, total_m_tiles = \
-        _build_tile_mapping(expert_offsets, num_experts, BLOCK_M, A.device,
-                            decode_mode=decode_mode)
-
-    if total_m_tiles == 0:
-        return C
-
-    def grid(META):
-        return (total_m_tiles * triton.cdiv(N, META["BLOCK_N"]),)
-
-    grouped_gemm_int4_kernel[grid](
-        A, B_packed, C,
-        scales, zeros,
-        tile_expert_ids, tile_m_offsets, tile_m_ends,
-        N, K, total_m_tiles, group_size,
-        A.stride(1), A.stride(0),
-        B_packed.stride(0), B_packed.stride(1), B_packed.stride(2),
-        scales.stride(0), scales.stride(1), scales.stride(2),
-        C.stride(0), C.stride(1),
-        BLOCK_M=BLOCK_M,
-    )
-
-    return C

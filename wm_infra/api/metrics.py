@@ -55,6 +55,25 @@ STEP_DURATION = Histogram(
     buckets=[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5],
 )
 
+EXECUTION_CHUNK_SIZE = Histogram(
+    "wm_execution_chunk_size",
+    "Number of homogeneous rollout entities in each execution chunk",
+    ["stage", "mode"],
+    buckets=[1, 2, 4, 8, 16, 32, 64],
+)
+
+EXECUTION_CHUNK_TOTAL = Counter(
+    "wm_execution_chunk_total",
+    "Total homogeneous execution chunks processed by the runtime",
+    ["stage", "mode"],
+)
+
+BATCH_FILL_RATIO = Histogram(
+    "wm_batch_fill_ratio",
+    "Chunk size divided by logical batch size for each executed chunk",
+    buckets=[0.1, 0.25, 0.5, 0.75, 1.0],
+)
+
 QUEUE_DEPTH = Gauge(
     "wm_queue_depth",
     "Number of jobs waiting in submission queue",

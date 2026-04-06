@@ -31,9 +31,7 @@ from wm_infra.kernels.flash_attn_kernel import (
 from wm_infra.kernels.kv_cache_kernel import kv_cache_append_kernel
 from wm_infra.kernels.matvec_kernel import (
     batched_matvec_kernel,
-    batched_matvec_int4_kernel,
     batched_matvec_varying_kernel,
-    batched_matvec_int4_varying_kernel,
     indexed_dual_matvec_kernel,
     indexed_matvec_varying_kernel,
 )

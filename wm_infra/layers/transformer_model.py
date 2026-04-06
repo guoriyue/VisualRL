@@ -97,8 +97,7 @@ class TransformerModel(nn.Module):
             model_name_or_path: Local path or HF Hub model ID.
             max_experts_in_gpu: If set, enables expert offloading with this
                 many experts cached on GPU per MoE layer.
-            weight_dtype: MoE expert weight dtype. "int4" for INT4 quantization
-                (4x smaller, faster with INT4 GEMM kernel). None keeps original.
+            weight_dtype: MoE expert weight dtype. None keeps original.
             compile_decode: If True, apply torch.compile to decode path.
             dtype: Target compute dtype (default: float16).
             device: Target device (default: cuda).

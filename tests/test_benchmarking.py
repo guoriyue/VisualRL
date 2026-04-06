@@ -1,4 +1,7 @@
-from wm_infra.benchmarking import capture_runtime_context, comparable_run_pair, comparison_report, percentile, run_summary_from_samples, summarize_latency_ms
+import subprocess
+
+from wm_infra import benchmarking as bench
+from wm_infra.benchmarking import capture_runtime_context, comparable_run_pair, comparison_report, format_gpu_summary, percentile, run_summary_from_samples, summarize_gpu_samples, summarize_latency_ms
 
 
 def test_percentile_interpolates():
@@ -43,6 +46,7 @@ def test_comparable_run_pair_rejects_mismatched_workloads():
             "width": 832,
             "height": 480,
             "num_steps": 4,
+            "runtime_execution_mode": "chunked",
         }
     }
     right = {
@@ -55,11 +59,12 @@ def test_comparable_run_pair_rejects_mismatched_workloads():
             "width": 832,
             "height": 480,
             "num_steps": 4,
+            "runtime_execution_mode": "legacy",
         }
     }
     ok, mismatches = comparable_run_pair(left, right)
     assert ok is False
-    assert any("frame_count" in item for item in mismatches)
+    assert any("runtime_execution_mode" in item for item in mismatches)
 
 
 def test_capture_runtime_context_includes_reproducibility_metadata():
@@ -116,3 +121,58 @@ def test_comparison_report_embeds_metric_deltas():
     assert report["metrics"]["submit_mean_ms"]["delta"] == 4.0
     assert report["metrics"]["terminal_mean_ms"]["delta"] == -10.0
     assert report["metrics"]["success_rate"]["delta"] == 0.5
+
+
+def test_sample_gpu_snapshot_parses_nvidia_smi_output(monkeypatch):
+    monkeypatch.setattr(bench.shutil, "which", lambda _: "/usr/bin/nvidia-smi")
+    monkeypatch.setattr(
+        bench.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0],
+            0,
+            stdout="2026/04/05 10:00:00.000, 0, NVIDIA GeForce RTX 5090, 73, 28, 1200, 32607\n",
+            stderr="",
+        ),
+    )
+
+    sample = bench._sample_gpu_snapshot(0)
+    assert sample is not None
+    assert sample["gpu_index"] == "0"
+    assert sample["gpu_name"] == "NVIDIA GeForce RTX 5090"
+    assert sample["utilization_gpu_pct"] == 73.0
+    assert sample["memory_used_mib"] == 1200.0
+
+
+def test_summarize_gpu_samples_and_format():
+    summary = summarize_gpu_samples(
+        [
+            {
+                "timestamp": "2026/04/05 10:00:00.000",
+                "gpu_index": "0",
+                "gpu_name": "NVIDIA GeForce RTX 5090",
+                "utilization_gpu_pct": 50.0,
+                "utilization_memory_pct": 20.0,
+                "memory_used_mib": 1000.0,
+                "memory_total_mib": 32607.0,
+            },
+            {
+                "timestamp": "2026/04/05 10:00:00.100",
+                "gpu_index": "0",
+                "gpu_name": "NVIDIA GeForce RTX 5090",
+                "utilization_gpu_pct": 80.0,
+                "utilization_memory_pct": 30.0,
+                "memory_used_mib": 1400.0,
+                "memory_total_mib": 32607.0,
+            },
+        ],
+        started_at_s=1.0,
+        stopped_at_s=2.0,
+        poll_interval_s=0.1,
+    )
+
+    assert summary["sample_count"] == 2
+    assert summary["duration_s"] == 1.0
+    assert summary["series"]["utilization_gpu_pct"]["mean"] == 65.0
+    assert summary["series"]["memory_used_mib"]["max"] == 1400.0
+    assert "gpu_mean=65.0%" in format_gpu_summary(summary)

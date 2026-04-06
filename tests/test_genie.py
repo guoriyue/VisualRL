@@ -269,6 +269,14 @@ class TestGenieRolloutBackend:
         assert record.runtime["frames_generated"] > 0
         assert record.runtime["tokens_generated"] > 0
         assert record.metadata["runner_mode"] in ("stub", "real")
+        assert "stage_timings_ms" in record.runtime
+        assert record.runtime["stage_timings_ms"]["runner_load_ms"] >= 0
+        assert record.runtime["stage_timings_ms"]["state_token_prep_ms"] >= 0
+        assert record.runtime["stage_timings_ms"]["runner_exec_ms"] >= 0
+        assert record.runtime["stage_timings_ms"]["artifact_persist_ms"] >= 0
+        assert record.runtime["stage_timings_ms"]["temporal_persist_ms"] >= 0
+        assert record.runtime["stage_timings_ms"]["total_elapsed_ms"] >= record.runtime["stage_timings_ms"]["runner_exec_ms"]
+        assert record.metadata["stage_timings_ms"] == record.runtime["stage_timings_ms"]
 
         # Verify artifacts
         artifact_kinds = {a.kind for a in record.artifacts}
@@ -321,6 +329,13 @@ class TestGenieRolloutBackend:
         assert rollout is not None
         assert rollout.status.value == "succeeded"
         assert rollout.metrics["frames_generated"] > 0
+        assert rollout.metrics["runner_load_ms"] >= 0
+        assert rollout.metrics["state_token_prep_ms"] >= 0
+        assert rollout.metrics["runner_exec_ms"] >= 0
+        assert rollout.metrics["artifact_persist_ms"] >= 0
+        assert rollout.metrics["temporal_persist_ms"] >= 0
+        assert rollout.metrics["total_elapsed_ms"] >= rollout.metrics["runner_exec_ms"]
+        assert rollout.metadata["stage_timings_ms"] == record.runtime["stage_timings_ms"]
         assert f"{record.sample_id}:tokens" in rollout.artifact_ids
 
         # Verify checkpoint

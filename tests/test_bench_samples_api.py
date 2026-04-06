@@ -103,3 +103,17 @@ async def test_prepare_request_payload_leaves_non_genie_payload_unchanged(client
 
     prepared = await bench._prepare_request_payload(client, bench.DEFAULT_WAN_PAYLOAD)
     assert prepared == bench.DEFAULT_WAN_PAYLOAD
+
+
+def test_test_config_respects_requested_device(tmp_path):
+    bench = _load_benchmark_module()
+
+    config = bench._test_config(tmp_path, "cuda")
+    assert config.device == "cuda"
+
+
+def test_parse_args_accepts_execution_mode(monkeypatch):
+    bench = _load_benchmark_module()
+    monkeypatch.setattr("sys.argv", ["bench_samples_api.py", "--in-process", "--execution-mode", "legacy"])
+    args = bench.parse_args()
+    assert args.execution_mode == "legacy"

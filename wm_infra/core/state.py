@@ -64,13 +64,25 @@ class LatentStateManager:
         max_concurrent: int = 64,
         max_memory_gb: float = 4.0,
         device: torch.device | str = "cuda",
+        fork_mode: str = "copy_on_write",
     ):
+        if fork_mode not in {"copy_on_write", "deep_copy"}:
+            raise ValueError(f"Unsupported fork_mode: {fork_mode}")
         self.max_concurrent = max_concurrent
         self.max_memory_bytes = int(max_memory_gb * 1024**3)
         self.device = torch.device(device) if isinstance(device, str) else device
+        self.fork_mode = fork_mode
 
         self._states: dict[str, RolloutState] = {}
         self._current_memory = 0
+        self._tensor_refs: dict[tuple[int, int], int] = {}
+        self._stats = {
+            "fork_mode": fork_mode,
+            "fork_count": 0,
+            "tensor_materializations": 0,
+            "tensor_reuse_hits": 0,
+            "bytes_saved_via_sharing": 0,
+        }
 
     @property
     def num_active(self) -> int:
@@ -79,6 +91,57 @@ class LatentStateManager:
     @property
     def memory_used_gb(self) -> float:
         return self._current_memory / (1024**3)
+
+    def stats_snapshot(self) -> dict[str, float | int | str]:
+        denominator = self._stats["tensor_reuse_hits"] + self._stats["tensor_materializations"]
+        reuse_hit_rate = (self._stats["tensor_reuse_hits"] / denominator) if denominator else 0.0
+        logical_bytes = sum(state.memory_bytes for state in self._states.values())
+        return {
+            **self._stats,
+            "reuse_hit_rate": reuse_hit_rate,
+            "physical_bytes": self._current_memory,
+            "logical_bytes": logical_bytes,
+            "memory_used_bytes": self._current_memory,
+            "num_active": self.num_active,
+        }
+
+    def _tensor_key(self, tensor: torch.Tensor) -> tuple[int, int]:
+        return (int(tensor.data_ptr()), int(tensor.element_size() * tensor.nelement()))
+
+    def _required_physical_bytes(self, tensors: list[torch.Tensor]) -> int:
+        required = 0
+        for tensor in tensors:
+            key = self._tensor_key(tensor)
+            if key not in self._tensor_refs:
+                required += key[1]
+        return required
+
+    def _register_tensor(self, tensor: torch.Tensor) -> None:
+        key = self._tensor_key(tensor)
+        if key in self._tensor_refs:
+            self._tensor_refs[key] += 1
+            return
+        self._tensor_refs[key] = 1
+        self._current_memory += key[1]
+        self._stats["tensor_materializations"] += 1
+
+    def _share_tensor(self, tensor: torch.Tensor) -> None:
+        key = self._tensor_key(tensor)
+        if key not in self._tensor_refs:
+            self._register_tensor(tensor)
+            return
+        self._tensor_refs[key] += 1
+        self._stats["tensor_reuse_hits"] += 1
+        self._stats["bytes_saved_via_sharing"] += key[1]
+
+    def _release_tensor(self, tensor: torch.Tensor) -> None:
+        key = self._tensor_key(tensor)
+        if key not in self._tensor_refs:
+            return
+        self._tensor_refs[key] -= 1
+        if self._tensor_refs[key] <= 0:
+            self._tensor_refs.pop(key, None)
+            self._current_memory -= key[1]
 
     def _ensure_capacity(self, required_bytes: int, *, protected_ids: set[str] | None = None) -> None:
         protected_ids = protected_ids or set()
@@ -122,20 +185,21 @@ class LatentStateManager:
         if self.num_active >= self.max_concurrent:
             self._evict_lru()
 
-        initial_bytes = initial_state.element_size() * initial_state.nelement()
+        initial_state = initial_state.to(self.device)
+        initial_bytes = self._required_physical_bytes([initial_state])
         self._ensure_capacity(initial_bytes)
 
         now = time.monotonic()
         state = RolloutState(
             rollout_id=rollout_id,
-            latent_states=[initial_state.to(self.device)],
+            latent_states=[initial_state],
             current_step=0,
             max_steps=max_steps,
             created_at=now,
             last_accessed=now,
         )
         self._states[rollout_id] = state
-        self._current_memory += state.memory_bytes
+        self._register_tensor(initial_state)
         return state
 
     def append_step(
@@ -155,13 +219,16 @@ class LatentStateManager:
             Updated RolloutState
         """
         state = self._states[rollout_id]
-        required_bytes = action.element_size() * action.nelement() + predicted_state.element_size() * predicted_state.nelement()
+        action = action.to(self.device)
+        predicted_state = predicted_state.to(self.device)
+        required_bytes = self._required_physical_bytes([action, predicted_state])
         self._ensure_capacity(required_bytes, protected_ids={rollout_id})
-        state.actions.append(action.to(self.device))
-        state.latent_states.append(predicted_state.to(self.device))
+        state.actions.append(action)
+        state.latent_states.append(predicted_state)
         state.current_step += 1
         state.last_accessed = time.monotonic()
-        self._current_memory += required_bytes
+        self._register_tensor(action)
+        self._register_tensor(predicted_state)
         return state
 
     def get(self, rollout_id: str) -> RolloutState:
@@ -178,33 +245,61 @@ class LatentStateManager:
         source = self._states[source_id]
         if new_id in self._states:
             raise ValueError(f"Rollout {new_id} already exists")
+        self._stats["fork_count"] += 1
+
+        if self.num_active >= self.max_concurrent:
+            self._evict_lru(protected_ids={source_id})
 
         now = time.monotonic()
+        if self.fork_mode == "deep_copy":
+            latent_states = [s.clone() for s in source.latent_states]
+            actions = [a.clone() for a in source.actions]
+            required_bytes = self._required_physical_bytes([*latent_states, *actions])
+            self._ensure_capacity(required_bytes, protected_ids={source_id})
+            forked = RolloutState(
+                rollout_id=new_id,
+                latent_states=latent_states,
+                actions=actions,
+                current_step=source.current_step,
+                max_steps=max_steps or source.max_steps,
+                created_at=now,
+                last_accessed=now,
+            )
+            self._states[new_id] = forked
+            for tensor in [*latent_states, *actions]:
+                self._register_tensor(tensor)
+            return forked
+
         forked = RolloutState(
             rollout_id=new_id,
-            latent_states=[s.clone() for s in source.latent_states],
-            actions=[a.clone() for a in source.actions],
+            latent_states=list(source.latent_states),
+            actions=list(source.actions),
             current_step=source.current_step,
             max_steps=max_steps or source.max_steps,
             created_at=now,
             last_accessed=now,
         )
-        self._ensure_capacity(forked.memory_bytes, protected_ids={source_id})
         self._states[new_id] = forked
-        self._current_memory += forked.memory_bytes
+        for tensor in [*forked.latent_states, *forked.actions]:
+            self._share_tensor(tensor)
         return forked
 
     def remove(self, rollout_id: str) -> None:
         """Remove a rollout and free its memory."""
         if rollout_id in self._states:
             state = self._states.pop(rollout_id)
-            self._current_memory -= state.memory_bytes
+            for tensor in [*state.latent_states, *state.actions]:
+                self._release_tensor(tensor)
 
-    def _evict_lru(self) -> None:
+    def _evict_lru(self, protected_ids: set[str] | None = None) -> None:
         """Evict the least recently used rollout."""
         if not self._states:
             return
-        oldest_id = min(self._states, key=lambda k: self._states[k].last_accessed)
+        protected_ids = protected_ids or set()
+        candidates = [rid for rid in self._states if rid not in protected_ids]
+        if not candidates:
+            return
+        oldest_id = min(candidates, key=lambda k: self._states[k].last_accessed)
         self.remove(oldest_id)
 
     def cleanup_completed(self) -> list[str]:

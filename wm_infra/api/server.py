@@ -58,7 +58,7 @@ logger = logging.getLogger("wm_infra")
 _engine: Optional[AsyncWorldModelEngine] = None
 
 
-def _create_async_engine(config: EngineConfig) -> AsyncWorldModelEngine:
+def _create_async_engine(config: EngineConfig, execution_mode: str = "chunked") -> AsyncWorldModelEngine:
     dynamics = LatentDynamicsModel(config.dynamics)
     tokenizer = VideoTokenizer(config.tokenizer)
 
@@ -68,7 +68,7 @@ def _create_async_engine(config: EngineConfig) -> AsyncWorldModelEngine:
         if "tokenizer" in state_dict:
             tokenizer.load_state_dict(state_dict["tokenizer"], strict=False)
 
-    return AsyncWorldModelEngine(config, dynamics, tokenizer)
+    return AsyncWorldModelEngine(config, dynamics, tokenizer, execution_mode=execution_mode)
 
 
 def _build_job(request: RolloutRequest, config: EngineConfig) -> RolloutJob:
@@ -114,6 +114,7 @@ def create_app(
     sample_store: Optional[SampleManifestStore] = None,
     backend_registry: Optional[BackendRegistry] = None,
     temporal_store: Optional[TemporalStore] = None,
+    execution_mode: str = "chunked",
 ):
     from fastapi import FastAPI, HTTPException
     from fastapi.responses import JSONResponse, StreamingResponse
@@ -129,7 +130,7 @@ def create_app(
     async def lifespan(app: FastAPI):
         global _engine
         logger.info("Initializing temporal runtime engine...")
-        _engine = _create_async_engine(config)
+        _engine = _create_async_engine(config, execution_mode=execution_mode)
         _engine.start()
 
         registry = backend_registry or BackendRegistry()

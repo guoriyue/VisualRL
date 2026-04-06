@@ -8,7 +8,6 @@ from wm_infra.config import MoEConfig
 from wm_infra.ops.fused_moe import fused_moe
 from wm_infra.ops.matvec import (
     indexed_dual_matvec, indexed_matvec_varying,
-    indexed_dual_matvec_int4, indexed_matvec_int4_varying,
     indexed_dual_matvec_swiglu, indexed_matvec_varying_weighted,
 )
 
@@ -40,19 +39,14 @@ class MoELayer(nn.Module):
         super().__init__()
         self.config = config
         self._use_fp8 = config.weight_dtype == "float8_e4m3"
-        self._use_int4 = config.weight_dtype == "int4"
         self._use_offloading = config.max_experts_in_gpu is not None
         self._expert_cache = None
 
         # Router (gate)
         self.gate = nn.Linear(config.hidden_dim, config.num_experts, bias=False)
 
-        if self._use_offloading and self._use_int4:
-            self._init_offloaded_int4_weights(config)
-        elif self._use_offloading:
+        if self._use_offloading:
             self._init_offloaded_weights(config)
-        elif self._use_int4:
-            self._init_int4_weights(config)
         elif self._use_fp8:
             self._init_fp8_weights(config)
         else:
@@ -93,16 +87,7 @@ class MoELayer(nn.Module):
         return (
             not self.training
             and hidden_2d.shape[0] == 1
-            and not self._use_int4
             and not self._use_fp8
-        )
-
-    def _should_use_compact_int4_decode_fast_path(self, hidden_2d: torch.Tensor) -> bool:
-        """Use a compact top-k path for true single-token INT4 decode."""
-        return (
-            not self.training
-            and hidden_2d.shape[0] == 1
-            and self._use_int4
         )
 
     def forward_decode_buffered(
@@ -126,16 +111,13 @@ class MoELayer(nn.Module):
         if hidden_2d.shape[0] != 1 or self.training:
             return self.forward(hidden_states)
 
-        if not self._use_int4 and not self._use_fp8:
+        if not self._use_fp8:
             if self._use_offloading:
                 output, aux_loss = self._forward_decode_direct_offloaded_buffered(
                     hidden_2d, decode_bufs)
             else:
                 output, aux_loss = self._forward_decode_direct_fp16_buffered(
                     hidden_2d, decode_bufs)
-        elif self._use_int4:
-            output, aux_loss = self._forward_decode_direct_int4_buffered(
-                hidden_2d, decode_bufs)
         else:
             output, aux_loss = self._forward_decode_direct_fp16(hidden_2d)
 
@@ -348,143 +330,6 @@ class MoELayer(nn.Module):
         )
         return output, None
 
-    def _forward_decode_compact_int4(
-        self,
-        hidden_2d: torch.Tensor,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """Single-token INT4 decode using indexed GEMV kernels.
-
-        Uses indexed INT4 matvec kernels that read directly from the full
-        weight tensors via expert_id indirection -- no index_select copy
-        and no BLOCK_M padding waste.
-        """
-        from wm_infra.ops.activation import swiglu_fused_gate_up
-
-        topk_weights, topk_ids = self._route_single_token(hidden_2d)
-        hidden = hidden_2d[0]  # [K]
-        top_k = self.config.top_k
-        I = self.config.intermediate_dim
-        group_size = self.config.int4_group_size
-
-        if self._use_offloading:
-            cache = self._get_expert_cache(hidden_2d.device)
-            if self._speculator is not None:
-                self._speculator.predict_and_prefetch(hidden_2d)
-            cache.ensure_loaded(topk_ids[0])
-            weight_ids = cache.remap_expert_ids(topk_ids)[0]
-            wp_gate = cache.w_gate_gpu
-            wp_up = cache.w_up_gpu
-            wp_down = cache.w_down_gpu
-            sg = cache.scales_gate_gpu
-            su = cache.scales_up_gpu
-            sd = cache.scales_down_gpu
-            zg = cache.zeros_gate_gpu
-            zu = cache.zeros_up_gpu
-            zd = cache.zeros_down_gpu
-        else:
-            weight_ids = topk_ids[0]
-            wp_gate = self.w_gate.data
-            wp_up = self.w_up.data
-            wp_down = self.w_down.data
-            sg = self.w_gate_scale
-            su = self.w_up_scale
-            sd = self.w_down_scale
-            zg = self.w_gate_zero
-            zu = self.w_up_zero
-            zd = self.w_down_zero
-
-        gate_up_out = torch.empty(
-            top_k, 2 * I, device=hidden.device, dtype=hidden.dtype)
-        gate_out = gate_up_out[:, :I]
-        up_out = gate_up_out[:, I:]
-
-        indexed_dual_matvec_int4(
-            hidden, wp_gate, wp_up,
-            sg, zg, su, zu,
-            weight_ids, gate_out, up_out,
-            group_size=group_size,
-        )
-
-        activated = torch.empty(top_k, I, device=hidden.device, dtype=hidden.dtype)
-        swiglu_fused_gate_up(gate_up_out, activated)
-
-        H = self.config.hidden_dim
-        down_out = torch.empty(top_k, H, device=hidden.device, dtype=hidden.dtype)
-        indexed_matvec_int4_varying(
-            activated, wp_down, sd, zd,
-            weight_ids, down_out,
-            group_size=group_size,
-        )
-
-        output = (down_out * topk_weights[0].unsqueeze(-1)).sum(dim=0, keepdim=True)
-        return output, None
-
-    def _forward_decode_direct_int4_buffered(
-        self,
-        hidden_2d: torch.Tensor,
-        decode_bufs: dict,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """Buffered single-token INT4 decode using indexed GEMV kernels.
-
-        Same as _forward_decode_compact_int4 but reuses pre-allocated buffers
-        from TransformerModel to eliminate per-step tensor allocations.
-        """
-        from wm_infra.ops.activation import swiglu_fused_gate_up
-
-        topk_weights, topk_ids = self._route_single_token(hidden_2d)
-        hidden = hidden_2d[0]  # [K]
-        I = self.config.intermediate_dim
-        group_size = self.config.int4_group_size
-
-        if self._use_offloading:
-            cache = self._get_expert_cache(hidden_2d.device)
-            if self._speculator is not None:
-                self._speculator.predict_and_prefetch(hidden_2d)
-            cache.ensure_loaded(topk_ids[0])
-            weight_ids = cache.remap_expert_ids(topk_ids)[0]
-            wp_gate = cache.w_gate_gpu
-            wp_up = cache.w_up_gpu
-            wp_down = cache.w_down_gpu
-            sg = cache.scales_gate_gpu
-            su = cache.scales_up_gpu
-            sd = cache.scales_down_gpu
-            zg = cache.zeros_gate_gpu
-            zu = cache.zeros_up_gpu
-            zd = cache.zeros_down_gpu
-        else:
-            weight_ids = topk_ids[0]
-            wp_gate = self.w_gate.data
-            wp_up = self.w_up.data
-            wp_down = self.w_down.data
-            sg = self.w_gate_scale
-            su = self.w_up_scale
-            sd = self.w_down_scale
-            zg = self.w_gate_zero
-            zu = self.w_up_zero
-            zd = self.w_down_zero
-
-        gate_up_out = decode_bufs["gate_up_out"]  # [top_k, 2*I]
-        gate_out = gate_up_out[:, :I]
-        up_out = gate_up_out[:, I:]
-
-        indexed_dual_matvec_int4(
-            hidden, wp_gate, wp_up,
-            sg, zg, su, zu,
-            weight_ids, gate_out, up_out,
-            group_size=group_size,
-        )
-
-        activated = decode_bufs["activated"]  # [top_k, I]
-        swiglu_fused_gate_up(gate_up_out, activated)
-
-        expert_out = indexed_matvec_int4_varying(
-            activated, wp_down, sd, zd,
-            weight_ids, decode_bufs["down_out"],
-            group_size=group_size,
-        )
-
-        return (expert_out * topk_weights[0].unsqueeze(-1)).sum(dim=0, keepdim=True), None
-
     def _init_fp8_weights(self, config):
         """Initialize FP8 weight storage with per-expert scale buffers."""
         from wm_infra.ops.quantize import quantize_per_expert
@@ -514,43 +359,6 @@ class MoELayer(nn.Module):
         self.register_buffer("w_gate_scale", gate_scales)
         self.register_buffer("w_up_scale", up_scales)
         self.register_buffer("w_down_scale", down_scales)
-
-    def _init_int4_weights(self, config):
-        """Initialize INT4 weight storage with per-group scale/zero buffers."""
-        from wm_infra.ops.quantize import quantize_per_expert_int4
-
-        group_size = config.int4_group_size
-        K_gate = config.hidden_dim
-        N_gate = config.intermediate_dim
-        K_down = config.intermediate_dim
-        N_down = config.hidden_dim
-        E = config.num_experts
-
-        # Create random fp32 weights, quantize, store as buffers
-        w_gate_fp32 = torch.empty(E, K_gate, N_gate)
-        w_up_fp32 = torch.empty(E, K_gate, N_gate)
-        w_down_fp32 = torch.empty(E, K_down, N_down)
-
-        nn.init.kaiming_uniform_(w_gate_fp32, a=5**0.5)
-        nn.init.kaiming_uniform_(w_up_fp32, a=5**0.5)
-        nn.init.kaiming_uniform_(w_down_fp32, a=5**0.5)
-
-        gate_packed, gate_scales, gate_zeros = quantize_per_expert_int4(w_gate_fp32, group_size)
-        up_packed, up_scales, up_zeros = quantize_per_expert_int4(w_up_fp32, group_size)
-        down_packed, down_scales, down_zeros = quantize_per_expert_int4(w_down_fp32, group_size)
-
-        # Packed weights as Parameters (for .to() device movement, no gradient)
-        self.w_gate = nn.Parameter(gate_packed, requires_grad=False)
-        self.w_up = nn.Parameter(up_packed, requires_grad=False)
-        self.w_down = nn.Parameter(down_packed, requires_grad=False)
-
-        # Scales and zeros as buffers
-        self.register_buffer("w_gate_scale", gate_scales)
-        self.register_buffer("w_gate_zero", gate_zeros)
-        self.register_buffer("w_up_scale", up_scales)
-        self.register_buffer("w_up_zero", up_zeros)
-        self.register_buffer("w_down_scale", down_scales)
-        self.register_buffer("w_down_zero", down_zeros)
 
     # Class-level flag: set True by from_pretrained() to skip kaiming init
     # for offloaded weights (saves ~87GB physical memory for Mixtral-scale models)
@@ -586,81 +394,17 @@ class MoELayer(nn.Module):
         # ExpertCache is created lazily in forward (needs to know the device)
         self._expert_cache = None
 
-    def _init_offloaded_int4_weights(self, config: MoEConfig):
-        """Initialize INT4 expert weights on CPU pinned memory with an LRU GPU cache.
-
-        Stores packed uint8 weights + per-group scales/zeros on CPU.
-        ExpertCache handles paging INT4 weights to GPU slots.
-        """
-        group_size = config.int4_group_size
-        K_gate = config.hidden_dim
-        N_gate = config.intermediate_dim
-        K_down = config.intermediate_dim
-        N_down = config.hidden_dim
-        E = config.num_experts
-
-        if not MoELayer._skip_expert_init:
-            # Create fp32 weights, quantize to INT4, store on CPU
-            from wm_infra.ops.quantize import quantize_per_expert_int4
-            w_gate_fp32 = torch.empty(E, K_gate, N_gate)
-            w_up_fp32 = torch.empty(E, K_gate, N_gate)
-            w_down_fp32 = torch.empty(E, K_down, N_down)
-            nn.init.kaiming_uniform_(w_gate_fp32, a=5**0.5)
-            nn.init.kaiming_uniform_(w_up_fp32, a=5**0.5)
-            nn.init.kaiming_uniform_(w_down_fp32, a=5**0.5)
-            gate_packed, gate_scales, gate_zeros = quantize_per_expert_int4(w_gate_fp32, group_size)
-            up_packed, up_scales, up_zeros = quantize_per_expert_int4(w_up_fp32, group_size)
-            down_packed, down_scales, down_zeros = quantize_per_expert_int4(w_down_fp32, group_size)
-        else:
-            # Skip init — weights will be overwritten by pretrained loading
-            gate_packed = torch.empty(E, K_gate, N_gate // 2, dtype=torch.uint8)
-            up_packed = torch.empty(E, K_gate, N_gate // 2, dtype=torch.uint8)
-            down_packed = torch.empty(E, K_down, N_down // 2, dtype=torch.uint8)
-            num_groups_gate = K_gate // group_size
-            num_groups_down = K_down // group_size
-            gate_scales = torch.empty(E, num_groups_gate, N_gate, dtype=torch.float16)
-            up_scales = torch.empty(E, num_groups_gate, N_gate, dtype=torch.float16)
-            down_scales = torch.empty(E, num_groups_down, N_down, dtype=torch.float16)
-            gate_zeros = torch.empty(E, num_groups_gate, N_gate, dtype=torch.float16)
-            up_zeros = torch.empty(E, num_groups_gate, N_gate, dtype=torch.float16)
-            down_zeros = torch.empty(E, num_groups_down, N_down, dtype=torch.float16)
-
-        # Store as plain attributes (NOT parameters) so .to(device) doesn't move them
-        self._w_gate_cpu = gate_packed
-        self._w_up_cpu = up_packed
-        self._w_down_cpu = down_packed
-        self._scales_gate_cpu = gate_scales
-        self._scales_up_cpu = up_scales
-        self._scales_down_cpu = down_scales
-        self._zeros_gate_cpu = gate_zeros
-        self._zeros_up_cpu = up_zeros
-        self._zeros_down_cpu = down_zeros
-        self._int4_group_size = group_size
-
-        self._expert_cache = None
-
     def _get_expert_cache(self, device):
         """Lazily create the ExpertCache on first forward pass."""
         if self._expert_cache is None:
             from wm_infra.ops.expert_cache import ExpertCache
-            kwargs = dict(
+            self._expert_cache = ExpertCache(
                 w_gate_all=self._w_gate_cpu,
                 w_up_all=self._w_up_cpu,
                 w_down_all=self._w_down_cpu,
                 max_experts_in_gpu=self.config.max_experts_in_gpu,
                 device=device,
             )
-            # Pass INT4 scales/zeros if offloading with INT4
-            if self._use_int4 and hasattr(self, '_scales_gate_cpu'):
-                kwargs.update(
-                    scales_gate=self._scales_gate_cpu,
-                    scales_up=self._scales_up_cpu,
-                    scales_down=self._scales_down_cpu,
-                    zeros_gate=self._zeros_gate_cpu,
-                    zeros_up=self._zeros_up_cpu,
-                    zeros_down=self._zeros_down_cpu,
-                )
-            self._expert_cache = ExpertCache(**kwargs)
         return self._expert_cache
 
     def _get_decode_buffers(self, device, dtype):
@@ -691,7 +435,7 @@ class MoELayer(nn.Module):
 
     def _init_weights(self):
         """Kaiming uniform initialization, same as standard linear layers."""
-        if not self._use_fp8 and not self._use_int4 and not self._use_offloading:
+        if not self._use_fp8 and not self._use_offloading:
             for w in [self.w_gate, self.w_up, self.w_down]:
                 nn.init.kaiming_uniform_(w, a=5**0.5)
 
@@ -730,46 +474,8 @@ class MoELayer(nn.Module):
         if "router" in weights:
             self.gate.weight.data.copy_(weights["router"])
 
-        # Expert weights — check combined INT4+offloading FIRST (most specific)
-        if self._use_offloading and self._use_int4:
-            # INT4 + offloading: quantize fp16 weights to INT4, store on CPU
-            from wm_infra.ops.quantize import quantize_per_expert_int4
-            group_size = self.config.int4_group_size
-            for name in ("w_gate", "w_up", "w_down"):
-                if name in weights:
-                    w = weights[name]
-                    if w.dtype == torch.uint8:
-                        # Already packed INT4
-                        getattr(self, f"_{name}_cpu").copy_(w)
-                        if f"{name}_scale" in weights:
-                            getattr(self, f"_scales_{name[2:]}_cpu").copy_(weights[f"{name}_scale"])
-                        if f"{name}_zero" in weights:
-                            getattr(self, f"_zeros_{name[2:]}_cpu").copy_(weights[f"{name}_zero"])
-                    else:
-                        # Quantize fp16 → INT4 on-the-fly
-                        packed, scales, zeros = quantize_per_expert_int4(w, group_size)
-                        getattr(self, f"_{name}_cpu").copy_(packed)
-                        getattr(self, f"_scales_{name[2:]}_cpu").copy_(scales)
-                        getattr(self, f"_zeros_{name[2:]}_cpu").copy_(zeros)
-            self._expert_cache = None
-        elif self._use_int4:
-            from wm_infra.ops.quantize import quantize_per_expert_int4
-            group_size = self.config.int4_group_size
-            for name in ("w_gate", "w_up", "w_down"):
-                if name in weights:
-                    w = weights[name]
-                    if w.dtype == torch.uint8:
-                        getattr(self, name).data.copy_(w)
-                        if f"{name}_scale" in weights:
-                            getattr(self, f"{name}_scale").copy_(weights[f"{name}_scale"])
-                        if f"{name}_zero" in weights:
-                            getattr(self, f"{name}_zero").copy_(weights[f"{name}_zero"])
-                    else:
-                        packed, scales, zeros = quantize_per_expert_int4(w, group_size)
-                        getattr(self, name).data.copy_(packed)
-                        getattr(self, f"{name}_scale").copy_(scales)
-                        getattr(self, f"{name}_zero").copy_(zeros)
-        elif self._use_fp8:
+        # Expert weights
+        if self._use_fp8:
             from wm_infra.ops.quantize import quantize_per_expert
             for name in ("w_gate", "w_up", "w_down"):
                 if name in weights:
@@ -862,14 +568,9 @@ class MoELayer(nn.Module):
                 output, aux_loss = self._forward_decode_direct_offloaded(hidden_2d)
             else:
                 output, aux_loss = self._forward_decode_direct_fp16(hidden_2d)
-        elif self._should_use_compact_int4_decode_fast_path(hidden_2d):
-            output, aux_loss = self._forward_decode_compact_int4(hidden_2d)
         elif self._use_offloading:
             output, aux_loss = self._forward_offloaded(hidden_2d, aux_loss_weight,
                                                        mode, decode_mode)
-        elif self._use_int4:
-            output, aux_loss = self._forward_int4(hidden_2d, aux_loss_weight,
-                                                   decode_mode)
         elif self._use_fp8 and mode == "composable":
             output, aux_loss = self._forward_fp8(hidden_2d, aux_loss_weight,
                                                   decode_mode)
@@ -932,11 +633,10 @@ class MoELayer(nn.Module):
 
         Uses pipelined loading: starts async H2D for cache misses while
         computing GEMMs for cache hits, then waits and computes misses.
-        Supports both fp16 and INT4 expert weights.
         """
         from wm_infra.ops.routing import topk_route, compute_expert_offsets
         from wm_infra.ops.permute import permute_tokens, unpermute_tokens
-        from wm_infra.ops.group_gemm import grouped_gemm, grouped_gemm_int4
+        from wm_infra.ops.group_gemm import grouped_gemm
         from wm_infra.ops.activation import fused_swiglu
 
         num_tokens, hidden_dim = hidden_2d.shape
@@ -971,17 +671,9 @@ class MoELayer(nn.Module):
             cache.wait_for_loads()
 
         # Access GPU weight buffers directly (no redundant ensure_loaded call)
-        use_int4_gemm = self._use_int4 and cache._is_int4
         w_gate_gpu = cache.w_gate_gpu
         w_up_gpu = cache.w_up_gpu
         w_down_gpu = cache.w_down_gpu
-        if use_int4_gemm:
-            sg = cache.scales_gate_gpu
-            su = cache.scales_up_gpu
-            sd = cache.scales_down_gpu
-            zg = cache.zeros_gate_gpu
-            zu = cache.zeros_up_gpu
-            zd = cache.zeros_down_gpu
 
         # Step 3: Remap expert IDs to GPU slot indices (uses persistent GPU table)
         remapped_ids = cache.remap_expert_ids(topk_ids)
@@ -1008,81 +700,16 @@ class MoELayer(nn.Module):
                     output[t] += weight * expert_out
             return output, aux_loss
 
-        # Step 6-9: GEMMs (INT4 or fp16 depending on weight type)
-        if use_int4_gemm:
-            group_size = getattr(self, '_int4_group_size', self.config.int4_group_size)
-            gate_out = grouped_gemm_int4(permuted, w_gate_gpu, sg, zg,
-                                         expert_offsets, num_cached, group_size,
-                                         decode_mode=decode_mode)
-            up_out = grouped_gemm_int4(permuted, w_up_gpu, su, zu,
-                                       expert_offsets, num_cached, group_size,
-                                       decode_mode=decode_mode)
-            activated = fused_swiglu(gate_out, up_out)
-            expert_out = grouped_gemm_int4(activated, w_down_gpu, sd, zd,
-                                           expert_offsets, num_cached, group_size,
-                                           decode_mode=decode_mode)
-        else:
-            gate_out = grouped_gemm(permuted, w_gate_gpu, expert_offsets, num_cached,
-                                    decode_mode=decode_mode)
-            up_out = grouped_gemm(permuted, w_up_gpu, expert_offsets, num_cached,
+        # Step 6-9: GEMMs
+        gate_out = grouped_gemm(permuted, w_gate_gpu, expert_offsets, num_cached,
+                                decode_mode=decode_mode)
+        up_out = grouped_gemm(permuted, w_up_gpu, expert_offsets, num_cached,
+                              decode_mode=decode_mode)
+        activated = fused_swiglu(gate_out, up_out)
+        expert_out = grouped_gemm(activated, w_down_gpu, expert_offsets, num_cached,
                                   decode_mode=decode_mode)
-            activated = fused_swiglu(gate_out, up_out)
-            expert_out = grouped_gemm(activated, w_down_gpu, expert_offsets, num_cached,
-                                      decode_mode=decode_mode)
 
         # Step 10: Unpermute + weighted combine
-        output = unpermute_tokens(expert_out, sorted_token_ids, topk_weights,
-                                  num_tokens, top_k)
-
-        return output, aux_loss
-
-    def _forward_int4(self, hidden_2d, aux_loss_weight, decode_mode=False):
-        """INT4 composable forward: use INT4 GEMM kernels for weight-only quantization."""
-        from wm_infra.ops.routing import topk_route, compute_expert_offsets
-        from wm_infra.ops.permute import permute_tokens, unpermute_tokens
-        from wm_infra.ops.group_gemm import grouped_gemm_int4
-        from wm_infra.ops.activation import fused_swiglu
-
-        num_tokens, hidden_dim = hidden_2d.shape
-        num_experts = self.config.num_experts
-        top_k = self.config.top_k
-        group_size = self.config.int4_group_size
-
-        # Step 1: Route
-        topk_weights, topk_ids, aux_loss = topk_route(
-            hidden_2d, self.gate.weight, top_k, self.config.renormalize,
-            aux_loss_weight=aux_loss_weight,
-            expert_bias=self.expert_bias)
-
-        # Step 2: Compute expert offsets
-        sorted_token_ids, expert_offsets, expert_counts = compute_expert_offsets(
-            topk_ids, num_experts)
-
-        # Step 3: Permute
-        permuted = permute_tokens(hidden_2d, sorted_token_ids, top_k)
-
-        # Step 4: INT4 Grouped GEMM -- gate projection
-        gate_out = grouped_gemm_int4(
-            permuted, self.w_gate, self.w_gate_scale, self.w_gate_zero,
-            expert_offsets, num_experts, group_size,
-            decode_mode=decode_mode)
-
-        # Step 5: INT4 Grouped GEMM -- up projection
-        up_out = grouped_gemm_int4(
-            permuted, self.w_up, self.w_up_scale, self.w_up_zero,
-            expert_offsets, num_experts, group_size,
-            decode_mode=decode_mode)
-
-        # Step 6: SwiGLU activation
-        activated = fused_swiglu(gate_out, up_out)
-
-        # Step 7: INT4 Grouped GEMM -- down projection
-        expert_out = grouped_gemm_int4(
-            activated, self.w_down, self.w_down_scale, self.w_down_zero,
-            expert_offsets, num_experts, group_size,
-            decode_mode=decode_mode)
-
-        # Step 8: Unpermute + weighted combine
         output = unpermute_tokens(expert_out, sorted_token_ids, topk_weights,
                                   num_tokens, top_k)
 
@@ -1179,7 +806,7 @@ class MoELayer(nn.Module):
 
     def extra_repr(self):
         c = self.config
-        dtype_str = "int4" if self._use_int4 else ("fp8" if self._use_fp8 else c.dtype)
+        dtype_str = "fp8" if self._use_fp8 else c.dtype
         parts = [
             f"num_experts={c.num_experts}", f"top_k={c.top_k}",
             f"hidden_dim={c.hidden_dim}", f"intermediate_dim={c.intermediate_dim}",

@@ -21,8 +21,6 @@ class ExpertCache:
     can overlap with compute on the default stream (caller must synchronize
     before using the returned tensors).
 
-    Supports fp16/bf16 weights and INT4 packed weights (with scales/zeros).
-
     Usage:
         cache = ExpertCache(
             w_gate_all=w_gate_cpu,   # [E, K, N] on CPU pinned memory
@@ -45,13 +43,6 @@ class ExpertCache:
         w_down_all: torch.Tensor,
         max_experts_in_gpu: int,
         device: Union[str, torch.device] = "cuda",
-        # INT4 quantization parameters (optional)
-        scales_gate: torch.Tensor = None,
-        scales_up: torch.Tensor = None,
-        scales_down: torch.Tensor = None,
-        zeros_gate: torch.Tensor = None,
-        zeros_up: torch.Tensor = None,
-        zeros_down: torch.Tensor = None,
     ):
         """Initialize the expert cache.
 
@@ -65,7 +56,6 @@ class ExpertCache:
         self.device = torch.device(device)
         self.num_experts = w_gate_all.shape[0]
         self.max_experts_in_gpu = min(max_experts_in_gpu, self.num_experts)
-        self._is_int4 = scales_gate is not None
 
         # Ensure CPU tensors are in pinned memory for fast async transfers
         self.w_gate_cpu = self._ensure_pinned(w_gate_all)
@@ -85,34 +75,6 @@ class ExpertCache:
             self.max_experts_in_gpu, *w_down_all.shape[1:],
             dtype=w_down_all.dtype, device=self.device,
         )
-
-        # INT4 scales/zeros
-        if self._is_int4:
-            self.scales_gate_cpu = self._ensure_pinned(scales_gate)
-            self.scales_up_cpu = self._ensure_pinned(scales_up)
-            self.scales_down_cpu = self._ensure_pinned(scales_down)
-            self.zeros_gate_cpu = self._ensure_pinned(zeros_gate)
-            self.zeros_up_cpu = self._ensure_pinned(zeros_up)
-            self.zeros_down_cpu = self._ensure_pinned(zeros_down)
-
-            self.scales_gate_gpu = torch.empty(
-                self.max_experts_in_gpu, *scales_gate.shape[1:],
-                dtype=scales_gate.dtype, device=self.device)
-            self.scales_up_gpu = torch.empty(
-                self.max_experts_in_gpu, *scales_up.shape[1:],
-                dtype=scales_up.dtype, device=self.device)
-            self.scales_down_gpu = torch.empty(
-                self.max_experts_in_gpu, *scales_down.shape[1:],
-                dtype=scales_down.dtype, device=self.device)
-            self.zeros_gate_gpu = torch.empty(
-                self.max_experts_in_gpu, *zeros_gate.shape[1:],
-                dtype=zeros_gate.dtype, device=self.device)
-            self.zeros_up_gpu = torch.empty(
-                self.max_experts_in_gpu, *zeros_up.shape[1:],
-                dtype=zeros_up.dtype, device=self.device)
-            self.zeros_down_gpu = torch.empty(
-                self.max_experts_in_gpu, *zeros_down.shape[1:],
-                dtype=zeros_down.dtype, device=self.device)
 
         # LRU tracking: OrderedDict preserves insertion order; most-recently-used
         # items are moved to the end. Keys are expert_id, values are gpu_slot_index.
@@ -159,13 +121,6 @@ class ExpertCache:
         self.w_gate_gpu[slot].copy_(self.w_gate_cpu[expert_id], non_blocking=True)
         self.w_up_gpu[slot].copy_(self.w_up_cpu[expert_id], non_blocking=True)
         self.w_down_gpu[slot].copy_(self.w_down_cpu[expert_id], non_blocking=True)
-        if self._is_int4:
-            self.scales_gate_gpu[slot].copy_(self.scales_gate_cpu[expert_id], non_blocking=True)
-            self.scales_up_gpu[slot].copy_(self.scales_up_cpu[expert_id], non_blocking=True)
-            self.scales_down_gpu[slot].copy_(self.scales_down_cpu[expert_id], non_blocking=True)
-            self.zeros_gate_gpu[slot].copy_(self.zeros_gate_cpu[expert_id], non_blocking=True)
-            self.zeros_up_gpu[slot].copy_(self.zeros_up_cpu[expert_id], non_blocking=True)
-            self.zeros_down_gpu[slot].copy_(self.zeros_down_cpu[expert_id], non_blocking=True)
 
     def ensure_loaded(
         self,
@@ -235,11 +190,6 @@ class ExpertCache:
         expert_to_slot = {eid: self._lru[eid] for eid in unique_ids}
 
         gpu_weights = (self.w_gate_gpu, self.w_up_gpu, self.w_down_gpu)
-        if self._is_int4:
-            gpu_weights = gpu_weights + (
-                self.scales_gate_gpu, self.scales_up_gpu, self.scales_down_gpu,
-                self.zeros_gate_gpu, self.zeros_up_gpu, self.zeros_down_gpu,
-            )
         return gpu_weights, expert_to_slot
 
     def remap_expert_ids(

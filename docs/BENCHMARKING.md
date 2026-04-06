@@ -9,6 +9,7 @@ Use the existing rollout microbenchmark:
 
 ```bash
 python benchmarks/bench_rollout.py --device cpu --steps 16 --batch 4
+python benchmarks/bench_rollout.py --device cuda --steps 16 --batch 4
 ```
 
 This measures:
@@ -16,12 +17,13 @@ This measures:
 - steps/sec
 - per-step latency
 - peak GPU memory when run on CUDA
+- best-effort GPU utilization / memory sampling via `nvidia-smi`
 
 ### 2. Sample API / queue latency
 Use the new sample benchmark harness:
 
 ```bash
-python benchmarks/bench_samples_api.py --in-process --workload wan --iterations 5
+python benchmarks/bench_samples_api.py --in-process --workload wan --iterations 5 --device cuda
 ```
 
 Or against a running server:
@@ -42,6 +44,8 @@ This measures:
 - per-iteration status and terminal payloads
 - aggregated p50 / p95 / p99 latency summaries
 - reproducibility metadata such as Python, platform, and git context
+- best-effort GPU utilization / memory sampling via `nvidia-smi`
+- execution device recorded in the workload artifact so CPU and CUDA runs do not get compared accidentally
 
 To embed a baseline comparison directly into the artifact, add `--baseline-file`:
 
@@ -65,6 +69,7 @@ Benchmark outputs follow a simple structured schema:
 - `workload`: canonical workload definition used for comparability checks
 - `baseline`: optional embedded comparison against a prior run file
 - `summary`: aggregated counts and latency stats
+- `gpu_profile`: sampled GPU utilization and memory summary when a GPU is visible
 - `samples`: raw per-iteration observations
 
 The comparison rule is strict on purpose: if workload axes differ, the run is not comparable.

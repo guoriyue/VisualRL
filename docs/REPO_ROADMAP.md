@@ -50,6 +50,23 @@ wm_infra/
 
 ## Near-term coding tasks
 
+### 0. Redesign the execution runtime around homogeneous temporal work
+
+The current runtime has the right temporal nouns but not yet the right execution grain.
+The next runtime milestone should redesign the execution plane so it batches and schedules homogeneous temporal state updates instead of request-shaped objects.
+
+Target outcome:
+
+- keep `episode / branch / rollout / checkpoint / state_handle` as durable control-plane objects
+- introduce transient execution objects such as `ExecutionEntity`, `ExecutionChunk`, and stage-local tasks
+- batch by shared execution signature instead of raw request count
+- make state residency, branch reuse, and stage locality explicit scheduler inputs
+- turn the current rollout-engine batch from logical batching into real batched execution
+
+Reference:
+
+- `docs/ECS_EXECUTION_RUNTIME.md`
+
 ### 1. Introduce control-plane schemas
 Done first because every downstream feature depends on it.
 
@@ -103,6 +120,7 @@ Make it possible to export accepted samples into:
 - APIs should be explicit, typed, and stable
 - any production entity should have an ID and lineage hooks
 - avoid hiding data transformations inside handlers
+- execution batching should be built from homogeneous temporal work, not ad hoc per-request loops
 
 ## Definition of progress
 

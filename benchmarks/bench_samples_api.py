@@ -21,10 +21,11 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 import httpx
+import torch
 from asgi_lifespan import LifespanManager
 
 from wm_infra.api.server import create_app
-from wm_infra.benchmarking import capture_runtime_context, comparison_report, load_json, run_summary_from_samples, utc_timestamp, write_json
+from wm_infra.benchmarking import GpuSampler, capture_runtime_context, comparison_report, format_gpu_summary, load_json, run_summary_from_samples, utc_timestamp, write_json
 from wm_infra.config import ControlPlaneConfig, DynamicsConfig, EngineConfig, StateCacheConfig, TokenizerConfig
 from wm_infra.controlplane import SampleManifestStore
 
@@ -32,10 +33,16 @@ from wm_infra.controlplane import SampleManifestStore
 POLL_INTERVAL_S = 0.05
 
 
-def _test_config(tmp_root: Path) -> EngineConfig:
+def _resolve_device(device: str) -> str:
+    if device == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("Requested device=cuda, but torch.cuda.is_available() is false")
+    return device
+
+
+def _test_config(tmp_root: Path, device: str) -> EngineConfig:
     return EngineConfig(
-        device="cpu",
-        dtype="float32",
+        device=device,
+        dtype="float16" if device == "cuda" else "float32",
         dynamics=DynamicsConfig(
             hidden_dim=64,
             num_heads=4,
@@ -159,19 +166,23 @@ async def _run_client(client: httpx.AsyncClient, request_payload: dict[str, Any]
     return await asyncio.gather(*[_wrapped(i) for i in range(iterations)])
 
 
-async def _run_live(base_url: str, request_payload: dict[str, Any], iterations: int, timeout_s: float, concurrency: int) -> list[dict[str, Any]]:
-    async with httpx.AsyncClient(base_url=base_url, timeout=timeout_s + 5.0) as client:
-        return await _run_client(client, request_payload, iterations, timeout_s, concurrency)
+async def _run_live(base_url: str, request_payload: dict[str, Any], iterations: int, timeout_s: float, concurrency: int, gpu_poll_interval_s: float) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    with GpuSampler(poll_interval_s=gpu_poll_interval_s) as sampler:
+        async with httpx.AsyncClient(base_url=base_url, timeout=timeout_s + 5.0) as client:
+            samples = await _run_client(client, request_payload, iterations, timeout_s, concurrency)
+    return samples, sampler.summary()
 
 
-async def _run_in_process(request_payload: dict[str, Any], iterations: int, timeout_s: float, concurrency: int) -> list[dict[str, Any]]:
+async def _run_in_process(request_payload: dict[str, Any], iterations: int, timeout_s: float, concurrency: int, device: str, gpu_poll_interval_s: float, execution_mode: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     with TemporaryDirectory(prefix="wm_infra_bench_") as tmp:
         tmp_root = Path(tmp)
-        config = _test_config(tmp_root)
-        app = create_app(config, sample_store=SampleManifestStore(tmp_root / "manifests"))
-        async with LifespanManager(app) as manager:
-            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=manager.app), base_url="http://bench", timeout=timeout_s + 5.0) as client:
-                return await _run_client(client, request_payload, iterations, timeout_s, concurrency)
+        config = _test_config(tmp_root, device)
+        app = create_app(config, sample_store=SampleManifestStore(tmp_root / "manifests"), execution_mode=execution_mode)
+        with GpuSampler(poll_interval_s=gpu_poll_interval_s) as sampler:
+            async with LifespanManager(app) as manager:
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(app=manager.app), base_url="http://bench", timeout=timeout_s + 5.0) as client:
+                    samples = await _run_client(client, request_payload, iterations, timeout_s, concurrency)
+        return samples, sampler.summary()
 
 
 DEFAULT_WAN_PAYLOAD = {
@@ -211,6 +222,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--iterations", type=int, default=5)
     parser.add_argument("--concurrency", type=int, default=1)
     parser.add_argument("--timeout-s", type=float, default=30.0)
+    parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    parser.add_argument("--execution-mode", choices=["legacy", "chunked"], default="chunked")
+    parser.add_argument("--gpu-sample-interval-ms", type=float, default=100.0)
     parser.add_argument("--system-name", default="wm-infra")
     parser.add_argument("--runner-name", default="unknown")
     parser.add_argument("--output", default="benchmarks/results/sample_api_benchmark.json")
@@ -231,12 +245,15 @@ def _load_payload(args: argparse.Namespace) -> dict[str, Any]:
 
 async def _main_async() -> None:
     args = parse_args()
+    device = args.device
+    if args.in_process:
+        device = _resolve_device(device)
     payload = _load_payload(args)
     if args.in_process:
-        samples = await _run_in_process(payload, args.iterations, args.timeout_s, args.concurrency)
+        samples, gpu_profile = await _run_in_process(payload, args.iterations, args.timeout_s, args.concurrency, device, args.gpu_sample_interval_ms / 1000.0, args.execution_mode)
         execution_mode = "in_process"
     else:
-        samples = await _run_live(args.base_url, payload, args.iterations, args.timeout_s, args.concurrency)
+        samples, gpu_profile = await _run_live(args.base_url, payload, args.iterations, args.timeout_s, args.concurrency, args.gpu_sample_interval_ms / 1000.0)
         execution_mode = "remote"
 
     task_cfg = payload.get("wan_config") or payload.get("task_config") or {}
@@ -256,6 +273,9 @@ async def _main_async() -> None:
             "iterations": args.iterations,
             "concurrency": args.concurrency,
             "timeout_s": args.timeout_s,
+            "device": device,
+            "execution_mode": args.execution_mode,
+            "gpu_sample_interval_ms": args.gpu_sample_interval_ms,
             "base_url": args.base_url,
             "in_process": args.in_process,
             "workload": args.workload,
@@ -273,9 +293,12 @@ async def _main_async() -> None:
             "height": task_cfg.get("height") or payload.get("sample_spec", {}).get("height"),
             "num_steps": task_cfg.get("num_steps"),
             "input_modality": payload.get("task_type"),
+            "execution_device": device,
+            "runtime_execution_mode": args.execution_mode,
         },
         "request_payload": payload,
         "summary": summary,
+        "gpu_profile": gpu_profile,
         "samples": samples,
         "notes": [
             "This harness measures wm-infra API and queue behavior, not model quality.",
@@ -289,9 +312,10 @@ async def _main_async() -> None:
             "recorded_at": baseline.get("recorded_at"),
             "system": baseline.get("system"),
             "comparison": comparison_report(result, baseline),
-        }
+    }
     write_json(args.output, result)
     print(f"Wrote benchmark artifact to {args.output}")
+    print(format_gpu_summary(gpu_profile))
     print(summary)
 
 

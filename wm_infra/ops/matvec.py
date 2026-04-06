@@ -4,8 +4,8 @@ These wrap the Triton GEMV kernels with PyTorch tensor interfaces.
 Only used at decode time (M=1) -- no backward pass needed.
 
 Two flavors:
-  - batched_matvec / batched_matvec_int4: shared input x across experts (gate/up)
-  - batched_matvec_varying / batched_matvec_int4_varying: per-expert input (down)
+  - batched_matvec: shared input x across experts (gate/up)
+  - batched_matvec_varying: per-expert input (down)
 """
 
 import torch
@@ -13,9 +13,7 @@ import triton
 
 from wm_infra.kernels.matvec_kernel import (
     batched_matvec_kernel,
-    batched_matvec_int4_kernel,
     batched_matvec_varying_kernel,
-    batched_matvec_int4_varying_kernel,
     indexed_dual_matvec_kernel,
     indexed_matvec_varying_kernel,
 )
@@ -85,90 +83,6 @@ def batched_matvec_varying(
         N, K, num_experts_active,
         x.stride(0), x.stride(1),
         W.stride(0), W.stride(1), W.stride(2),
-        out.stride(0), out.stride(1),
-    )
-
-    return out
-
-
-def batched_matvec_int4(
-    x: torch.Tensor,
-    W_packed: torch.Tensor,
-    scales: torch.Tensor,
-    zeros: torch.Tensor,
-    group_size: int = 128,
-) -> torch.Tensor:
-    """Batched INT4 GEMV: out[e, :] = x @ dequant(W_packed[e, :, :]).
-
-    Args:
-        x: [K] -- single input vector (1D)
-        W_packed: [num_experts_active, K, N//2] -- uint8 packed INT4 weights
-        scales: [num_experts_active, K//group_size, N] -- fp16 per-group scales
-        zeros: [num_experts_active, K//group_size, N] -- fp16 per-group zeros
-        group_size: INT4 quantization group size
-
-    Returns:
-        out: [num_experts_active, N]
-    """
-    num_experts_active = W_packed.shape[0]
-    K = W_packed.shape[1]
-    N = scales.shape[-1]
-    assert x.shape == (K,), f"Expected x shape ({K},), got {x.shape}"
-
-    out = torch.empty(num_experts_active, N, dtype=x.dtype, device=x.device)
-
-    def grid(META):
-        return (num_experts_active, triton.cdiv(N, META["BLOCK_N"]))
-
-    batched_matvec_int4_kernel[grid](
-        x, W_packed, out,
-        scales, zeros,
-        N, K, num_experts_active, group_size,
-        W_packed.stride(0), W_packed.stride(1), W_packed.stride(2),
-        scales.stride(0), scales.stride(1), scales.stride(2),
-        out.stride(0), out.stride(1),
-    )
-
-    return out
-
-
-def batched_matvec_int4_varying(
-    x: torch.Tensor,
-    W_packed: torch.Tensor,
-    scales: torch.Tensor,
-    zeros: torch.Tensor,
-    group_size: int = 128,
-) -> torch.Tensor:
-    """Batched INT4 GEMV with per-expert input: out[e] = x[e] @ dequant(W[e]).
-
-    Args:
-        x: [num_experts_active, K] -- per-expert input vectors
-        W_packed: [num_experts_active, K, N//2] -- uint8 packed INT4 weights
-        scales: [num_experts_active, K//group_size, N] -- fp16 per-group scales
-        zeros: [num_experts_active, K//group_size, N] -- fp16 per-group zeros
-        group_size: INT4 quantization group size
-
-    Returns:
-        out: [num_experts_active, N]
-    """
-    num_experts_active = W_packed.shape[0]
-    K = W_packed.shape[1]
-    N = scales.shape[-1]
-    assert x.shape[0] == num_experts_active and x.shape[1] == K, \
-        f"Expected x shape ({num_experts_active}, {K}), got {x.shape}"
-
-    out = torch.empty(num_experts_active, N, dtype=x.dtype, device=x.device)
-
-    def grid(META):
-        return (num_experts_active, triton.cdiv(N, META["BLOCK_N"]))
-
-    batched_matvec_int4_varying_kernel[grid](
-        x, W_packed, out,
-        scales, zeros,
-        N, K, num_experts_active, group_size,
-        x.stride(0), x.stride(1),
-        W_packed.stride(0), W_packed.stride(1), W_packed.stride(2),
-        scales.stride(0), scales.stride(1), scales.stride(2),
         out.stride(0), out.stride(1),
     )
 
@@ -291,120 +205,5 @@ def indexed_matvec_varying_weighted(
         x.stride(0), x.stride(1),
         W.stride(0), W.stride(1), W.stride(2),
         out.stride(1),
-    )
-    return out
-
-
-# ─── Indexed INT4 variants (no weight gathering) ───
-
-from wm_infra.kernels.matvec_kernel import (
-    indexed_dual_matvec_int4_kernel,
-    indexed_matvec_int4_varying_kernel,
-)
-
-
-def indexed_dual_matvec_int4(
-    x: torch.Tensor,
-    w_gate_packed: torch.Tensor,
-    w_up_packed: torch.Tensor,
-    scales_gate: torch.Tensor,
-    zeros_gate: torch.Tensor,
-    scales_up: torch.Tensor,
-    zeros_up: torch.Tensor,
-    expert_ids: torch.Tensor,
-    out_gate: torch.Tensor,
-    out_up: torch.Tensor,
-    group_size: int = 128,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Shared-input dual INT4 GEMV for gate/up projections without weight gathering.
-
-    Args:
-        x: [K] -- shared input vector (1D)
-        w_gate_packed: [num_experts, K, N//2] -- uint8 packed INT4 gate weights
-        w_up_packed: [num_experts, K, N//2] -- uint8 packed INT4 up weights
-        scales_gate: [num_experts, K//group_size, N] -- gate per-group scales
-        zeros_gate: [num_experts, K//group_size, N] -- gate per-group zeros
-        scales_up: [num_experts, K//group_size, N] -- up per-group scales
-        zeros_up: [num_experts, K//group_size, N] -- up per-group zeros
-        expert_ids: [num_experts_active] -- expert indices to use
-        out_gate: [num_experts_active, N] -- pre-allocated gate output buffer
-        out_up: [num_experts_active, N] -- pre-allocated up output buffer
-        group_size: INT4 quantization group size
-
-    Returns:
-        (out_gate, out_up) -- both [num_experts_active, N]
-    """
-    num_experts_active = expert_ids.shape[0]
-    K = w_gate_packed.shape[1]
-    N = scales_gate.shape[-1]
-    assert x.shape == (K,), f"Expected x shape ({K},), got {x.shape}"
-    assert out_gate.shape == (num_experts_active, N)
-    assert out_up.shape == (num_experts_active, N)
-
-    def grid(META):
-        return (num_experts_active, triton.cdiv(N, META["BLOCK_N"]))
-
-    indexed_dual_matvec_int4_kernel[grid](
-        x,
-        w_gate_packed, w_up_packed,
-        scales_gate, zeros_gate,
-        scales_up, zeros_up,
-        expert_ids,
-        out_gate, out_up,
-        N, K, num_experts_active, group_size,
-        # W_gate_packed strides
-        w_gate_packed.stride(0), w_gate_packed.stride(1), w_gate_packed.stride(2),
-        # W_up_packed strides
-        w_up_packed.stride(0), w_up_packed.stride(1), w_up_packed.stride(2),
-        # scales_gate strides
-        scales_gate.stride(0), scales_gate.stride(1), scales_gate.stride(2),
-        # scales_up strides
-        scales_up.stride(0), scales_up.stride(1), scales_up.stride(2),
-        # output strides
-        out_gate.stride(0), out_gate.stride(1),
-    )
-    return out_gate, out_up
-
-
-def indexed_matvec_int4_varying(
-    x: torch.Tensor,
-    W_packed: torch.Tensor,
-    scales: torch.Tensor,
-    zeros: torch.Tensor,
-    expert_ids: torch.Tensor,
-    out: torch.Tensor,
-    group_size: int = 128,
-) -> torch.Tensor:
-    """Per-expert-input INT4 GEMV for down projection without weight gathering.
-
-    Args:
-        x: [num_experts_active, K] -- per-expert input vectors
-        W_packed: [num_experts, K, N//2] -- uint8 packed INT4 weights
-        scales: [num_experts, K//group_size, N] -- per-group scales
-        zeros: [num_experts, K//group_size, N] -- per-group zeros
-        expert_ids: [num_experts_active] -- expert indices to use
-        out: [num_experts_active, N] -- pre-allocated output buffer
-        group_size: INT4 quantization group size
-
-    Returns:
-        out: [num_experts_active, N]
-    """
-    num_experts_active, K = x.shape
-    N = scales.shape[-1]
-    assert expert_ids.shape == (num_experts_active,)
-    assert out.shape == (num_experts_active, N)
-
-    def grid(META):
-        return (num_experts_active, triton.cdiv(N, META["BLOCK_N"]))
-
-    indexed_matvec_int4_varying_kernel[grid](
-        x, W_packed,
-        scales, zeros,
-        expert_ids, out,
-        N, K, num_experts_active, group_size,
-        x.stride(0), x.stride(1),
-        W_packed.stride(0), W_packed.stride(1), W_packed.stride(2),
-        scales.stride(0), scales.stride(1), scales.stride(2),
-        out.stride(0), out.stride(1),
     )
     return out

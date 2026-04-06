@@ -12,13 +12,11 @@ Usage:
 
 from wm_infra.ops.routing import topk_route, update_expert_bias
 from wm_infra.ops.permute import permute_tokens, unpermute_tokens
-from wm_infra.ops.group_gemm import grouped_gemm, grouped_gemm_fp8, grouped_gemm_int4
+from wm_infra.ops.group_gemm import grouped_gemm, grouped_gemm_fp8
 from wm_infra.ops.activation import fused_swiglu
 from wm_infra.ops.fused_moe import fused_moe
 from wm_infra.ops.quantize import (
     quantize_per_tensor, dequantize_per_tensor, quantize_per_expert,
-    pack_int4, unpack_int4, quantize_per_group_int4, dequantize_per_group_int4,
-    quantize_per_expert_int4,
 )
 from wm_infra.ops.expert_cache import ExpertCache
 from wm_infra.ops.rmsnorm import rms_norm, rms_norm_naive
@@ -31,7 +29,5 @@ from wm_infra.ops.attention import (
 from wm_infra.ops.kv_cache import KVCache, MLAKVCache
 from wm_infra.ops.matvec import (
     batched_matvec, batched_matvec_varying,
-    batched_matvec_int4, batched_matvec_int4_varying,
     indexed_dual_matvec, indexed_matvec_varying,
-    indexed_dual_matvec_int4, indexed_matvec_int4_varying,
 )

@@ -300,6 +300,9 @@ class GenieRolloutBackend(ProduceSampleBackend):
         if request.task_type not in {TaskType.GENIE_ROLLOUT, TaskType.WORLD_MODEL_ROLLOUT}:
             raise ValueError(f"Backend {self.backend_name} only supports rollout-style temporal tasks")
 
+        stage_timings_ms: dict[str, float] = {}
+        total_start = time.perf_counter()
+
         temporal = request.temporal
         if temporal is None or not temporal.episode_id:
             raise ValueError("genie-rollout requests require temporal.episode_id")
@@ -308,7 +311,9 @@ class GenieRolloutBackend(ProduceSampleBackend):
         if episode is None:
             raise ValueError(f"Unknown episode_id: {temporal.episode_id}")
 
+        runner_load_start = time.perf_counter()
         self.ensure_runner_loaded()
+        stage_timings_ms["runner_load_ms"] = round((time.perf_counter() - runner_load_start) * 1000.0, 3)
 
         task_config = self._effective_task_config(request)
         genie_config = self._effective_genie_config(request, task_config)
@@ -323,6 +328,7 @@ class GenieRolloutBackend(ProduceSampleBackend):
         checkpoint_path = sample_dir / "checkpoint.json"
         recovery_path = sample_dir / "recovery.json"
 
+        prep_start = time.perf_counter()
         input_tokens, token_input_runtime, input_artifacts = self._resolve_input_tokens(request, sample_dir)
         if self.runner_mode == "real":
             self._validate_real_mode_request(
@@ -345,6 +351,7 @@ class GenieRolloutBackend(ProduceSampleBackend):
             "runner_mode": self._runner.mode,
         }
         request_path.write_text(json.dumps(request_payload, indent=2, sort_keys=True))
+        stage_timings_ms["state_token_prep_ms"] = round((time.perf_counter() - prep_start) * 1000.0, 3)
 
         started_at = time.time()
         rollout = self.temporal_store.create_rollout(
@@ -370,6 +377,7 @@ class GenieRolloutBackend(ProduceSampleBackend):
         )
 
         seed = request.sample_spec.seed or 42
+        runner_start = time.perf_counter()
         run_result: GenieRunResult = self._runner.run(
             output_dir=sample_dir,
             prompt=request.sample_spec.prompt or "",
@@ -380,11 +388,14 @@ class GenieRolloutBackend(ProduceSampleBackend):
             maskgit_steps=genie_config.maskgit_steps,
             temperature=genie_config.temperature,
         )
+        stage_timings_ms["runner_exec_ms"] = round((time.perf_counter() - runner_start) * 1000.0, 3)
+
         mode = run_result.mode
         request_payload["runner_mode"] = mode
         if run_result.extra.get("fallback_from"):
             request_payload["fallback_from"] = run_result.extra["fallback_from"]
             request_payload["fallback_error"] = run_result.extra.get("fallback_error")
+        persist_start = time.perf_counter()
         request_path.write_text(json.dumps(request_payload, indent=2, sort_keys=True))
 
         status = SampleStatus.SUCCEEDED
@@ -498,6 +509,7 @@ class GenieRolloutBackend(ProduceSampleBackend):
         output_state.metadata["checkpoint_path"] = str(checkpoint_path)
         output_state.metadata["recovery_path"] = str(recovery_path)
         self.temporal_store.state_handles.put(output_state)
+        stage_timings_ms["artifact_persist_ms"] = round((time.perf_counter() - persist_start) * 1000.0, 3)
 
         artifacts = [
             self._artifact_record(
@@ -585,17 +597,29 @@ class GenieRolloutBackend(ProduceSampleBackend):
         rollout.metadata["checkpoint_id"] = checkpoint.checkpoint_id
         rollout.metadata["checkpoint_path"] = str(checkpoint_path)
         rollout.metadata["recovery_path"] = str(recovery_path)
+
         rollout.metrics = {
             "steps": float(step_count),
             "estimated_units": estimate.estimated_units,
             "frames_generated": float(run_result.frames_generated),
             "tokens_generated": float(run_result.tokens_generated),
             "elapsed_s": run_result.elapsed_s,
+            "runner_load_ms": stage_timings_ms["runner_load_ms"],
+            "state_token_prep_ms": stage_timings_ms["state_token_prep_ms"],
+            "runner_exec_ms": stage_timings_ms["runner_exec_ms"],
+            "artifact_persist_ms": stage_timings_ms["artifact_persist_ms"],
         }
-        self.temporal_store.update_rollout(rollout)
-
+        temporal_persist_start = time.perf_counter()
         episode.updated_at = time.time()
         self.temporal_store.episodes.put(episode)
+        stage_timings_ms["temporal_persist_ms"] = round((time.perf_counter() - temporal_persist_start) * 1000.0, 3)
+
+        total_elapsed_ms = round((time.perf_counter() - total_start) * 1000.0, 3)
+        stage_timings_ms["total_elapsed_ms"] = total_elapsed_ms
+        rollout.metrics["temporal_persist_ms"] = stage_timings_ms["temporal_persist_ms"]
+        rollout.metrics["total_elapsed_ms"] = total_elapsed_ms
+        rollout.metadata["stage_timings_ms"] = stage_timings_ms
+        self.temporal_store.update_rollout(rollout)
 
         runtime: dict[str, Any] = {
             "runner": f"genie-{mode}",
@@ -629,6 +653,7 @@ class GenieRolloutBackend(ProduceSampleBackend):
             "started_at": started_at,
             "completed_at": completed_at,
             "elapsed_ms": round((completed_at - started_at) * 1000, 2),
+            "stage_timings_ms": stage_timings_ms,
         }
         if run_result.extra.get("fallback_from"):
             runtime["fallback_from"] = run_result.extra["fallback_from"]
@@ -671,6 +696,7 @@ class GenieRolloutBackend(ProduceSampleBackend):
                 "stubbed": mode == "stub",
                 "async": False,
                 "genie_config_applied": True,
+                "stage_timings_ms": stage_timings_ms,
                 "notes": (
                     f"Genie rollout executed via {mode} runner. "
                     f"{run_result.frames_generated} frames generated, {run_result.tokens_generated} tokens produced."
