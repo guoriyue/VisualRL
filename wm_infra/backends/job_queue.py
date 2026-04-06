@@ -45,12 +45,20 @@ class SampleJobQueue:
         queue_name: str = "sample",
         max_queue_size: int = 64,
         max_concurrent: int = 2,
+        execute_many_fn: Callable[[list[tuple[ProduceSampleRequest, str]]], Coroutine[Any, Any, list[SampleRecord]]] | None = None,
+        batch_key_fn: Callable[[ProduceSampleRequest], str | tuple[Any, ...] | None] | None = None,
+        max_batch_size: int = 1,
+        batch_wait_ms: float = 0.0,
     ) -> None:
         self._execute_fn = execute_fn
+        self._execute_many_fn = execute_many_fn
+        self._batch_key_fn = batch_key_fn
         self._store = store
         self._queue_name = queue_name
         self._max_queue_size = max_queue_size
         self._max_concurrent = max_concurrent
+        self._max_batch_size = max(1, max_batch_size)
+        self._batch_wait_s = max(batch_wait_ms, 0.0) / 1000.0
 
         self._queue: asyncio.Queue[JobEntry] = asyncio.Queue(maxsize=max_queue_size)
         self._jobs: dict[str, JobEntry] = {}
@@ -92,6 +100,7 @@ class SampleJobQueue:
             "total_tracked": self.total_count,
             "max_queue_size": self._max_queue_size,
             "max_concurrent": self._max_concurrent,
+            "max_batch_size": self._max_batch_size,
             "queued_sample_ids": [job.sample_id for job in queued],
             "running_sample_ids": [job.sample_id for job in running],
         }
@@ -136,45 +145,104 @@ class SampleJobQueue:
             except asyncio.CancelledError:
                 break
 
-            entry.status = "running"
-            entry.started_at = time.time()
-            logger.info("%s worker %d executing job %s", self._queue_name, worker_id, entry.sample_id)
+            batch = [entry]
+            batch_key = self._batch_key(entry.request) if self._execute_many_fn is not None else None
+            if self._execute_many_fn is not None and batch_key is not None and self._max_batch_size > 1:
+                batch.extend(await self._collect_batch(batch_key))
+            for batch_entry in batch:
+                batch_entry.status = "running"
+                batch_entry.started_at = time.time()
+            logger.info(
+                "%s worker %d executing batch size=%d [%s]",
+                self._queue_name,
+                worker_id,
+                len(batch),
+                ", ".join(item.sample_id for item in batch),
+            )
 
             try:
-                queued_record = self._store.get(entry.sample_id)
-                if queued_record is not None:
-                    queued_record.status = SampleStatus.RUNNING
-                    history = list(queued_record.runtime.get("status_history", []))
-                    history.append({"status": SampleStatus.RUNNING.value, "timestamp": entry.started_at})
-                    queued_record.runtime["status_history"] = history
-                    queued_record.runtime["started_at"] = entry.started_at
-                    self._store.put(queued_record)
+                for batch_entry in batch:
+                    queued_record = self._store.get(batch_entry.sample_id)
+                    if queued_record is not None:
+                        queued_record.status = SampleStatus.RUNNING
+                        history = list(queued_record.runtime.get("status_history", []))
+                        history.append({"status": SampleStatus.RUNNING.value, "timestamp": batch_entry.started_at})
+                        queued_record.runtime["status_history"] = history
+                        queued_record.runtime["started_at"] = batch_entry.started_at
+                        self._store.put(queued_record)
 
-                record = await self._execute_fn(entry.request, entry.sample_id)
-                entry.status = record.status.value
-                entry.completed_at = time.time()
-                self._store.put(record)
-                self._retire_job(entry.sample_id)
-                logger.info("%s worker %d completed job %s → %s", self._queue_name, worker_id, entry.sample_id, entry.status)
+                if self._execute_many_fn is not None and len(batch) > 1 and batch_key is not None:
+                    records = await self._execute_many_fn([(batch_entry.request, batch_entry.sample_id) for batch_entry in batch])
+                else:
+                    records = [await self._execute_fn(batch_entry.request, batch_entry.sample_id) for batch_entry in batch]
+
+                records_by_id = {record.sample_id: record for record in records}
+                for batch_entry in batch:
+                    record = records_by_id[batch_entry.sample_id]
+                    batch_entry.status = record.status.value
+                    batch_entry.completed_at = time.time()
+                    self._store.put(record)
+                    self._retire_job(batch_entry.sample_id)
+                    logger.info(
+                        "%s worker %d completed job %s → %s",
+                        self._queue_name,
+                        worker_id,
+                        batch_entry.sample_id,
+                        batch_entry.status,
+                    )
             except Exception as exc:
-                entry.status = "failed"
-                entry.completed_at = time.time()
-                entry.error = str(exc)
-                logger.exception("%s worker %d failed job %s", self._queue_name, worker_id, entry.sample_id)
-                failed_record = self._store.get(entry.sample_id)
-                if failed_record is not None:
-                    failed_record.status = SampleStatus.FAILED
-                    history = list(failed_record.runtime.get("status_history", []))
-                    history.append({"status": SampleStatus.FAILED.value, "timestamp": entry.completed_at})
-                    failed_record.runtime["status_history"] = history
-                    failed_record.runtime["completed_at"] = entry.completed_at
-                    failed_record.runtime["queue_error"] = str(exc)
-                    failed_record.metadata["runner_error"] = str(exc)
-                    self._store.put(failed_record)
-                self._retire_job(entry.sample_id)
+                for batch_entry in batch:
+                    batch_entry.status = "failed"
+                    batch_entry.completed_at = time.time()
+                    batch_entry.error = str(exc)
+                    logger.exception("%s worker %d failed job %s", self._queue_name, worker_id, batch_entry.sample_id)
+                    failed_record = self._store.get(batch_entry.sample_id)
+                    if failed_record is not None:
+                        failed_record.status = SampleStatus.FAILED
+                        history = list(failed_record.runtime.get("status_history", []))
+                        history.append({"status": SampleStatus.FAILED.value, "timestamp": batch_entry.completed_at})
+                        failed_record.runtime["status_history"] = history
+                        failed_record.runtime["completed_at"] = batch_entry.completed_at
+                        failed_record.runtime["queue_error"] = str(exc)
+                        failed_record.metadata["runner_error"] = str(exc)
+                        self._store.put(failed_record)
+                    self._retire_job(batch_entry.sample_id)
             finally:
-                self._queue.task_done()
+                for _batch_entry in batch:
+                    self._queue.task_done()
+
+    def _batch_key(self, request: ProduceSampleRequest) -> str | tuple[Any, ...] | None:
+        if self._batch_key_fn is None:
+            return None
+        return self._batch_key_fn(request)
+
+    async def _collect_batch(self, batch_key: str | tuple[Any, ...]) -> list[JobEntry]:
+        collected: list[JobEntry] = []
+        if self._max_batch_size <= 1:
+            return collected
+
+        if self._batch_wait_s > 0:
+            await asyncio.sleep(self._batch_wait_s)
+
+        deferred: list[JobEntry] = []
+        while len(collected) < self._max_batch_size - 1:
+            try:
+                candidate = self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            if self._batch_key(candidate.request) == batch_key:
+                collected.append(candidate)
+            else:
+                deferred.append(candidate)
+
+        for candidate in deferred:
+            self._queue.put_nowait(candidate)
+        return collected
 
 
 WanJobQueue = SampleJobQueue
-GenieJobQueue = SampleJobQueue
+CosmosJobQueue = SampleJobQueue
+
+
+class GenieJobQueue(SampleJobQueue):
+    """Queue specialization that can micro-batch compatible Genie jobs."""

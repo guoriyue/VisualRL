@@ -37,7 +37,8 @@ import torch
 
 from wm_infra.api.metrics import ACTIVE_ROLLOUTS, API_AUTH_FAILURES, QUEUE_DEPTH, REQUEST_DURATION, REQUEST_TOTAL, SAMPLE_DURATION, SAMPLE_TOTAL
 from wm_infra.api.protocol import HealthResponse, RolloutRequest, RolloutResponse, SSE_DONE, StepResult
-from wm_infra.backends import BackendRegistry, GenieJobQueue, GenieRolloutBackend, RolloutBackend, WanJobQueue, WanVideoBackend
+from wm_infra.backends import BackendRegistry, CosmosJobQueue, CosmosPredictBackend, GenieJobQueue, GenieRolloutBackend, RolloutBackend, WanJobQueue, WanVideoBackend
+from wm_infra.backends.cosmos_runner import CosmosRunner
 from wm_infra.backends.genie_runner import GenieRunner
 from wm_infra.config import EngineConfig, load_config
 from wm_infra.controlplane import (
@@ -169,6 +170,23 @@ def create_app(
         else:
             wan_backend = registry.get("wan-video")
 
+        if registry.get("cosmos-predict") is None:
+            cosmos_root = config.controlplane.cosmos_output_root or str(Path(tempfile.gettempdir()) / "wm_infra_cosmos")
+            cosmos_runner = CosmosRunner(
+                base_url=config.controlplane.cosmos_base_url,
+                api_key=config.controlplane.cosmos_api_key,
+                model_name=config.controlplane.cosmos_model_name,
+                shell_runner=config.controlplane.cosmos_shell_runner,
+                timeout_s=config.controlplane.cosmos_timeout_s,
+            )
+            cosmos_backend = CosmosPredictBackend(
+                cosmos_root,
+                runner=cosmos_runner,
+            )
+            registry.register(cosmos_backend)
+        else:
+            cosmos_backend = registry.get("cosmos-predict")
+
         wan_job_queue = None
         if isinstance(wan_backend, WanVideoBackend):
             wan_job_queue = WanJobQueue(
@@ -181,15 +199,31 @@ def create_app(
             wan_backend._job_queue = wan_job_queue
             wan_job_queue.start()
 
+        cosmos_job_queue = None
+        if isinstance(cosmos_backend, CosmosPredictBackend):
+            cosmos_job_queue = CosmosJobQueue(
+                execute_fn=cosmos_backend.execute_job,
+                store=sample_store,
+                queue_name="cosmos",
+                max_queue_size=config.controlplane.cosmos_max_queue_size,
+                max_concurrent=config.controlplane.cosmos_max_concurrent_jobs,
+            )
+            cosmos_backend._job_queue = cosmos_job_queue
+            cosmos_job_queue.start()
+
         genie_job_queue = None
         genie_backend = registry.get("genie-rollout")
         if isinstance(genie_backend, GenieRolloutBackend):
             genie_job_queue = GenieJobQueue(
                 execute_fn=genie_backend.execute_job,
+                execute_many_fn=genie_backend.execute_job_batch,
+                batch_key_fn=genie_backend.queue_batch_key,
                 store=sample_store,
                 queue_name="genie",
                 max_queue_size=config.controlplane.genie_max_queue_size,
                 max_concurrent=config.controlplane.genie_max_concurrent_jobs,
+                max_batch_size=config.controlplane.genie_max_batch_size,
+                batch_wait_ms=config.controlplane.genie_batch_wait_ms,
             )
             genie_backend._job_queue = genie_job_queue
             genie_job_queue.start()
@@ -198,6 +232,7 @@ def create_app(
         app.state.sample_store = sample_store
         app.state.temporal_store = temporal_store
         app.state.wan_job_queue = wan_job_queue
+        app.state.cosmos_job_queue = cosmos_job_queue
         app.state.genie_job_queue = genie_job_queue
 
         device_str = config.device.value if hasattr(config.device, "value") else str(config.device)
@@ -208,6 +243,8 @@ def create_app(
         logger.info("Shutting down engine")
         if wan_job_queue is not None:
             await wan_job_queue.stop()
+        if cosmos_job_queue is not None:
+            await cosmos_job_queue.stop()
         if genie_job_queue is not None:
             await genie_job_queue.stop()
         await _engine.stop()
@@ -269,6 +306,17 @@ def create_app(
                         "async_queue": backend._job_queue is not None,
                         "admission_max_units": backend.wan_admission_max_units,
                         "admission_max_vram_gb": backend.wan_admission_max_vram_gb,
+                    }
+                )
+            if isinstance(backend, CosmosPredictBackend):
+                info.update(
+                    {
+                        "runner_mode": backend.runner.load(),
+                        "model": backend.runner.model_name,
+                        "output_root": str(backend.output_root),
+                        "async_queue": backend._job_queue is not None,
+                        "nim_base_url": backend.runner.base_url,
+                        "shell_runner_configured": backend.runner.shell_runner is not None,
                     }
                 )
             if isinstance(backend, GenieRolloutBackend):
@@ -365,11 +413,10 @@ def create_app(
             raise HTTPException(status_code=404, detail=f"Unknown backend: {request.backend}")
 
         try:
-            if (isinstance(backend, WanVideoBackend) and backend._job_queue is not None) or (
-                isinstance(backend, GenieRolloutBackend) and backend._job_queue is not None
-            ):
+            submit_async = getattr(backend, "submit_async", None)
+            if callable(submit_async) and getattr(backend, "_job_queue", None) is not None:
                 try:
-                    record = backend.submit_async(request)
+                    record = submit_async(request)
                 except ValueError as exc:
                     SAMPLE_TOTAL.labels(backend=request.backend, status="error").inc()
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -459,20 +506,34 @@ def create_app(
     @app.get("/v1/queue/status")
     async def queue_status():
         wan_queue = app.state.wan_job_queue
+        cosmos_queue = app.state.cosmos_job_queue
         genie_queue = app.state.genie_job_queue
-        if wan_queue is None and genie_queue is None:
+        if wan_queue is None and cosmos_queue is None and genie_queue is None:
             QUEUE_DEPTH.set(0)
             return {"queue_enabled": False}
-        pending = (wan_queue.pending_count if wan_queue else 0) + (genie_queue.pending_count if genie_queue else 0)
-        running = (wan_queue.running_count if wan_queue else 0) + (genie_queue.running_count if genie_queue else 0)
+        pending = (
+            (wan_queue.pending_count if wan_queue else 0)
+            + (cosmos_queue.pending_count if cosmos_queue else 0)
+            + (genie_queue.pending_count if genie_queue else 0)
+        )
+        running = (
+            (wan_queue.running_count if wan_queue else 0)
+            + (cosmos_queue.running_count if cosmos_queue else 0)
+            + (genie_queue.running_count if genie_queue else 0)
+        )
         QUEUE_DEPTH.set(pending)
         return {
             "queue_enabled": True,
             "pending": pending,
             "running": running,
-            "total_tracked": (wan_queue.total_count if wan_queue else 0) + (genie_queue.total_count if genie_queue else 0),
+            "total_tracked": (
+                (wan_queue.total_count if wan_queue else 0)
+                + (cosmos_queue.total_count if cosmos_queue else 0)
+                + (genie_queue.total_count if genie_queue else 0)
+            ),
             "queues": {
                 "wan": None if wan_queue is None else wan_queue.snapshot(),
+                "cosmos": None if cosmos_queue is None else cosmos_queue.snapshot(),
                 "genie": None if genie_queue is None else genie_queue.snapshot(),
             },
         }

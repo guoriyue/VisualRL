@@ -1,0 +1,25 @@
+{
+  "task_type": "genie_rollout",
+  "backend": "genie-rollout",
+  "model": "genie-local",
+  "sample_spec": {
+    "prompt": "roll forward in time through a dynamic world model scene",
+    "width": 256,
+    "height": 256
+  },
+  "task_config": {
+    "num_steps": 4,
+    "width": 256,
+    "height": 256
+  },
+  "genie_config": {
+    "num_frames": 16,
+    "num_prompt_frames": 4,
+    "maskgit_steps": 3,
+    "temperature": 0.0,
+    "checkpoint_every_n_frames": 4
+  },
+  "return_artifacts": [
+    "metadata"
+  ]
+}

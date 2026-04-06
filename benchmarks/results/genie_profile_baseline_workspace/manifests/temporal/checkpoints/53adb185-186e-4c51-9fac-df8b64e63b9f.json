@@ -1,0 +1,64 @@
+{
+  "artifact_ids": [
+    "80265bb4-fcb7-458e-a5e7-cd8503da8bad:checkpoint",
+    "80265bb4-fcb7-458e-a5e7-cd8503da8bad:recovery",
+    "80265bb4-fcb7-458e-a5e7-cd8503da8bad:tokens",
+    "80265bb4-fcb7-458e-a5e7-cd8503da8bad:state",
+    "80265bb4-fcb7-458e-a5e7-cd8503da8bad:checkpoint-delta:0008",
+    "80265bb4-fcb7-458e-a5e7-cd8503da8bad:checkpoint-delta:0012"
+  ],
+  "branch_id": "88d28518-c376-47e0-b2ee-852ed2e936ef",
+  "checkpoint_id": "53adb185-186e-4c51-9fac-df8b64e63b9f",
+  "created_at": 1775458190.1784854,
+  "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+  "metadata": {
+    "checkpoint_deltas": [
+      {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "frame_count": 4,
+        "frame_end": 8,
+        "frame_range": [
+          4,
+          8
+        ],
+        "frame_start": 4,
+        "runner_mode": "real",
+        "total_frames": 16
+      },
+      {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "frame_count": 4,
+        "frame_end": 12,
+        "frame_range": [
+          8,
+          12
+        ],
+        "frame_start": 8,
+        "runner_mode": "real",
+        "total_frames": 16
+      }
+    ],
+    "checkpoint_path": "benchmarks/results/genie_profile_baseline_workspace/genie/80265bb4-fcb7-458e-a5e7-cd8503da8bad/checkpoint.json",
+    "frames_generated": 12,
+    "genie_config": {
+      "checkpoint_every_n_frames": 4,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 16,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "recovery_path": "benchmarks/results/genie_profile_baseline_workspace/genie/80265bb4-fcb7-458e-a5e7-cd8503da8bad/recovery.json",
+    "runner_mode": "real",
+    "sample_id": "80265bb4-fcb7-458e-a5e7-cd8503da8bad"
+  },
+  "rollout_id": "0c18d0c8-8aa2-4c36-af0f-7f5e805fd15a",
+  "state_handle_id": "10fdd3ed-3b5f-4a43-956b-f643946f5431",
+  "step_index": 3,
+  "tag": "terminal"
+}

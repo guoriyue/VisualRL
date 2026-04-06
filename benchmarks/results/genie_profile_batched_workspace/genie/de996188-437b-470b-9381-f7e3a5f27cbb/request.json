@@ -1,0 +1,57 @@
+{
+  "backend": "genie-rollout",
+  "genie_config": {
+    "checkpoint_every_n_frames": 4,
+    "input_tokens_b64": null,
+    "maskgit_steps": 3,
+    "num_frames": 16,
+    "num_prompt_frames": 4,
+    "temperature": 0.0,
+    "tokenizer_kind": "genie_stmaskgit"
+  },
+  "model": "genie-local",
+  "model_revision": null,
+  "runner_mode": "real",
+  "sample_id": "de996188-437b-470b-9381-f7e3a5f27cbb",
+  "sample_spec": {
+    "controls": {},
+    "duration_seconds": null,
+    "fps": null,
+    "height": 256,
+    "metadata": {},
+    "negative_prompt": null,
+    "prompt": "roll forward in time through a dynamic world model scene",
+    "references": [],
+    "seed": null,
+    "width": 256
+  },
+  "stage_graph": [
+    "admission",
+    "state_materialize",
+    "prompt_prepare",
+    "transition",
+    "checkpoint",
+    "artifact_persist",
+    "controlplane_commit"
+  ],
+  "task_config": {
+    "convert_model_dtype": null,
+    "frame_count": 16,
+    "height": 256,
+    "memory_profile": null,
+    "num_steps": 4,
+    "offload_model": null,
+    "t5_cpu": null,
+    "width": 256
+  },
+  "task_type": "genie_rollout",
+  "temporal": {
+    "branch_id": "7f59254b-82ce-473a-816a-8a6db8ced2ef",
+    "checkpoint_id": null,
+    "episode_id": "fb5f89de-6693-4726-8d6c-4fa9bb4beec0",
+    "parent_state_handle_id": null,
+    "rollout_id": null,
+    "state_handle_id": "9416b475-c024-4a16-97f3-9faa1196dfaf"
+  },
+  "token_input": null
+}

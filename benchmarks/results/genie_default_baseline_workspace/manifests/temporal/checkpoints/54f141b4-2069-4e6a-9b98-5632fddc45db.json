@@ -1,0 +1,33 @@
+{
+  "artifact_ids": [
+    "577848af-2e2e-46a0-b2bc-e69e3475e18f:checkpoint",
+    "577848af-2e2e-46a0-b2bc-e69e3475e18f:recovery",
+    "577848af-2e2e-46a0-b2bc-e69e3475e18f:tokens",
+    "577848af-2e2e-46a0-b2bc-e69e3475e18f:state"
+  ],
+  "branch_id": "4e6ebb0d-b797-4fa8-afa5-f320ec28731e",
+  "checkpoint_id": "54f141b4-2069-4e6a-9b98-5632fddc45db",
+  "created_at": 1775458312.9853868,
+  "episode_id": "5dc5f3a1-f3e7-4d0e-8921-f9bc22265751",
+  "metadata": {
+    "checkpoint_deltas": [],
+    "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/577848af-2e2e-46a0-b2bc-e69e3475e18f/checkpoint.json",
+    "frames_generated": 5,
+    "genie_config": {
+      "checkpoint_every_n_frames": 0,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 9,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/577848af-2e2e-46a0-b2bc-e69e3475e18f/recovery.json",
+    "runner_mode": "real",
+    "sample_id": "577848af-2e2e-46a0-b2bc-e69e3475e18f"
+  },
+  "rollout_id": "3ab5a622-bf71-4681-a3e1-3f5ee38ebc66",
+  "state_handle_id": "2fba6af1-aa9d-429c-8bf5-4a4e7e829035",
+  "step_index": 3,
+  "tag": "terminal"
+}

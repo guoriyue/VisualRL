@@ -1,0 +1,19 @@
+{
+  "artifact_ids": [],
+  "branch_id": "4e6ebb0d-b797-4fa8-afa5-f320ec28731e",
+  "checkpoint_id": null,
+  "created_at": 1775458306.0750754,
+  "dtype": "float16",
+  "episode_id": "5dc5f3a1-f3e7-4d0e-8921-f9bc22265751",
+  "is_terminal": false,
+  "kind": "latent",
+  "metadata": {},
+  "rollout_id": null,
+  "shape": [
+    16,
+    6
+  ],
+  "state_handle_id": "e9d15116-6240-4841-a24c-84f8f7703b6e",
+  "uri": null,
+  "version": 1
+}

@@ -1,0 +1,34 @@
+{
+  "branch_id": "3526ce17-0604-403c-8bc2-17a9ee7e6dd2",
+  "checkpoint_deltas": [],
+  "episode_id": "bac967fa-eafe-449b-9850-69d7e6c3f85d",
+  "genie_config": {
+    "checkpoint_every_n_frames": 0,
+    "input_tokens_b64": null,
+    "maskgit_steps": 3,
+    "num_frames": 9,
+    "num_prompt_frames": 4,
+    "temperature": 0.0,
+    "tokenizer_kind": "genie_stmaskgit"
+  },
+  "log_path": "benchmarks/results/genie_default_batched_workspace/genie/8082518f-aa1e-40e0-b46d-18a101f933b5/runner.log",
+  "output_state_handle_id": "d603ecbe-811a-483d-83bf-73196f4b65d8",
+  "parent_state_handle_id": "f1489d45-1ebf-485c-82ae-38a67b322a64",
+  "recovery_hint": "Reload tokens_path into token_input or fork from checkpoint/state_handle for retry.",
+  "request_path": "benchmarks/results/genie_default_batched_workspace/genie/8082518f-aa1e-40e0-b46d-18a101f933b5/request.json",
+  "rollout_id": "bc3df525-f454-4370-8f56-d73edd316f58",
+  "runner_mode": "real",
+  "sample_id": "8082518f-aa1e-40e0-b46d-18a101f933b5",
+  "state_path": "benchmarks/results/genie_default_batched_workspace/genie/8082518f-aa1e-40e0-b46d-18a101f933b5/state.json",
+  "status": "succeeded",
+  "timestamps": {
+    "completed_at": 1775458310.7607033,
+    "started_at": 1775458308.1251252
+  },
+  "token_input": {
+    "cache_key": "state_handle:f1489d45-1ebf-485c-82ae-38a67b322a64",
+    "source_state_handle_id": "f1489d45-1ebf-485c-82ae-38a67b322a64",
+    "token_input_mode": "prompt_cache"
+  },
+  "tokens_path": "benchmarks/results/genie_default_batched_workspace/genie/8082518f-aa1e-40e0-b46d-18a101f933b5/tokens.npy"
+}

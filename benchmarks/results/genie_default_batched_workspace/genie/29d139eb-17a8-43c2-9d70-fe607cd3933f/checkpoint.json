@@ -1,0 +1,33 @@
+{
+  "branch_id": "3526ce17-0604-403c-8bc2-17a9ee7e6dd2",
+  "checkpoint_deltas": [],
+  "episode_id": "bac967fa-eafe-449b-9850-69d7e6c3f85d",
+  "genie_config": {
+    "checkpoint_every_n_frames": 0,
+    "input_tokens_b64": null,
+    "maskgit_steps": 3,
+    "num_frames": 9,
+    "num_prompt_frames": 4,
+    "temperature": 0.0,
+    "tokenizer_kind": "genie_stmaskgit"
+  },
+  "log_path": "benchmarks/results/genie_default_batched_workspace/genie/29d139eb-17a8-43c2-9d70-fe607cd3933f/runner.log",
+  "output_state_handle_id": "b2001af7-f7bf-4bf0-b3de-71d19bbb7840",
+  "parent_state_handle_id": "f1489d45-1ebf-485c-82ae-38a67b322a64",
+  "request_path": "benchmarks/results/genie_default_batched_workspace/genie/29d139eb-17a8-43c2-9d70-fe607cd3933f/request.json",
+  "rollout_id": "af403d33-2690-43c1-9ad4-368473a1d008",
+  "runner_mode": "real",
+  "sample_id": "29d139eb-17a8-43c2-9d70-fe607cd3933f",
+  "state_path": "benchmarks/results/genie_default_batched_workspace/genie/29d139eb-17a8-43c2-9d70-fe607cd3933f/state.json",
+  "status": "succeeded",
+  "timestamps": {
+    "completed_at": 1775458310.75106,
+    "started_at": 1775458308.1217918
+  },
+  "token_input": {
+    "cache_key": "state_handle:f1489d45-1ebf-485c-82ae-38a67b322a64",
+    "source_state_handle_id": "f1489d45-1ebf-485c-82ae-38a67b322a64",
+    "token_input_mode": "prompt_cache"
+  },
+  "tokens_path": "benchmarks/results/genie_default_batched_workspace/genie/29d139eb-17a8-43c2-9d70-fe607cd3933f/tokens.npy"
+}

@@ -1,0 +1,64 @@
+{
+  "artifact_ids": [
+    "4c70aea3-72a1-4e00-af3a-247e6b92c0fe:checkpoint",
+    "4c70aea3-72a1-4e00-af3a-247e6b92c0fe:recovery",
+    "4c70aea3-72a1-4e00-af3a-247e6b92c0fe:tokens",
+    "4c70aea3-72a1-4e00-af3a-247e6b92c0fe:state",
+    "4c70aea3-72a1-4e00-af3a-247e6b92c0fe:checkpoint-delta:0008",
+    "4c70aea3-72a1-4e00-af3a-247e6b92c0fe:checkpoint-delta:0012"
+  ],
+  "branch_id": "88d28518-c376-47e0-b2ee-852ed2e936ef",
+  "checkpoint_id": "6b8e8919-61ee-4070-85f8-82d705aa5545",
+  "created_at": 1775458185.2690852,
+  "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+  "metadata": {
+    "checkpoint_deltas": [
+      {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "frame_count": 4,
+        "frame_end": 8,
+        "frame_range": [
+          4,
+          8
+        ],
+        "frame_start": 4,
+        "runner_mode": "real",
+        "total_frames": 16
+      },
+      {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "frame_count": 4,
+        "frame_end": 12,
+        "frame_range": [
+          8,
+          12
+        ],
+        "frame_start": 8,
+        "runner_mode": "real",
+        "total_frames": 16
+      }
+    ],
+    "checkpoint_path": "benchmarks/results/genie_profile_baseline_workspace/genie/4c70aea3-72a1-4e00-af3a-247e6b92c0fe/checkpoint.json",
+    "frames_generated": 12,
+    "genie_config": {
+      "checkpoint_every_n_frames": 4,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 16,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "recovery_path": "benchmarks/results/genie_profile_baseline_workspace/genie/4c70aea3-72a1-4e00-af3a-247e6b92c0fe/recovery.json",
+    "runner_mode": "real",
+    "sample_id": "4c70aea3-72a1-4e00-af3a-247e6b92c0fe"
+  },
+  "rollout_id": "2380d0f2-fd3b-45ae-ad4a-001a6333c819",
+  "state_handle_id": "120784fd-613c-4880-a6f3-50e81dabe90f",
+  "step_index": 3,
+  "tag": "terminal"
+}

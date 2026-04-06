@@ -1,0 +1,172 @@
+{
+  "artifact_ids": [
+    "29973e1a-193c-4bc7-89d8-2a18669e4057:request",
+    "29973e1a-193c-4bc7-89d8-2a18669e4057:log",
+    "29973e1a-193c-4bc7-89d8-2a18669e4057:runtime",
+    "29973e1a-193c-4bc7-89d8-2a18669e4057:checkpoint",
+    "29973e1a-193c-4bc7-89d8-2a18669e4057:recovery",
+    "29973e1a-193c-4bc7-89d8-2a18669e4057:tokens",
+    "29973e1a-193c-4bc7-89d8-2a18669e4057:state",
+    "29973e1a-193c-4bc7-89d8-2a18669e4057:temporal-rollout"
+  ],
+  "backend": "genie-rollout",
+  "branch_id": "d76d792a-798a-43b9-9196-5be0428f7b41",
+  "checkpoint_ids": [
+    "91c5104b-61ed-419a-844f-6fa8d2f3886a"
+  ],
+  "completed_at": 1775458339.019328,
+  "created_at": 1775458337.5723174,
+  "episode_id": "0c069a65-ebff-4444-8a1e-85d748654135",
+  "input_state_handle_id": "aab23c8d-8c87-4ca5-974d-6757deb36258",
+  "metadata": {
+    "checkpoint_id": "91c5104b-61ed-419a-844f-6fa8d2f3886a",
+    "checkpoint_path": "benchmarks/results/genie_default_batched_workspace/genie/29973e1a-193c-4bc7-89d8-2a18669e4057/checkpoint.json",
+    "controls": {},
+    "genie_config": {
+      "checkpoint_every_n_frames": 0,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 9,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "prompt": "roll forward in time",
+    "recovery_path": "benchmarks/results/genie_default_batched_workspace/genie/29973e1a-193c-4bc7-89d8-2a18669e4057/recovery.json",
+    "runner_mode": "real",
+    "scheduler": {
+      "batched_across_requests": true,
+      "chunk_count": 1,
+      "queue_lanes": [
+        "hot_continuation"
+      ],
+      "scheduler_inputs": [
+        {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 1,
+          "checkpoint_due": false,
+          "chunk_id": "transition:hot_continuation:4:4",
+          "continuation_locality": true,
+          "estimated_transfer_bytes": 19200,
+          "expected_occupancy": 1.0,
+          "frame_range": [
+            4,
+            9
+          ],
+          "has_deadline": false,
+          "priority_max": 0.0,
+          "prompt_state_hot": true,
+          "queue_lane": "hot_continuation"
+        }
+      ],
+      "transition_entities": 1
+    },
+    "stage_graph": [
+      "admission",
+      "state_materialize",
+      "prompt_prepare",
+      "transition",
+      "checkpoint",
+      "artifact_persist",
+      "controlplane_commit"
+    ],
+    "stage_history": [
+      {
+        "elapsed_ms": 0.001,
+        "episode_id": "0c069a65-ebff-4444-8a1e-85d748654135",
+        "queue_lane": "cold_materialize",
+        "runner_mode": "real",
+        "sample_id": "29973e1a-193c-4bc7-89d8-2a18669e4057",
+        "stage": "admission"
+      },
+      {
+        "elapsed_ms": 0.018,
+        "materialized_bytes": 6400,
+        "queue_lane": "cold_materialize",
+        "resident_tier": "hot_gpu",
+        "runner_mode": "real",
+        "stage": "state_materialize"
+      },
+      {
+        "elapsed_ms": 0.342,
+        "prompt_frames": 4,
+        "queue_lane": "hot_continuation",
+        "runner_mode": "real",
+        "stage": "prompt_prepare",
+        "total_frames": 9
+      },
+      {
+        "batched_across_requests": true,
+        "chunk_id": "transition:hot_continuation:4:4",
+        "chunk_size": 4,
+        "elapsed_ms": 1438.187,
+        "expected_occupancy": 1.0,
+        "frame_range": [
+          4,
+          9
+        ],
+        "queue_lane": "hot_continuation",
+        "runner_mode": "real",
+        "stage": "transition"
+      },
+      {
+        "checkpoint_delta_count": 0,
+        "elapsed_ms": 2.568,
+        "queue_lane": "persist_only",
+        "runner_mode": "real",
+        "stage": "artifact_persist"
+      },
+      {
+        "checkpoint_count": 1,
+        "elapsed_ms": 1.107,
+        "queue_lane": "persist_only",
+        "runner_mode": "real",
+        "stage": "controlplane_commit"
+      }
+    ],
+    "stage_timings_ms": {
+      "admission_ms": 0.001,
+      "artifact_persist_ms": 2.568,
+      "controlplane_commit_ms": 1.107,
+      "prompt_prepare_ms": 0.342,
+      "runner_exec_ms": 1438.187,
+      "runner_load_ms": 1607.683,
+      "state_materialize_ms": 0.018,
+      "state_token_prep_ms": 0.36,
+      "temporal_persist_ms": 1.107,
+      "total_elapsed_ms": -1774816814034.419,
+      "transition_ms": 1438.187
+    },
+    "token_input": {
+      "cache_key": "state_handle:aab23c8d-8c87-4ca5-974d-6757deb36258",
+      "source_state_handle_id": "aab23c8d-8c87-4ca5-974d-6757deb36258",
+      "token_input_mode": "prompt_cache"
+    }
+  },
+  "metrics": {
+    "artifact_persist_ms": 2.568,
+    "checkpoint_delta_count": 0.0,
+    "checkpoint_ms": 0.0,
+    "elapsed_s": 1.437,
+    "estimated_units": 3.6,
+    "frames_generated": 5.0,
+    "runner_exec_ms": 1438.187,
+    "runner_load_ms": 1607.683,
+    "state_token_prep_ms": 0.36,
+    "steps": 4.0,
+    "temporal_persist_ms": 1.107,
+    "tokens_generated": 2000.0,
+    "total_elapsed_ms": -1774816814034.419,
+    "transition_ms": 1438.187
+  },
+  "model": "genie-local",
+  "output_state_handle_id": "a858e09f-f2b6-4969-aaee-8ff0fcdfcfd5",
+  "priority": 0.0,
+  "request_id": "29973e1a-193c-4bc7-89d8-2a18669e4057",
+  "rollout_id": "419cac28-ae72-4d17-9e66-b4748ca4c377",
+  "sample_id": "29973e1a-193c-4bc7-89d8-2a18669e4057",
+  "started_at": 1775458337.5723174,
+  "status": "succeeded",
+  "step_count": 4,
+  "updated_at": 1775458339.022357
+}

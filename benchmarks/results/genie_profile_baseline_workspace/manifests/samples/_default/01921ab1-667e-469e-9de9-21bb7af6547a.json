@@ -1,0 +1,616 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:request",
+      "bytes": 1408,
+      "kind": "metadata",
+      "metadata": {
+        "exists": true,
+        "role": "request"
+      },
+      "mime_type": "application/json",
+      "sha256": "f7f2b18d1a199c74940aa9673e9025be2e4b549129f730c3f6b0fb1d679a9a74",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/request.json"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:log",
+      "bytes": 397,
+      "kind": "log",
+      "metadata": {
+        "exists": true
+      },
+      "mime_type": "text/plain",
+      "sha256": "64caacd3f9f42dee49cfdaefe0de13f38bfe971217c57e6a56135a43a0c04a1c",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/runner.log"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:runtime",
+      "bytes": 10777,
+      "kind": "metadata",
+      "metadata": {
+        "exists": true,
+        "role": "runtime"
+      },
+      "mime_type": "application/json",
+      "sha256": "d83a56288d9f810b9483b76d8972f4e9e6891f5fd61003abf03131b506f2c912",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/runtime.json"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint",
+      "bytes": 2024,
+      "kind": "metadata",
+      "metadata": {
+        "exists": true,
+        "role": "checkpoint"
+      },
+      "mime_type": "application/json",
+      "sha256": "34ddf800aa7b7a147f1b5d170be00d77f19e0859c7f401aa0b3cbc7dab73b4e2",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/checkpoint.json"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:recovery",
+      "bytes": 2130,
+      "kind": "metadata",
+      "metadata": {
+        "exists": true,
+        "role": "recovery"
+      },
+      "mime_type": "application/json",
+      "sha256": "7fcc7949570ecac031190cf4b7605af92a76d93913d75cc88c19d927a1335581",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/recovery.json"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0008",
+      "bytes": 216,
+      "kind": "metadata",
+      "metadata": {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "exists": true,
+        "frame_count": 4,
+        "frame_end": 8,
+        "frame_range": [
+          4,
+          8
+        ],
+        "frame_start": 4,
+        "role": "checkpoint_delta",
+        "runner_mode": "real",
+        "total_frames": 16
+      },
+      "mime_type": "application/json",
+      "sha256": "c355170c03cbbb3c83b75b2a8c9b6da3af10afd48dd7e2140aa8a4c64bdef61a",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/checkpoint_deltas/0008.json"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0012",
+      "bytes": 218,
+      "kind": "metadata",
+      "metadata": {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "exists": true,
+        "frame_count": 4,
+        "frame_end": 12,
+        "frame_range": [
+          8,
+          12
+        ],
+        "frame_start": 8,
+        "role": "checkpoint_delta",
+        "runner_mode": "real",
+        "total_frames": 16
+      },
+      "mime_type": "application/json",
+      "sha256": "132abed8e79e82f23a20d9d700f92b2abb83d51cd5cbdbe5a8b5e3d87516fbd4",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/checkpoint_deltas/0012.json"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:tokens",
+      "bytes": 25728,
+      "kind": "latent",
+      "metadata": {
+        "dtype": "uint32",
+        "exists": true,
+        "format": "numpy",
+        "shape": [
+          16,
+          20,
+          20
+        ]
+      },
+      "mime_type": "application/octet-stream",
+      "sha256": "8a8b9a63be220ebb67970ca1f94deeb72099bcefdde9a12a35aa3a3a03a8848d",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/tokens.npy"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:state",
+      "bytes": 407,
+      "kind": "metadata",
+      "metadata": {
+        "exists": true,
+        "role": "state"
+      },
+      "mime_type": "application/json",
+      "sha256": "a080f39697d788d2b40d9beafdfd665a7481ae1fafdf15e3f9c57c49ea14309f",
+      "uri": "file://benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/state.json"
+    },
+    {
+      "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:temporal-rollout",
+      "bytes": null,
+      "kind": "metadata",
+      "metadata": {
+        "checkpoint_id": "1b576874-950c-4fc0-addd-f492364994c0",
+        "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+        "rollout_id": "604b345a-33f9-41ef-b49e-aa5162483b2d",
+        "runner_mode": "real",
+        "state_handle_id": "f64d73ee-8039-4f6b-9ae3-491efdc329e7"
+      },
+      "mime_type": null,
+      "sha256": null,
+      "uri": "temporal://rollouts/604b345a-33f9-41ef-b49e-aa5162483b2d"
+    }
+  ],
+  "backend": "genie-rollout",
+  "cosmos_config": null,
+  "evaluations": [],
+  "experiment": null,
+  "exports": [],
+  "genie_config": {
+    "checkpoint_every_n_frames": 4,
+    "input_tokens_b64": null,
+    "maskgit_steps": 3,
+    "num_frames": 16,
+    "num_prompt_frames": 4,
+    "temperature": 0.0,
+    "tokenizer_kind": "genie_stmaskgit"
+  },
+  "lineage_parent_ids": [],
+  "metadata": {
+    "async": false,
+    "evaluation_policy": null,
+    "fallback_from": null,
+    "genie_config_applied": true,
+    "labels": {},
+    "notes": "Genie rollout executed via real runner. 12 frames generated, 4800 tokens produced.",
+    "priority": 0.0,
+    "runner_mode": "real",
+    "stage_graph": [
+      "admission",
+      "state_materialize",
+      "prompt_prepare",
+      "transition",
+      "checkpoint",
+      "artifact_persist",
+      "controlplane_commit"
+    ],
+    "stage_timings_ms": {
+      "admission_ms": 0.002,
+      "artifact_persist_ms": 2.978,
+      "checkpoint_ms": 0.482,
+      "controlplane_commit_ms": 0.9,
+      "prompt_prepare_ms": 0.359,
+      "runner_exec_ms": 799.238,
+      "runner_load_ms": 0.001,
+      "state_materialize_ms": 0.028,
+      "state_token_prep_ms": 0.387,
+      "temporal_persist_ms": 0.9,
+      "total_elapsed_ms": 815.675,
+      "transition_ms": 799.238
+    },
+    "stubbed": false
+  },
+  "metrics": {},
+  "model": "genie-local",
+  "model_revision": null,
+  "resource_estimate": {
+    "bottleneck": "frame_pressure",
+    "estimated_units": 6.4,
+    "estimated_vram_gb": 8.17,
+    "notes": [
+      "Estimated from frame_count \u00d7 num_steps \u00d7 megapixels.",
+      "Low-VRAM profiles reduce the relative score; high-quality profiles increase it."
+    ]
+  },
+  "runtime": {
+    "async": false,
+    "checkpoint_deltas": [
+      {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "frame_count": 4,
+        "frame_end": 8,
+        "frame_range": [
+          4,
+          8
+        ],
+        "frame_start": 4,
+        "path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/checkpoint_deltas/0008.json",
+        "runner_mode": "real",
+        "total_frames": 16
+      },
+      {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "frame_count": 4,
+        "frame_end": 12,
+        "frame_range": [
+          8,
+          12
+        ],
+        "frame_start": 8,
+        "path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/checkpoint_deltas/0012.json",
+        "runner_mode": "real",
+        "total_frames": 16
+      }
+    ],
+    "checkpoint_id": "1b576874-950c-4fc0-addd-f492364994c0",
+    "checkpoint_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/checkpoint.json",
+    "completed_at": 1775458186.9057233,
+    "device": "cuda",
+    "elapsed_ms": 812.44,
+    "elapsed_s": 0.7992,
+    "frames_generated": 12,
+    "genie_config": {
+      "checkpoint_every_n_frames": 4,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 16,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "log_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/runner.log",
+    "model": "1x-technologies/GENIE_210M_v0",
+    "prompt_frames": 4,
+    "queue_lane": "hot_continuation",
+    "recovery_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/recovery.json",
+    "request_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/request.json",
+    "rollout_id": "604b345a-33f9-41ef-b49e-aa5162483b2d",
+    "runner": "genie-real",
+    "runner_mode": "real",
+    "runtime_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/runtime.json",
+    "runtime_state": {
+      "checkpoint_delta_ref": "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0012",
+      "last_completed_frame": 16,
+      "materialized_bytes": 6400,
+      "resident_tier": "hot_gpu",
+      "reuse_hits": 1,
+      "reuse_misses": 0
+    },
+    "scheduler": {
+      "chunks": [
+        {
+          "chunk_id": "transition:checkpoint_heavy:4:1",
+          "chunk_size": 1,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            4,
+            8
+          ],
+          "queue_lane": "checkpoint_heavy"
+        },
+        {
+          "chunk_id": "transition:checkpoint_heavy:8:1",
+          "chunk_size": 1,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            8,
+            12
+          ],
+          "queue_lane": "checkpoint_heavy"
+        },
+        {
+          "chunk_id": "transition:hot_continuation:12:1",
+          "chunk_size": 1,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            12,
+            16
+          ],
+          "queue_lane": "hot_continuation"
+        }
+      ],
+      "cross_request_batcher": {
+        "batch_wait_ms": 2.0,
+        "batched_requests": 0,
+        "largest_batch_size": 1,
+        "max_batch_size": 8,
+        "max_observed_batch_size": 1,
+        "mean_batch_size": 1.0,
+        "total_flushed_batches": 9,
+        "total_requests": 9
+      },
+      "observed_batch_sizes": [
+        1,
+        1,
+        1
+      ],
+      "scheduler_inputs": [
+        {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": true,
+          "chunk_id": "transition:checkpoint_heavy:4:1",
+          "continuation_locality": false,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            4,
+            8
+          ],
+          "has_deadline": false,
+          "priority_max": 0.0,
+          "prompt_state_hot": true,
+          "queue_lane": "checkpoint_heavy"
+        },
+        {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": true,
+          "chunk_id": "transition:checkpoint_heavy:8:1",
+          "continuation_locality": false,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            8,
+            12
+          ],
+          "has_deadline": false,
+          "priority_max": -0.001,
+          "prompt_state_hot": true,
+          "queue_lane": "checkpoint_heavy"
+        },
+        {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": false,
+          "chunk_id": "transition:hot_continuation:12:1",
+          "continuation_locality": true,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            12,
+            16
+          ],
+          "has_deadline": false,
+          "priority_max": -0.002,
+          "prompt_state_hot": true,
+          "queue_lane": "hot_continuation"
+        }
+      ],
+      "transition_entities": 3
+    },
+    "stage_graph": [
+      "admission",
+      "state_materialize",
+      "prompt_prepare",
+      "transition",
+      "checkpoint",
+      "artifact_persist",
+      "controlplane_commit"
+    ],
+    "stage_history": [
+      {
+        "elapsed_ms": 0.002,
+        "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+        "queue_lane": "cold_materialize",
+        "runner_mode": "real",
+        "sample_id": "01921ab1-667e-469e-9de9-21bb7af6547a",
+        "stage": "admission"
+      },
+      {
+        "elapsed_ms": 0.028,
+        "materialized_bytes": 6400,
+        "queue_lane": "cold_materialize",
+        "resident_tier": "hot_gpu",
+        "runner_mode": "real",
+        "stage": "state_materialize"
+      },
+      {
+        "elapsed_ms": 0.359,
+        "prompt_frames": 4,
+        "queue_lane": "hot_continuation",
+        "runner_mode": "real",
+        "stage": "prompt_prepare",
+        "total_frames": 16
+      },
+      {
+        "chunk_id": "transition:checkpoint_heavy:4:1",
+        "chunk_size": 1,
+        "cross_request_batch_id": "transition:4:8:1",
+        "cross_request_sample_ids": [
+          "01921ab1-667e-469e-9de9-21bb7af6547a"
+        ],
+        "elapsed_ms": 266.848,
+        "expected_occupancy": 0.3333333333333333,
+        "frame_range": [
+          4,
+          8
+        ],
+        "queue_lane": "checkpoint_heavy",
+        "runner_mode": "real",
+        "scheduler_inputs": {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": true,
+          "continuation_locality": false,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "has_deadline": false,
+          "priority_max": 0.0,
+          "prompt_state_hot": true,
+          "queue_lane": "checkpoint_heavy"
+        },
+        "stage": "transition"
+      },
+      {
+        "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0008",
+        "elapsed_ms": 0.261,
+        "frame_end": 8,
+        "queue_lane": "checkpoint_heavy",
+        "runner_mode": "real",
+        "stage": "checkpoint"
+      },
+      {
+        "chunk_id": "transition:checkpoint_heavy:8:1",
+        "chunk_size": 1,
+        "cross_request_batch_id": "transition:8:12:1",
+        "cross_request_sample_ids": [
+          "01921ab1-667e-469e-9de9-21bb7af6547a"
+        ],
+        "elapsed_ms": 266.007,
+        "expected_occupancy": 0.3333333333333333,
+        "frame_range": [
+          8,
+          12
+        ],
+        "queue_lane": "checkpoint_heavy",
+        "runner_mode": "real",
+        "scheduler_inputs": {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": true,
+          "continuation_locality": false,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "has_deadline": false,
+          "priority_max": -0.001,
+          "prompt_state_hot": true,
+          "queue_lane": "checkpoint_heavy"
+        },
+        "stage": "transition"
+      },
+      {
+        "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0012",
+        "elapsed_ms": 0.221,
+        "frame_end": 12,
+        "queue_lane": "checkpoint_heavy",
+        "runner_mode": "real",
+        "stage": "checkpoint"
+      },
+      {
+        "chunk_id": "transition:hot_continuation:12:1",
+        "chunk_size": 1,
+        "cross_request_batch_id": "transition:12:16:1",
+        "cross_request_sample_ids": [
+          "01921ab1-667e-469e-9de9-21bb7af6547a"
+        ],
+        "elapsed_ms": 266.383,
+        "expected_occupancy": 0.3333333333333333,
+        "frame_range": [
+          12,
+          16
+        ],
+        "queue_lane": "hot_continuation",
+        "runner_mode": "real",
+        "scheduler_inputs": {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": false,
+          "continuation_locality": true,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "has_deadline": false,
+          "priority_max": -0.002,
+          "prompt_state_hot": true,
+          "queue_lane": "hot_continuation"
+        },
+        "stage": "transition"
+      },
+      {
+        "checkpoint_delta_count": 2,
+        "elapsed_ms": 2.978,
+        "queue_lane": "persist_only",
+        "runner_mode": "real",
+        "stage": "artifact_persist"
+      },
+      {
+        "checkpoint_count": 3,
+        "elapsed_ms": 0.9,
+        "queue_lane": "persist_only",
+        "runner_mode": "real",
+        "stage": "controlplane_commit"
+      }
+    ],
+    "stage_timings_ms": {
+      "admission_ms": 0.002,
+      "artifact_persist_ms": 2.978,
+      "checkpoint_ms": 0.482,
+      "controlplane_commit_ms": 0.9,
+      "prompt_prepare_ms": 0.359,
+      "runner_exec_ms": 799.238,
+      "runner_load_ms": 0.001,
+      "state_materialize_ms": 0.028,
+      "state_token_prep_ms": 0.387,
+      "temporal_persist_ms": 0.9,
+      "total_elapsed_ms": 815.675,
+      "transition_ms": 799.238
+    },
+    "started_at": 1775458186.0932882,
+    "state_handle_id": "f64d73ee-8039-4f6b-9ae3-491efdc329e7",
+    "state_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/state.json",
+    "status_history": [
+      {
+        "status": "queued",
+        "timestamp": 1775458186.0932882
+      },
+      {
+        "status": "running",
+        "timestamp": 1775458186.0932882
+      },
+      {
+        "status": "succeeded",
+        "timestamp": 1775458186.9057233
+      }
+    ],
+    "temporal": true,
+    "token_input": {
+      "cache_key": "state_handle:65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+      "source_state_handle_id": "65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+      "token_input_mode": "prompt_cache"
+    },
+    "tokens_generated": 4800,
+    "tokens_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/tokens.npy",
+    "total_frames": 16
+  },
+  "sample_id": "01921ab1-667e-469e-9de9-21bb7af6547a",
+  "sample_spec": {
+    "controls": {},
+    "duration_seconds": null,
+    "fps": null,
+    "height": 256,
+    "metadata": {},
+    "negative_prompt": null,
+    "prompt": "roll forward in time through a dynamic world model scene",
+    "references": [],
+    "seed": null,
+    "width": 256
+  },
+  "status": "succeeded",
+  "task_config": {
+    "convert_model_dtype": null,
+    "frame_count": 16,
+    "height": 256,
+    "memory_profile": null,
+    "num_steps": 4,
+    "offload_model": null,
+    "t5_cpu": null,
+    "width": 256
+  },
+  "task_type": "genie_rollout",
+  "temporal": {
+    "branch_id": "88d28518-c376-47e0-b2ee-852ed2e936ef",
+    "checkpoint_id": "1b576874-950c-4fc0-addd-f492364994c0",
+    "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+    "parent_state_handle_id": "65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+    "rollout_id": "604b345a-33f9-41ef-b49e-aa5162483b2d",
+    "state_handle_id": "f64d73ee-8039-4f6b-9ae3-491efdc329e7"
+  },
+  "token_input": null,
+  "wan_config": null
+}

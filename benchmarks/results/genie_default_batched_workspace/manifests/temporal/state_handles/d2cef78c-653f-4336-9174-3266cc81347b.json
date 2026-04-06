@@ -1,0 +1,61 @@
+{
+  "artifact_ids": [
+    "fdf867c7-8275-4a17-8747-bf4bfe30240a:tokens",
+    "fdf867c7-8275-4a17-8747-bf4bfe30240a:state",
+    "fdf867c7-8275-4a17-8747-bf4bfe30240a:checkpoint",
+    "fdf867c7-8275-4a17-8747-bf4bfe30240a:recovery",
+    "fdf867c7-8275-4a17-8747-bf4bfe30240a:request",
+    "fdf867c7-8275-4a17-8747-bf4bfe30240a:runtime",
+    "fdf867c7-8275-4a17-8747-bf4bfe30240a:log"
+  ],
+  "branch_id": "d76d792a-798a-43b9-9196-5be0428f7b41",
+  "checkpoint_id": "8f4c2e22-bc03-42db-8a26-b63f949930e6",
+  "created_at": 1775458340.3940096,
+  "dtype": "uint32",
+  "episode_id": "0c069a65-ebff-4444-8a1e-85d748654135",
+  "is_terminal": false,
+  "kind": "video_latent",
+  "metadata": {
+    "checkpoint_id": "8f4c2e22-bc03-42db-8a26-b63f949930e6",
+    "checkpoint_path": "benchmarks/results/genie_default_batched_workspace/genie/fdf867c7-8275-4a17-8747-bf4bfe30240a/checkpoint.json",
+    "frames_generated": 5,
+    "genie_config": {
+      "checkpoint_every_n_frames": 0,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 9,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "prompt": "roll forward in time",
+    "recovery_path": "benchmarks/results/genie_default_batched_workspace/genie/fdf867c7-8275-4a17-8747-bf4bfe30240a/recovery.json",
+    "runner_mode": "real",
+    "sample_id": "fdf867c7-8275-4a17-8747-bf4bfe30240a",
+    "source_backend": "genie-rollout",
+    "stage_graph": [
+      "admission",
+      "state_materialize",
+      "prompt_prepare",
+      "transition",
+      "checkpoint",
+      "artifact_persist",
+      "controlplane_commit"
+    ],
+    "token_input": {
+      "cache_key": "state_handle:aab23c8d-8c87-4ca5-974d-6757deb36258",
+      "source_state_handle_id": "aab23c8d-8c87-4ca5-974d-6757deb36258",
+      "token_input_mode": "prompt_cache"
+    },
+    "tokens_generated": 2000
+  },
+  "rollout_id": "17883cee-c0c4-4e47-91e0-86215b1a6cad",
+  "shape": [
+    9,
+    20,
+    20
+  ],
+  "state_handle_id": "d2cef78c-653f-4336-9174-3266cc81347b",
+  "uri": "file://benchmarks/results/genie_default_batched_workspace/genie/fdf867c7-8275-4a17-8747-bf4bfe30240a/tokens.npy",
+  "version": 1
+}

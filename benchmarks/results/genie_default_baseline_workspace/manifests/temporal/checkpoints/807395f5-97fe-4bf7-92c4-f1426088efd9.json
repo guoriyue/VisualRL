@@ -1,0 +1,33 @@
+{
+  "artifact_ids": [
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:checkpoint",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:recovery",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:tokens",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:state"
+  ],
+  "branch_id": "4e6ebb0d-b797-4fa8-afa5-f320ec28731e",
+  "checkpoint_id": "807395f5-97fe-4bf7-92c4-f1426088efd9",
+  "created_at": 1775458309.0432293,
+  "episode_id": "5dc5f3a1-f3e7-4d0e-8921-f9bc22265751",
+  "metadata": {
+    "checkpoint_deltas": [],
+    "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/checkpoint.json",
+    "frames_generated": 5,
+    "genie_config": {
+      "checkpoint_every_n_frames": 0,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 9,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/recovery.json",
+    "runner_mode": "real",
+    "sample_id": "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109"
+  },
+  "rollout_id": "ddf51d77-0598-4696-9c21-9816635b7253",
+  "state_handle_id": "1cda1a84-8d5e-4f43-bda4-94dfe58dd8a6",
+  "step_index": 3,
+  "tag": "terminal"
+}

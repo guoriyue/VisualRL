@@ -1,0 +1,317 @@
+{
+  "artifact_ids": [
+    "01921ab1-667e-469e-9de9-21bb7af6547a:request",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:log",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:runtime",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:recovery",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0008",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0012",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:tokens",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:state",
+    "01921ab1-667e-469e-9de9-21bb7af6547a:temporal-rollout"
+  ],
+  "backend": "genie-rollout",
+  "branch_id": "88d28518-c376-47e0-b2ee-852ed2e936ef",
+  "checkpoint_ids": [
+    "3bdc6f72-1de7-4a88-a9e5-f4a3f2298eeb",
+    "6a4d4c54-a686-4214-82d2-58d4697d27a4",
+    "1b576874-950c-4fc0-addd-f492364994c0"
+  ],
+  "completed_at": 1775458186.9057233,
+  "created_at": 1775458186.0933044,
+  "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+  "input_state_handle_id": "65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+  "metadata": {
+    "checkpoint_id": "1b576874-950c-4fc0-addd-f492364994c0",
+    "checkpoint_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/checkpoint.json",
+    "controls": {},
+    "genie_config": {
+      "checkpoint_every_n_frames": 4,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 16,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "prompt": "roll forward in time through a dynamic world model scene",
+    "recovery_path": "benchmarks/results/genie_profile_baseline_workspace/genie/01921ab1-667e-469e-9de9-21bb7af6547a/recovery.json",
+    "runner_mode": "real",
+    "scheduler": {
+      "chunk_count": 3,
+      "cross_request_batcher": {
+        "batch_wait_ms": 2.0,
+        "batched_requests": 0,
+        "largest_batch_size": 1,
+        "max_batch_size": 8,
+        "max_observed_batch_size": 1,
+        "mean_batch_size": 1.0,
+        "total_flushed_batches": 9,
+        "total_requests": 9
+      },
+      "observed_batch_sizes": [
+        1,
+        1,
+        1
+      ],
+      "queue_lanes": [
+        "checkpoint_heavy",
+        "checkpoint_heavy",
+        "hot_continuation"
+      ],
+      "scheduler_inputs": [
+        {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": true,
+          "chunk_id": "transition:checkpoint_heavy:4:1",
+          "continuation_locality": false,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            4,
+            8
+          ],
+          "has_deadline": false,
+          "priority_max": 0.0,
+          "prompt_state_hot": true,
+          "queue_lane": "checkpoint_heavy"
+        },
+        {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": true,
+          "chunk_id": "transition:checkpoint_heavy:8:1",
+          "continuation_locality": false,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            8,
+            12
+          ],
+          "has_deadline": false,
+          "priority_max": -0.001,
+          "prompt_state_hot": true,
+          "queue_lane": "checkpoint_heavy"
+        },
+        {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": false,
+          "chunk_id": "transition:hot_continuation:12:1",
+          "continuation_locality": true,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "frame_range": [
+            12,
+            16
+          ],
+          "has_deadline": false,
+          "priority_max": -0.002,
+          "prompt_state_hot": true,
+          "queue_lane": "hot_continuation"
+        }
+      ],
+      "transition_entities": 3
+    },
+    "stage_graph": [
+      "admission",
+      "state_materialize",
+      "prompt_prepare",
+      "transition",
+      "checkpoint",
+      "artifact_persist",
+      "controlplane_commit"
+    ],
+    "stage_history": [
+      {
+        "elapsed_ms": 0.002,
+        "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+        "queue_lane": "cold_materialize",
+        "runner_mode": "real",
+        "sample_id": "01921ab1-667e-469e-9de9-21bb7af6547a",
+        "stage": "admission"
+      },
+      {
+        "elapsed_ms": 0.028,
+        "materialized_bytes": 6400,
+        "queue_lane": "cold_materialize",
+        "resident_tier": "hot_gpu",
+        "runner_mode": "real",
+        "stage": "state_materialize"
+      },
+      {
+        "elapsed_ms": 0.359,
+        "prompt_frames": 4,
+        "queue_lane": "hot_continuation",
+        "runner_mode": "real",
+        "stage": "prompt_prepare",
+        "total_frames": 16
+      },
+      {
+        "chunk_id": "transition:checkpoint_heavy:4:1",
+        "chunk_size": 1,
+        "cross_request_batch_id": "transition:4:8:1",
+        "cross_request_sample_ids": [
+          "01921ab1-667e-469e-9de9-21bb7af6547a"
+        ],
+        "elapsed_ms": 266.848,
+        "expected_occupancy": 0.3333333333333333,
+        "frame_range": [
+          4,
+          8
+        ],
+        "queue_lane": "checkpoint_heavy",
+        "runner_mode": "real",
+        "scheduler_inputs": {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": true,
+          "continuation_locality": false,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "has_deadline": false,
+          "priority_max": 0.0,
+          "prompt_state_hot": true,
+          "queue_lane": "checkpoint_heavy"
+        },
+        "stage": "transition"
+      },
+      {
+        "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0008",
+        "elapsed_ms": 0.261,
+        "frame_end": 8,
+        "queue_lane": "checkpoint_heavy",
+        "runner_mode": "real",
+        "stage": "checkpoint"
+      },
+      {
+        "chunk_id": "transition:checkpoint_heavy:8:1",
+        "chunk_size": 1,
+        "cross_request_batch_id": "transition:8:12:1",
+        "cross_request_sample_ids": [
+          "01921ab1-667e-469e-9de9-21bb7af6547a"
+        ],
+        "elapsed_ms": 266.007,
+        "expected_occupancy": 0.3333333333333333,
+        "frame_range": [
+          8,
+          12
+        ],
+        "queue_lane": "checkpoint_heavy",
+        "runner_mode": "real",
+        "scheduler_inputs": {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": true,
+          "continuation_locality": false,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "has_deadline": false,
+          "priority_max": -0.001,
+          "prompt_state_hot": true,
+          "queue_lane": "checkpoint_heavy"
+        },
+        "stage": "transition"
+      },
+      {
+        "artifact_id": "01921ab1-667e-469e-9de9-21bb7af6547a:checkpoint-delta:0012",
+        "elapsed_ms": 0.221,
+        "frame_end": 12,
+        "queue_lane": "checkpoint_heavy",
+        "runner_mode": "real",
+        "stage": "checkpoint"
+      },
+      {
+        "chunk_id": "transition:hot_continuation:12:1",
+        "chunk_size": 1,
+        "cross_request_batch_id": "transition:12:16:1",
+        "cross_request_sample_ids": [
+          "01921ab1-667e-469e-9de9-21bb7af6547a"
+        ],
+        "elapsed_ms": 266.383,
+        "expected_occupancy": 0.3333333333333333,
+        "frame_range": [
+          12,
+          16
+        ],
+        "queue_lane": "hot_continuation",
+        "runner_mode": "real",
+        "scheduler_inputs": {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 3,
+          "checkpoint_due": false,
+          "continuation_locality": true,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 0.3333333333333333,
+          "has_deadline": false,
+          "priority_max": -0.002,
+          "prompt_state_hot": true,
+          "queue_lane": "hot_continuation"
+        },
+        "stage": "transition"
+      },
+      {
+        "checkpoint_delta_count": 2,
+        "elapsed_ms": 2.978,
+        "queue_lane": "persist_only",
+        "runner_mode": "real",
+        "stage": "artifact_persist"
+      },
+      {
+        "checkpoint_count": 3,
+        "elapsed_ms": 0.9,
+        "queue_lane": "persist_only",
+        "runner_mode": "real",
+        "stage": "controlplane_commit"
+      }
+    ],
+    "stage_timings_ms": {
+      "admission_ms": 0.002,
+      "artifact_persist_ms": 2.978,
+      "checkpoint_ms": 0.482,
+      "controlplane_commit_ms": 0.9,
+      "prompt_prepare_ms": 0.359,
+      "runner_exec_ms": 799.238,
+      "runner_load_ms": 0.001,
+      "state_materialize_ms": 0.028,
+      "state_token_prep_ms": 0.387,
+      "temporal_persist_ms": 0.9,
+      "total_elapsed_ms": 815.675,
+      "transition_ms": 799.238
+    },
+    "token_input": {
+      "cache_key": "state_handle:65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+      "source_state_handle_id": "65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+      "token_input_mode": "prompt_cache"
+    }
+  },
+  "metrics": {
+    "artifact_persist_ms": 2.978,
+    "checkpoint_delta_count": 2.0,
+    "checkpoint_ms": 0.482,
+    "elapsed_s": 0.7992,
+    "estimated_units": 6.4,
+    "frames_generated": 12.0,
+    "max_cross_request_batch_size": 1.0,
+    "runner_exec_ms": 799.238,
+    "runner_load_ms": 0.001,
+    "state_token_prep_ms": 0.387,
+    "steps": 4.0,
+    "temporal_persist_ms": 0.9,
+    "tokens_generated": 4800.0,
+    "total_elapsed_ms": 815.675,
+    "transition_ms": 799.238
+  },
+  "model": "genie-local",
+  "output_state_handle_id": "f64d73ee-8039-4f6b-9ae3-491efdc329e7",
+  "priority": 0.0,
+  "request_id": "01921ab1-667e-469e-9de9-21bb7af6547a",
+  "rollout_id": "604b345a-33f9-41ef-b49e-aa5162483b2d",
+  "sample_id": "01921ab1-667e-469e-9de9-21bb7af6547a",
+  "started_at": 1775458186.0933044,
+  "status": "succeeded",
+  "step_count": 4,
+  "updated_at": 1775458186.908831
+}

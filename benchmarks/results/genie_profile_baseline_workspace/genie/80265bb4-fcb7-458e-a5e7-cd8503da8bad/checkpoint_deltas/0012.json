@@ -1,0 +1,14 @@
+{
+  "bytes": 6400,
+  "checkpoint_every_n_frames": 4,
+  "dtype": "uint32",
+  "frame_count": 4,
+  "frame_end": 12,
+  "frame_range": [
+    8,
+    12
+  ],
+  "frame_start": 8,
+  "runner_mode": "real",
+  "total_frames": 16
+}

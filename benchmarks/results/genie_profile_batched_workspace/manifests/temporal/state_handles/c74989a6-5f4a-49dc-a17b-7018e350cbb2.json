@@ -1,0 +1,63 @@
+{
+  "artifact_ids": [
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:tokens",
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:state",
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:checkpoint",
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:recovery",
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:checkpoint-delta:0008",
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:checkpoint-delta:0012",
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:request",
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:runtime",
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:log"
+  ],
+  "branch_id": "7f59254b-82ce-473a-816a-8a6db8ced2ef",
+  "checkpoint_id": "f88a5dd6-1b17-4884-a07d-741c90ec390c",
+  "created_at": 1775458239.2477913,
+  "dtype": "uint32",
+  "episode_id": "fb5f89de-6693-4726-8d6c-4fa9bb4beec0",
+  "is_terminal": false,
+  "kind": "video_latent",
+  "metadata": {
+    "checkpoint_id": "f88a5dd6-1b17-4884-a07d-741c90ec390c",
+    "checkpoint_path": "benchmarks/results/genie_profile_batched_workspace/genie/fb13d8aa-8876-4080-87e0-d63a801218f2/checkpoint.json",
+    "frames_generated": 12,
+    "genie_config": {
+      "checkpoint_every_n_frames": 4,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 16,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "prompt": "roll forward in time through a dynamic world model scene",
+    "recovery_path": "benchmarks/results/genie_profile_batched_workspace/genie/fb13d8aa-8876-4080-87e0-d63a801218f2/recovery.json",
+    "runner_mode": "real",
+    "sample_id": "fb13d8aa-8876-4080-87e0-d63a801218f2",
+    "source_backend": "genie-rollout",
+    "stage_graph": [
+      "admission",
+      "state_materialize",
+      "prompt_prepare",
+      "transition",
+      "checkpoint",
+      "artifact_persist",
+      "controlplane_commit"
+    ],
+    "token_input": {
+      "cache_key": "state_handle:9416b475-c024-4a16-97f3-9faa1196dfaf",
+      "source_state_handle_id": "9416b475-c024-4a16-97f3-9faa1196dfaf",
+      "token_input_mode": "prompt_cache"
+    },
+    "tokens_generated": 4800
+  },
+  "rollout_id": "396a02a2-b32f-48b8-bb14-0f9c2b64bd81",
+  "shape": [
+    16,
+    20,
+    20
+  ],
+  "state_handle_id": "c74989a6-5f4a-49dc-a17b-7018e350cbb2",
+  "uri": "file://benchmarks/results/genie_profile_batched_workspace/genie/fb13d8aa-8876-4080-87e0-d63a801218f2/tokens.npy",
+  "version": 1
+}

@@ -1,0 +1,203 @@
+{
+  "async": false,
+  "checkpoint_deltas": [],
+  "checkpoint_id": "cb130f8e-f8be-40ae-88fb-33466889fb5b",
+  "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/994346e6-3574-46b4-a09b-ab01ad8eebba/checkpoint.json",
+  "completed_at": 1775458310.6688993,
+  "device": "cuda",
+  "elapsed_ms": 800.34,
+  "elapsed_s": 0.7936,
+  "frames_generated": 5,
+  "genie_config": {
+    "checkpoint_every_n_frames": 0,
+    "input_tokens_b64": null,
+    "maskgit_steps": 3,
+    "num_frames": 9,
+    "num_prompt_frames": 4,
+    "temperature": 0.0,
+    "tokenizer_kind": "genie_stmaskgit"
+  },
+  "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/994346e6-3574-46b4-a09b-ab01ad8eebba/runner.log",
+  "model": "1x-technologies/GENIE_210M_v0",
+  "prompt_frames": 4,
+  "queue_lane": "hot_continuation",
+  "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/994346e6-3574-46b4-a09b-ab01ad8eebba/recovery.json",
+  "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/994346e6-3574-46b4-a09b-ab01ad8eebba/request.json",
+  "rollout_id": "badf17ea-1318-472d-882a-887b04a0ad50",
+  "runner": "genie-real",
+  "runner_mode": "real",
+  "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/994346e6-3574-46b4-a09b-ab01ad8eebba/runtime.json",
+  "runtime_state": {
+    "checkpoint_delta_ref": null,
+    "last_completed_frame": 9,
+    "materialized_bytes": 6400,
+    "resident_tier": "hot_gpu",
+    "reuse_hits": 1,
+    "reuse_misses": 0
+  },
+  "scheduler": {
+    "chunks": [
+      {
+        "chunk_id": "transition:hot_continuation:4:1",
+        "chunk_size": 1,
+        "expected_occupancy": 1.0,
+        "frame_range": [
+          4,
+          9
+        ],
+        "queue_lane": "hot_continuation"
+      }
+    ],
+    "cross_request_batcher": {
+      "batch_wait_ms": 2.0,
+      "batched_requests": 0,
+      "largest_batch_size": 1,
+      "max_batch_size": 8,
+      "max_observed_batch_size": 1,
+      "mean_batch_size": 1.0,
+      "total_flushed_batches": 3,
+      "total_requests": 3
+    },
+    "observed_batch_sizes": [
+      1
+    ],
+    "scheduler_inputs": [
+      {
+        "artifact_persist_backlog": 0,
+        "batch_signature_cardinality": 1,
+        "checkpoint_due": false,
+        "chunk_id": "transition:hot_continuation:4:1",
+        "continuation_locality": true,
+        "estimated_transfer_bytes": 6400,
+        "expected_occupancy": 1.0,
+        "frame_range": [
+          4,
+          9
+        ],
+        "has_deadline": false,
+        "priority_max": 0.0,
+        "prompt_state_hot": true,
+        "queue_lane": "hot_continuation"
+      }
+    ],
+    "transition_entities": 1
+  },
+  "stage_graph": [
+    "admission",
+    "state_materialize",
+    "prompt_prepare",
+    "transition",
+    "checkpoint",
+    "artifact_persist",
+    "controlplane_commit"
+  ],
+  "stage_history": [
+    {
+      "elapsed_ms": 0.002,
+      "episode_id": "5dc5f3a1-f3e7-4d0e-8921-f9bc22265751",
+      "queue_lane": "cold_materialize",
+      "runner_mode": "real",
+      "sample_id": "994346e6-3574-46b4-a09b-ab01ad8eebba",
+      "stage": "admission"
+    },
+    {
+      "elapsed_ms": 0.028,
+      "materialized_bytes": 6400,
+      "queue_lane": "cold_materialize",
+      "resident_tier": "hot_gpu",
+      "runner_mode": "real",
+      "stage": "state_materialize"
+    },
+    {
+      "elapsed_ms": 4.075,
+      "prompt_frames": 4,
+      "queue_lane": "hot_continuation",
+      "runner_mode": "real",
+      "stage": "prompt_prepare",
+      "total_frames": 9
+    },
+    {
+      "chunk_id": "transition:hot_continuation:4:1",
+      "chunk_size": 1,
+      "cross_request_batch_id": "transition:4:9:1",
+      "cross_request_sample_ids": [
+        "994346e6-3574-46b4-a09b-ab01ad8eebba"
+      ],
+      "elapsed_ms": 793.645,
+      "expected_occupancy": 1.0,
+      "frame_range": [
+        4,
+        9
+      ],
+      "queue_lane": "hot_continuation",
+      "runner_mode": "real",
+      "scheduler_inputs": {
+        "artifact_persist_backlog": 0,
+        "batch_signature_cardinality": 1,
+        "checkpoint_due": false,
+        "continuation_locality": true,
+        "estimated_transfer_bytes": 6400,
+        "expected_occupancy": 1.0,
+        "has_deadline": false,
+        "priority_max": 0.0,
+        "prompt_state_hot": true,
+        "queue_lane": "hot_continuation"
+      },
+      "stage": "transition"
+    },
+    {
+      "checkpoint_delta_count": 0,
+      "elapsed_ms": 4.281,
+      "queue_lane": "persist_only",
+      "runner_mode": "real",
+      "stage": "artifact_persist"
+    },
+    {
+      "checkpoint_count": 1,
+      "elapsed_ms": 0.501,
+      "queue_lane": "persist_only",
+      "runner_mode": "real",
+      "stage": "controlplane_commit"
+    }
+  ],
+  "stage_timings_ms": {
+    "admission_ms": 0.002,
+    "artifact_persist_ms": 4.281,
+    "checkpoint_ms": 0.0,
+    "controlplane_commit_ms": 0.501,
+    "prompt_prepare_ms": 4.075,
+    "runner_exec_ms": 793.645,
+    "runner_load_ms": 0.001,
+    "state_materialize_ms": 0.028,
+    "state_token_prep_ms": 4.103,
+    "temporal_persist_ms": 0.501,
+    "total_elapsed_ms": 806.393,
+    "transition_ms": 793.645
+  },
+  "started_at": 1775458309.8685563,
+  "state_handle_id": "87367c6d-cb99-4608-aba8-1ec41fb322ff",
+  "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/994346e6-3574-46b4-a09b-ab01ad8eebba/state.json",
+  "status_history": [
+    {
+      "status": "queued",
+      "timestamp": 1775458309.8685563
+    },
+    {
+      "status": "running",
+      "timestamp": 1775458309.8685563
+    },
+    {
+      "status": "succeeded",
+      "timestamp": 1775458310.6688993
+    }
+  ],
+  "temporal": true,
+  "token_input": {
+    "cache_key": "state_handle:e9d15116-6240-4841-a24c-84f8f7703b6e",
+    "source_state_handle_id": "e9d15116-6240-4841-a24c-84f8f7703b6e",
+    "token_input_mode": "prompt_cache"
+  },
+  "tokens_generated": 2000,
+  "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/994346e6-3574-46b4-a09b-ab01ad8eebba/tokens.npy",
+  "total_frames": 9
+}

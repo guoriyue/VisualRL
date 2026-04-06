@@ -1,0 +1,201 @@
+{
+  "async": false,
+  "checkpoint_deltas": [],
+  "checkpoint_id": "807395f5-97fe-4bf7-92c4-f1426088efd9",
+  "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/checkpoint.json",
+  "completed_at": 1775458309.0430753,
+  "device": "cuda",
+  "elapsed_ms": 908.1,
+  "elapsed_s": 0.9005,
+  "frames_generated": 5,
+  "genie_config": {
+    "checkpoint_every_n_frames": 0,
+    "input_tokens_b64": null,
+    "maskgit_steps": 3,
+    "num_frames": 9,
+    "num_prompt_frames": 4,
+    "temperature": 0.0,
+    "tokenizer_kind": "genie_stmaskgit"
+  },
+  "log_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/runner.log",
+  "model": "1x-technologies/GENIE_210M_v0",
+  "prompt_frames": 4,
+  "queue_lane": "hot_continuation",
+  "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/recovery.json",
+  "request_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/request.json",
+  "rollout_id": "ddf51d77-0598-4696-9c21-9816635b7253",
+  "runner": "genie-real",
+  "runner_mode": "real",
+  "runtime_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/runtime.json",
+  "runtime_state": {
+    "checkpoint_delta_ref": null,
+    "last_completed_frame": 9,
+    "materialized_bytes": 0,
+    "resident_tier": "hot_gpu",
+    "reuse_hits": 0,
+    "reuse_misses": 1
+  },
+  "scheduler": {
+    "chunks": [
+      {
+        "chunk_id": "transition:hot_continuation:4:1",
+        "chunk_size": 1,
+        "expected_occupancy": 1.0,
+        "frame_range": [
+          4,
+          9
+        ],
+        "queue_lane": "hot_continuation"
+      }
+    ],
+    "cross_request_batcher": {
+      "batch_wait_ms": 2.0,
+      "batched_requests": 0,
+      "largest_batch_size": 1,
+      "max_batch_size": 8,
+      "max_observed_batch_size": 1,
+      "mean_batch_size": 1.0,
+      "total_flushed_batches": 1,
+      "total_requests": 1
+    },
+    "observed_batch_sizes": [
+      1
+    ],
+    "scheduler_inputs": [
+      {
+        "artifact_persist_backlog": 0,
+        "batch_signature_cardinality": 1,
+        "checkpoint_due": false,
+        "chunk_id": "transition:hot_continuation:4:1",
+        "continuation_locality": true,
+        "estimated_transfer_bytes": 0,
+        "expected_occupancy": 1.0,
+        "frame_range": [
+          4,
+          9
+        ],
+        "has_deadline": false,
+        "priority_max": 0.0,
+        "prompt_state_hot": true,
+        "queue_lane": "hot_continuation"
+      }
+    ],
+    "transition_entities": 1
+  },
+  "stage_graph": [
+    "admission",
+    "state_materialize",
+    "prompt_prepare",
+    "transition",
+    "checkpoint",
+    "artifact_persist",
+    "controlplane_commit"
+  ],
+  "stage_history": [
+    {
+      "elapsed_ms": 0.007,
+      "episode_id": "5dc5f3a1-f3e7-4d0e-8921-f9bc22265751",
+      "queue_lane": "cold_materialize",
+      "runner_mode": "real",
+      "sample_id": "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109",
+      "stage": "admission"
+    },
+    {
+      "elapsed_ms": 0.034,
+      "materialized_bytes": 0,
+      "queue_lane": "cold_materialize",
+      "resident_tier": "cold_file",
+      "runner_mode": "real",
+      "stage": "state_materialize"
+    },
+    {
+      "elapsed_ms": 5.052,
+      "prompt_frames": 4,
+      "queue_lane": "hot_continuation",
+      "runner_mode": "real",
+      "stage": "prompt_prepare",
+      "total_frames": 9
+    },
+    {
+      "chunk_id": "transition:hot_continuation:4:1",
+      "chunk_size": 1,
+      "cross_request_batch_id": "transition:4:9:1",
+      "cross_request_sample_ids": [
+        "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109"
+      ],
+      "elapsed_ms": 900.544,
+      "expected_occupancy": 1.0,
+      "frame_range": [
+        4,
+        9
+      ],
+      "queue_lane": "hot_continuation",
+      "runner_mode": "real",
+      "scheduler_inputs": {
+        "artifact_persist_backlog": 0,
+        "batch_signature_cardinality": 1,
+        "checkpoint_due": false,
+        "continuation_locality": true,
+        "estimated_transfer_bytes": 0,
+        "expected_occupancy": 1.0,
+        "has_deadline": false,
+        "priority_max": 0.0,
+        "prompt_state_hot": true,
+        "queue_lane": "hot_continuation"
+      },
+      "stage": "transition"
+    },
+    {
+      "checkpoint_delta_count": 0,
+      "elapsed_ms": 4.683,
+      "queue_lane": "persist_only",
+      "runner_mode": "real",
+      "stage": "artifact_persist"
+    },
+    {
+      "checkpoint_count": 1,
+      "elapsed_ms": 0.659,
+      "queue_lane": "persist_only",
+      "runner_mode": "real",
+      "stage": "controlplane_commit"
+    }
+  ],
+  "stage_timings_ms": {
+    "admission_ms": 0.007,
+    "artifact_persist_ms": 4.683,
+    "checkpoint_ms": 0.0,
+    "controlplane_commit_ms": 0.659,
+    "prompt_prepare_ms": 5.052,
+    "runner_exec_ms": 900.544,
+    "runner_load_ms": 2047.729,
+    "state_materialize_ms": 0.034,
+    "state_token_prep_ms": 5.086,
+    "temporal_persist_ms": 0.659,
+    "total_elapsed_ms": 2963.612,
+    "transition_ms": 900.544
+  },
+  "started_at": 1775458308.134974,
+  "state_handle_id": "1cda1a84-8d5e-4f43-bda4-94dfe58dd8a6",
+  "state_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/state.json",
+  "status_history": [
+    {
+      "status": "queued",
+      "timestamp": 1775458308.134974
+    },
+    {
+      "status": "running",
+      "timestamp": 1775458308.134974
+    },
+    {
+      "status": "succeeded",
+      "timestamp": 1775458309.0430753
+    }
+  ],
+  "temporal": true,
+  "token_input": {
+    "token_input_mode": "none"
+  },
+  "tokens_generated": 2000,
+  "tokens_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/tokens.npy",
+  "total_frames": 9
+}

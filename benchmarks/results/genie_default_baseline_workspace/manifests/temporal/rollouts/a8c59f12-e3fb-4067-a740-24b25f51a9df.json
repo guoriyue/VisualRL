@@ -1,0 +1,201 @@
+{
+  "artifact_ids": [
+    "46164c57-0819-4ac2-a027-bac15fc0d3f4:request",
+    "46164c57-0819-4ac2-a027-bac15fc0d3f4:log",
+    "46164c57-0819-4ac2-a027-bac15fc0d3f4:runtime",
+    "46164c57-0819-4ac2-a027-bac15fc0d3f4:checkpoint",
+    "46164c57-0819-4ac2-a027-bac15fc0d3f4:recovery",
+    "46164c57-0819-4ac2-a027-bac15fc0d3f4:tokens",
+    "46164c57-0819-4ac2-a027-bac15fc0d3f4:state",
+    "46164c57-0819-4ac2-a027-bac15fc0d3f4:temporal-rollout"
+  ],
+  "backend": "genie-rollout",
+  "branch_id": "4e6ebb0d-b797-4fa8-afa5-f320ec28731e",
+  "checkpoint_ids": [
+    "a2f30cd1-e587-4c60-b448-828b45d22de0"
+  ],
+  "completed_at": 1775458309.8570368,
+  "created_at": 1775458309.052832,
+  "episode_id": "5dc5f3a1-f3e7-4d0e-8921-f9bc22265751",
+  "input_state_handle_id": "e9d15116-6240-4841-a24c-84f8f7703b6e",
+  "metadata": {
+    "checkpoint_id": "a2f30cd1-e587-4c60-b448-828b45d22de0",
+    "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/46164c57-0819-4ac2-a027-bac15fc0d3f4/checkpoint.json",
+    "controls": {},
+    "genie_config": {
+      "checkpoint_every_n_frames": 0,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 9,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "prompt": "roll forward in time",
+    "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/46164c57-0819-4ac2-a027-bac15fc0d3f4/recovery.json",
+    "runner_mode": "real",
+    "scheduler": {
+      "chunk_count": 1,
+      "cross_request_batcher": {
+        "batch_wait_ms": 2.0,
+        "batched_requests": 0,
+        "largest_batch_size": 1,
+        "max_batch_size": 8,
+        "max_observed_batch_size": 1,
+        "mean_batch_size": 1.0,
+        "total_flushed_batches": 2,
+        "total_requests": 2
+      },
+      "observed_batch_sizes": [
+        1
+      ],
+      "queue_lanes": [
+        "hot_continuation"
+      ],
+      "scheduler_inputs": [
+        {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 1,
+          "checkpoint_due": false,
+          "chunk_id": "transition:hot_continuation:4:1",
+          "continuation_locality": true,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 1.0,
+          "frame_range": [
+            4,
+            9
+          ],
+          "has_deadline": false,
+          "priority_max": 0.0,
+          "prompt_state_hot": true,
+          "queue_lane": "hot_continuation"
+        }
+      ],
+      "transition_entities": 1
+    },
+    "stage_graph": [
+      "admission",
+      "state_materialize",
+      "prompt_prepare",
+      "transition",
+      "checkpoint",
+      "artifact_persist",
+      "controlplane_commit"
+    ],
+    "stage_history": [
+      {
+        "elapsed_ms": 0.003,
+        "episode_id": "5dc5f3a1-f3e7-4d0e-8921-f9bc22265751",
+        "queue_lane": "cold_materialize",
+        "runner_mode": "real",
+        "sample_id": "46164c57-0819-4ac2-a027-bac15fc0d3f4",
+        "stage": "admission"
+      },
+      {
+        "elapsed_ms": 0.042,
+        "materialized_bytes": 6400,
+        "queue_lane": "cold_materialize",
+        "resident_tier": "hot_gpu",
+        "runner_mode": "real",
+        "stage": "state_materialize"
+      },
+      {
+        "elapsed_ms": 3.934,
+        "prompt_frames": 4,
+        "queue_lane": "hot_continuation",
+        "runner_mode": "real",
+        "stage": "prompt_prepare",
+        "total_frames": 9
+      },
+      {
+        "chunk_id": "transition:hot_continuation:4:1",
+        "chunk_size": 1,
+        "cross_request_batch_id": "transition:4:9:1",
+        "cross_request_sample_ids": [
+          "46164c57-0819-4ac2-a027-bac15fc0d3f4"
+        ],
+        "elapsed_ms": 796.245,
+        "expected_occupancy": 1.0,
+        "frame_range": [
+          4,
+          9
+        ],
+        "queue_lane": "hot_continuation",
+        "runner_mode": "real",
+        "scheduler_inputs": {
+          "artifact_persist_backlog": 0,
+          "batch_signature_cardinality": 1,
+          "checkpoint_due": false,
+          "continuation_locality": true,
+          "estimated_transfer_bytes": 6400,
+          "expected_occupancy": 1.0,
+          "has_deadline": false,
+          "priority_max": 0.0,
+          "prompt_state_hot": true,
+          "queue_lane": "hot_continuation"
+        },
+        "stage": "transition"
+      },
+      {
+        "checkpoint_delta_count": 0,
+        "elapsed_ms": 5.714,
+        "queue_lane": "persist_only",
+        "runner_mode": "real",
+        "stage": "artifact_persist"
+      },
+      {
+        "checkpoint_count": 1,
+        "elapsed_ms": 0.55,
+        "queue_lane": "persist_only",
+        "runner_mode": "real",
+        "stage": "controlplane_commit"
+      }
+    ],
+    "stage_timings_ms": {
+      "admission_ms": 0.003,
+      "artifact_persist_ms": 5.714,
+      "checkpoint_ms": 0.0,
+      "controlplane_commit_ms": 0.55,
+      "prompt_prepare_ms": 3.934,
+      "runner_exec_ms": 796.245,
+      "runner_load_ms": 0.003,
+      "state_materialize_ms": 0.042,
+      "state_token_prep_ms": 3.976,
+      "temporal_persist_ms": 0.55,
+      "total_elapsed_ms": 811.167,
+      "transition_ms": 796.245
+    },
+    "token_input": {
+      "cache_key": "state_handle:e9d15116-6240-4841-a24c-84f8f7703b6e",
+      "source_state_handle_id": "e9d15116-6240-4841-a24c-84f8f7703b6e",
+      "token_input_mode": "prompt_cache"
+    }
+  },
+  "metrics": {
+    "artifact_persist_ms": 5.714,
+    "checkpoint_delta_count": 0.0,
+    "checkpoint_ms": 0.0,
+    "elapsed_s": 0.7962,
+    "estimated_units": 3.6,
+    "frames_generated": 5.0,
+    "max_cross_request_batch_size": 1.0,
+    "runner_exec_ms": 796.245,
+    "runner_load_ms": 0.003,
+    "state_token_prep_ms": 3.976,
+    "steps": 4.0,
+    "temporal_persist_ms": 0.55,
+    "tokens_generated": 2000.0,
+    "total_elapsed_ms": 811.167,
+    "transition_ms": 796.245
+  },
+  "model": "genie-local",
+  "output_state_handle_id": "b3649e67-010f-4f9e-a659-b5b3e6b34ada",
+  "priority": 0.0,
+  "request_id": "46164c57-0819-4ac2-a027-bac15fc0d3f4",
+  "rollout_id": "a8c59f12-e3fb-4067-a740-24b25f51a9df",
+  "sample_id": "46164c57-0819-4ac2-a027-bac15fc0d3f4",
+  "started_at": 1775458309.052832,
+  "status": "succeeded",
+  "step_count": 4,
+  "updated_at": 1775458309.8599944
+}

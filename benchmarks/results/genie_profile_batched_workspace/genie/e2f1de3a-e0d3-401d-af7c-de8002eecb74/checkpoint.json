@@ -1,0 +1,62 @@
+{
+  "branch_id": "7f59254b-82ce-473a-816a-8a6db8ced2ef",
+  "checkpoint_deltas": [
+    {
+      "bytes": 6400,
+      "checkpoint_every_n_frames": 4,
+      "dtype": "uint32",
+      "frame_count": 4,
+      "frame_end": 8,
+      "frame_range": [
+        4,
+        8
+      ],
+      "frame_start": 4,
+      "runner_mode": "real",
+      "total_frames": 16
+    },
+    {
+      "bytes": 6400,
+      "checkpoint_every_n_frames": 4,
+      "dtype": "uint32",
+      "frame_count": 4,
+      "frame_end": 12,
+      "frame_range": [
+        8,
+        12
+      ],
+      "frame_start": 8,
+      "runner_mode": "real",
+      "total_frames": 16
+    }
+  ],
+  "episode_id": "fb5f89de-6693-4726-8d6c-4fa9bb4beec0",
+  "genie_config": {
+    "checkpoint_every_n_frames": 4,
+    "input_tokens_b64": null,
+    "maskgit_steps": 3,
+    "num_frames": 16,
+    "num_prompt_frames": 4,
+    "temperature": 0.0,
+    "tokenizer_kind": "genie_stmaskgit"
+  },
+  "log_path": "benchmarks/results/genie_profile_batched_workspace/genie/e2f1de3a-e0d3-401d-af7c-de8002eecb74/runner.log",
+  "output_state_handle_id": "d0cfdc01-1ce9-4570-a7d7-638bf8858636",
+  "parent_state_handle_id": "9416b475-c024-4a16-97f3-9faa1196dfaf",
+  "request_path": "benchmarks/results/genie_profile_batched_workspace/genie/e2f1de3a-e0d3-401d-af7c-de8002eecb74/request.json",
+  "rollout_id": "8b4c5441-65c9-4205-a6de-8a6e779458ca",
+  "runner_mode": "real",
+  "sample_id": "e2f1de3a-e0d3-401d-af7c-de8002eecb74",
+  "state_path": "benchmarks/results/genie_profile_batched_workspace/genie/e2f1de3a-e0d3-401d-af7c-de8002eecb74/state.json",
+  "status": "succeeded",
+  "timestamps": {
+    "completed_at": 1775458239.2652898,
+    "started_at": 1775458227.743367
+  },
+  "token_input": {
+    "cache_key": "state_handle:9416b475-c024-4a16-97f3-9faa1196dfaf",
+    "source_state_handle_id": "9416b475-c024-4a16-97f3-9faa1196dfaf",
+    "token_input_mode": "prompt_cache"
+  },
+  "tokens_path": "benchmarks/results/genie_profile_batched_workspace/genie/e2f1de3a-e0d3-401d-af7c-de8002eecb74/tokens.npy"
+}

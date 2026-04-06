@@ -1,0 +1,64 @@
+{
+  "artifact_ids": [
+    "a760003d-ca11-4ab5-a0b7-195bfe34a0ed:checkpoint",
+    "a760003d-ca11-4ab5-a0b7-195bfe34a0ed:recovery",
+    "a760003d-ca11-4ab5-a0b7-195bfe34a0ed:tokens",
+    "a760003d-ca11-4ab5-a0b7-195bfe34a0ed:state",
+    "a760003d-ca11-4ab5-a0b7-195bfe34a0ed:checkpoint-delta:0008",
+    "a760003d-ca11-4ab5-a0b7-195bfe34a0ed:checkpoint-delta:0012"
+  ],
+  "branch_id": "7f59254b-82ce-473a-816a-8a6db8ced2ef",
+  "checkpoint_id": "dba9d4ad-f0f4-4c4a-b960-611d2cdb888a",
+  "created_at": 1775458239.257028,
+  "episode_id": "fb5f89de-6693-4726-8d6c-4fa9bb4beec0",
+  "metadata": {
+    "checkpoint_deltas": [
+      {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "frame_count": 4,
+        "frame_end": 8,
+        "frame_range": [
+          4,
+          8
+        ],
+        "frame_start": 4,
+        "runner_mode": "real",
+        "total_frames": 16
+      },
+      {
+        "bytes": 6400,
+        "checkpoint_every_n_frames": 4,
+        "dtype": "uint32",
+        "frame_count": 4,
+        "frame_end": 12,
+        "frame_range": [
+          8,
+          12
+        ],
+        "frame_start": 8,
+        "runner_mode": "real",
+        "total_frames": 16
+      }
+    ],
+    "checkpoint_path": "benchmarks/results/genie_profile_batched_workspace/genie/a760003d-ca11-4ab5-a0b7-195bfe34a0ed/checkpoint.json",
+    "frames_generated": 12,
+    "genie_config": {
+      "checkpoint_every_n_frames": 4,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 16,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "recovery_path": "benchmarks/results/genie_profile_batched_workspace/genie/a760003d-ca11-4ab5-a0b7-195bfe34a0ed/recovery.json",
+    "runner_mode": "real",
+    "sample_id": "a760003d-ca11-4ab5-a0b7-195bfe34a0ed"
+  },
+  "rollout_id": "a18bd228-5624-4c91-a90c-80e1762829dc",
+  "state_handle_id": "1b1c9054-8cef-45e6-98a7-0186bda026d7",
+  "step_index": 3,
+  "tag": "terminal"
+}

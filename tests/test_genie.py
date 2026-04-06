@@ -277,6 +277,17 @@ class TestGenieRolloutBackend:
         assert record.runtime["stage_timings_ms"]["temporal_persist_ms"] >= 0
         assert record.runtime["stage_timings_ms"]["total_elapsed_ms"] >= record.runtime["stage_timings_ms"]["runner_exec_ms"]
         assert record.metadata["stage_timings_ms"] == record.runtime["stage_timings_ms"]
+        assert record.runtime["stage_graph"] == [
+            "admission",
+            "state_materialize",
+            "prompt_prepare",
+            "transition",
+            "checkpoint",
+            "artifact_persist",
+            "controlplane_commit",
+        ]
+        assert "scheduler" in record.runtime
+        assert "runtime_state" in record.runtime
 
         # Verify artifacts
         artifact_kinds = {a.kind for a in record.artifacts}
@@ -336,6 +347,7 @@ class TestGenieRolloutBackend:
         assert rollout.metrics["temporal_persist_ms"] >= 0
         assert rollout.metrics["total_elapsed_ms"] >= rollout.metrics["runner_exec_ms"]
         assert rollout.metadata["stage_timings_ms"] == record.runtime["stage_timings_ms"]
+        assert rollout.metadata["stage_graph"] == record.runtime["stage_graph"]
         assert f"{record.sample_id}:tokens" in rollout.artifact_ids
 
         # Verify checkpoint
@@ -420,6 +432,30 @@ class TestGenieRolloutBackend:
         assert len(input_artifacts) == 1
         output_tokens = np.load(record.runtime["tokens_path"])
         np.testing.assert_array_equal(output_tokens[:2], raw_tokens[:2])
+
+    @pytest.mark.asyncio
+    async def test_checkpoint_cadence_emits_intermediate_deltas(self, tmp_path):
+        backend, temporal_store = self._make_backend(tmp_path)
+        episode, branch, state = self._make_episode_and_state(temporal_store)
+
+        request = ProduceSampleRequest(
+            task_type=TaskType.GENIE_ROLLOUT,
+            backend="genie-rollout",
+            model="genie-local",
+            sample_spec=SampleSpec(prompt="checkpoint cadence"),
+            temporal=TemporalRefs(
+                episode_id=episode.episode_id,
+                branch_id=branch.branch_id,
+                state_handle_id=state.state_handle_id,
+            ),
+            genie_config=GenieTaskConfig(num_frames=12, num_prompt_frames=4, checkpoint_every_n_frames=4),
+        )
+
+        record = await backend.produce_sample(request)
+        assert len(record.runtime["checkpoint_deltas"]) == 1
+        delta = record.runtime["checkpoint_deltas"][0]
+        assert delta["frame_end"] == 8
+        assert any(artifact.artifact_id.endswith(":checkpoint-delta:0008") for artifact in record.artifacts)
 
     @pytest.mark.asyncio
     async def test_real_mode_rejects_non_genie_tokenizer_kind(self, tmp_path):

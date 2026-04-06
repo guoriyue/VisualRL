@@ -1,0 +1,13 @@
+{
+  "branch_id": "88d28518-c376-47e0-b2ee-852ed2e936ef",
+  "created_at": 1775458182.712098,
+  "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+  "forked_from_checkpoint_id": null,
+  "forked_from_rollout_id": null,
+  "labels": {},
+  "metadata": {},
+  "name": "main",
+  "parent_branch_id": null,
+  "status": "active",
+  "updated_at": 1775458182.712098
+}

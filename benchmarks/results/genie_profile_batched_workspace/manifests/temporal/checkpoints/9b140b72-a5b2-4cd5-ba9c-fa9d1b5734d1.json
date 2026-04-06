@@ -1,0 +1,28 @@
+{
+  "artifact_ids": [
+    "fb13d8aa-8876-4080-87e0-d63a801218f2:checkpoint-delta:0012"
+  ],
+  "branch_id": "7f59254b-82ce-473a-816a-8a6db8ced2ef",
+  "checkpoint_id": "9b140b72-a5b2-4cd5-ba9c-fa9d1b5734d1",
+  "created_at": 1775458234.879214,
+  "episode_id": "fb5f89de-6693-4726-8d6c-4fa9bb4beec0",
+  "metadata": {
+    "bytes": 6400,
+    "checkpoint_every_n_frames": 4,
+    "dtype": "uint32",
+    "frame_count": 4,
+    "frame_end": 12,
+    "frame_range": [
+      8,
+      12
+    ],
+    "frame_start": 8,
+    "kind": "delta",
+    "runner_mode": "real",
+    "total_frames": 16
+  },
+  "rollout_id": "396a02a2-b32f-48b8-bb14-0f9c2b64bd81",
+  "state_handle_id": null,
+  "step_index": 11,
+  "tag": "frame-12"
+}

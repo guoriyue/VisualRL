@@ -39,7 +39,14 @@ def _resolve_device(device: str) -> str:
     return device
 
 
-def _test_config(tmp_root: Path, device: str) -> EngineConfig:
+def _test_config(
+    tmp_root: Path,
+    device: str,
+    *,
+    genie_max_concurrent_jobs: int = 1,
+    genie_max_batch_size: int = 1,
+    genie_batch_wait_ms: float = 0.0,
+) -> EngineConfig:
     return EngineConfig(
         device=device,
         dtype="float16" if device == "cuda" else "float32",
@@ -68,6 +75,10 @@ def _test_config(tmp_root: Path, device: str) -> EngineConfig:
             manifest_store_root=str(tmp_root / "manifests"),
             wan_output_root=str(tmp_root / "wan"),
             genie_output_root=str(tmp_root / "genie"),
+            genie_device=device,
+            genie_max_concurrent_jobs=genie_max_concurrent_jobs,
+            genie_max_batch_size=genie_max_batch_size,
+            genie_batch_wait_ms=genie_batch_wait_ms,
         ),
     )
 
@@ -173,16 +184,44 @@ async def _run_live(base_url: str, request_payload: dict[str, Any], iterations: 
     return samples, sampler.summary()
 
 
-async def _run_in_process(request_payload: dict[str, Any], iterations: int, timeout_s: float, concurrency: int, device: str, gpu_poll_interval_s: float, execution_mode: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    with TemporaryDirectory(prefix="wm_infra_bench_") as tmp:
-        tmp_root = Path(tmp)
-        config = _test_config(tmp_root, device)
+async def _run_in_process(
+    request_payload: dict[str, Any],
+    iterations: int,
+    timeout_s: float,
+    concurrency: int,
+    device: str,
+    gpu_poll_interval_s: float,
+    execution_mode: str,
+    *,
+    persist_root: str | None,
+    genie_max_concurrent_jobs: int,
+    genie_cross_request_batching: str,
+    genie_transition_batch_wait_ms: float,
+    genie_transition_max_batch_size: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    async def _run_with_root(tmp_root: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        config = _test_config(
+            tmp_root,
+            device,
+            genie_max_concurrent_jobs=genie_max_concurrent_jobs,
+            genie_max_batch_size=1 if genie_cross_request_batching == "off" else genie_transition_max_batch_size,
+            genie_batch_wait_ms=genie_transition_batch_wait_ms if genie_cross_request_batching == "on" else 0.0,
+        )
         app = create_app(config, sample_store=SampleManifestStore(tmp_root / "manifests"), execution_mode=execution_mode)
         with GpuSampler(poll_interval_s=gpu_poll_interval_s) as sampler:
             async with LifespanManager(app) as manager:
                 async with httpx.AsyncClient(transport=httpx.ASGITransport(app=manager.app), base_url="http://bench", timeout=timeout_s + 5.0) as client:
                     samples = await _run_client(client, request_payload, iterations, timeout_s, concurrency)
         return samples, sampler.summary()
+
+    if persist_root:
+        tmp_root = Path(persist_root)
+        tmp_root.mkdir(parents=True, exist_ok=True)
+        return await _run_with_root(tmp_root)
+
+    with TemporaryDirectory(prefix="wm_infra_bench_") as tmp:
+        tmp_root = Path(tmp)
+        return await _run_with_root(tmp_root)
 
 
 DEFAULT_WAN_PAYLOAD = {
@@ -211,13 +250,22 @@ DEFAULT_GENIE_PAYLOAD = {
     "return_artifacts": ["metadata"],
 }
 
+DEFAULT_COSMOS_PAYLOAD = {
+    "task_type": "text_to_video",
+    "backend": "cosmos-predict",
+    "model": "cosmos-predict1-7b-text2world",
+    "sample_spec": {"prompt": "A warehouse robot driving past stacked pallets.", "width": 1024, "height": 640},
+    "task_config": {"num_steps": 35, "frame_count": 16, "width": 1024, "height": 640},
+    "cosmos_config": {"variant": "predict1_text2world", "model_size": "7B", "frames_per_second": 16},
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Benchmark wm-infra sample APIs")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--base-url", help="Live wm-infra server base URL, e.g. http://127.0.0.1:8000")
     mode.add_argument("--in-process", action="store_true", help="Run against an in-process ASGI app")
-    parser.add_argument("--workload", choices=["wan", "rollout", "genie"], default="wan")
+    parser.add_argument("--workload", choices=["wan", "rollout", "genie", "cosmos"], default="wan")
     parser.add_argument("--payload-file", help="Optional JSON payload for POST /v1/samples")
     parser.add_argument("--iterations", type=int, default=5)
     parser.add_argument("--concurrency", type=int, default=1)
@@ -225,6 +273,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     parser.add_argument("--execution-mode", choices=["legacy", "chunked"], default="chunked")
     parser.add_argument("--gpu-sample-interval-ms", type=float, default=100.0)
+    parser.add_argument("--persist-root", help="Optional root directory to keep in-process sample manifests and backend outputs")
+    parser.add_argument("--genie-max-concurrent-jobs", type=int, default=1)
+    parser.add_argument("--genie-cross-request-batching", choices=["on", "off"], default="on")
+    parser.add_argument("--genie-transition-batch-wait-ms", type=float, default=2.0)
+    parser.add_argument("--genie-transition-max-batch-size", type=int, default=8)
     parser.add_argument("--system-name", default="wm-infra")
     parser.add_argument("--runner-name", default="unknown")
     parser.add_argument("--output", default="benchmarks/results/sample_api_benchmark.json")
@@ -240,6 +293,8 @@ def _load_payload(args: argparse.Namespace) -> dict[str, Any]:
         return DEFAULT_WAN_PAYLOAD
     if args.workload == "genie":
         return DEFAULT_GENIE_PAYLOAD
+    if args.workload == "cosmos":
+        return DEFAULT_COSMOS_PAYLOAD
     return DEFAULT_ROLLOUT_PAYLOAD
 
 
@@ -264,7 +319,20 @@ async def _main_async() -> None:
         device = _resolve_device(device)
     payload = _load_payload(args)
     if args.in_process:
-        samples, gpu_profile = await _run_in_process(payload, args.iterations, args.timeout_s, args.concurrency, device, args.gpu_sample_interval_ms / 1000.0, args.execution_mode)
+        samples, gpu_profile = await _run_in_process(
+            payload,
+            args.iterations,
+            args.timeout_s,
+            args.concurrency,
+            device,
+            args.gpu_sample_interval_ms / 1000.0,
+            args.execution_mode,
+            persist_root=args.persist_root,
+            genie_max_concurrent_jobs=args.genie_max_concurrent_jobs,
+            genie_cross_request_batching=args.genie_cross_request_batching,
+            genie_transition_batch_wait_ms=args.genie_transition_batch_wait_ms,
+            genie_transition_max_batch_size=args.genie_transition_max_batch_size,
+        )
         execution_mode = "in_process"
     else:
         samples, gpu_profile = await _run_live(args.base_url, payload, args.iterations, args.timeout_s, args.concurrency, args.gpu_sample_interval_ms / 1000.0)
@@ -294,6 +362,11 @@ async def _main_async() -> None:
             "concurrency": args.concurrency,
             "timeout_s": args.timeout_s,
             "gpu_sample_interval_ms": args.gpu_sample_interval_ms,
+            "persist_root": args.persist_root,
+            "genie_max_concurrent_jobs": args.genie_max_concurrent_jobs,
+            "genie_cross_request_batching": args.genie_cross_request_batching,
+            "genie_transition_batch_wait_ms": args.genie_transition_batch_wait_ms,
+            "genie_transition_max_batch_size": args.genie_transition_max_batch_size,
             "base_url": args.base_url,
             "in_process": args.in_process,
             "workload": args.workload,

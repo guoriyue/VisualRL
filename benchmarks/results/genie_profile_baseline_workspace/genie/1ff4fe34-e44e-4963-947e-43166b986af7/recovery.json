@@ -1,0 +1,63 @@
+{
+  "branch_id": "88d28518-c376-47e0-b2ee-852ed2e936ef",
+  "checkpoint_deltas": [
+    {
+      "bytes": 6400,
+      "checkpoint_every_n_frames": 4,
+      "dtype": "uint32",
+      "frame_count": 4,
+      "frame_end": 8,
+      "frame_range": [
+        4,
+        8
+      ],
+      "frame_start": 4,
+      "runner_mode": "real",
+      "total_frames": 16
+    },
+    {
+      "bytes": 6400,
+      "checkpoint_every_n_frames": 4,
+      "dtype": "uint32",
+      "frame_count": 4,
+      "frame_end": 12,
+      "frame_range": [
+        8,
+        12
+      ],
+      "frame_start": 8,
+      "runner_mode": "real",
+      "total_frames": 16
+    }
+  ],
+  "episode_id": "efeadd58-560f-4fd3-9c3c-84ac2558b213",
+  "genie_config": {
+    "checkpoint_every_n_frames": 4,
+    "input_tokens_b64": null,
+    "maskgit_steps": 3,
+    "num_frames": 16,
+    "num_prompt_frames": 4,
+    "temperature": 0.0,
+    "tokenizer_kind": "genie_stmaskgit"
+  },
+  "log_path": "benchmarks/results/genie_profile_baseline_workspace/genie/1ff4fe34-e44e-4963-947e-43166b986af7/runner.log",
+  "output_state_handle_id": "8c353887-ebd1-490d-987a-35f5e3726183",
+  "parent_state_handle_id": "65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+  "recovery_hint": "Reload tokens_path into token_input or fork from checkpoint/state_handle for retry.",
+  "request_path": "benchmarks/results/genie_profile_baseline_workspace/genie/1ff4fe34-e44e-4963-947e-43166b986af7/request.json",
+  "rollout_id": "7db619eb-9678-4ce7-9ce0-3a3b559c8b4b",
+  "runner_mode": "real",
+  "sample_id": "1ff4fe34-e44e-4963-947e-43166b986af7",
+  "state_path": "benchmarks/results/genie_profile_baseline_workspace/genie/1ff4fe34-e44e-4963-947e-43166b986af7/state.json",
+  "status": "succeeded",
+  "timestamps": {
+    "completed_at": 1775458186.0871716,
+    "started_at": 1775458185.2749631
+  },
+  "token_input": {
+    "cache_key": "state_handle:65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+    "source_state_handle_id": "65989ca2-6859-4f9b-8e79-0ff258ecad5d",
+    "token_input_mode": "prompt_cache"
+  },
+  "tokens_path": "benchmarks/results/genie_profile_baseline_workspace/genie/1ff4fe34-e44e-4963-947e-43166b986af7/tokens.npy"
+}

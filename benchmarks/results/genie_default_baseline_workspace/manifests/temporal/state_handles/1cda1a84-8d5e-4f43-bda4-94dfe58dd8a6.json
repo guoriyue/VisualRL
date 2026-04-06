@@ -1,0 +1,59 @@
+{
+  "artifact_ids": [
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:tokens",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:state",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:checkpoint",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:recovery",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:request",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:runtime",
+    "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109:log"
+  ],
+  "branch_id": "4e6ebb0d-b797-4fa8-afa5-f320ec28731e",
+  "checkpoint_id": "807395f5-97fe-4bf7-92c4-f1426088efd9",
+  "created_at": 1775458309.0423405,
+  "dtype": "uint32",
+  "episode_id": "5dc5f3a1-f3e7-4d0e-8921-f9bc22265751",
+  "is_terminal": false,
+  "kind": "video_latent",
+  "metadata": {
+    "checkpoint_id": "807395f5-97fe-4bf7-92c4-f1426088efd9",
+    "checkpoint_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/checkpoint.json",
+    "frames_generated": 5,
+    "genie_config": {
+      "checkpoint_every_n_frames": 0,
+      "input_tokens_b64": null,
+      "maskgit_steps": 3,
+      "num_frames": 9,
+      "num_prompt_frames": 4,
+      "temperature": 0.0,
+      "tokenizer_kind": "genie_stmaskgit"
+    },
+    "prompt": "roll forward in time",
+    "recovery_path": "benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/recovery.json",
+    "runner_mode": "real",
+    "sample_id": "493d7ff4-acf8-49f3-8ddc-7b1a53bd7109",
+    "source_backend": "genie-rollout",
+    "stage_graph": [
+      "admission",
+      "state_materialize",
+      "prompt_prepare",
+      "transition",
+      "checkpoint",
+      "artifact_persist",
+      "controlplane_commit"
+    ],
+    "token_input": {
+      "token_input_mode": "none"
+    },
+    "tokens_generated": 2000
+  },
+  "rollout_id": "ddf51d77-0598-4696-9c21-9816635b7253",
+  "shape": [
+    9,
+    20,
+    20
+  ],
+  "state_handle_id": "1cda1a84-8d5e-4f43-bda4-94dfe58dd8a6",
+  "uri": "file://benchmarks/results/genie_default_baseline_workspace/genie/493d7ff4-acf8-49f3-8ddc-7b1a53bd7109/tokens.npy",
+  "version": 1
+}
