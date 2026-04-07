@@ -75,7 +75,7 @@ async def client(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_rl_catalog_endpoints_expose_default_env_and_tasks(client):
+async def test_reinforcement_learning_catalog_endpoints_expose_default_env_and_tasks(client):
     envs_resp = await client.get("/v1/env-specs")
     assert envs_resp.status_code == 200
     envs = envs_resp.json()["environment_specs"]

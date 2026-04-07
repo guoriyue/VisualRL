@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from wm_infra.workloads.rl.training import ExperimentSpec
-from wm_infra.workloads.rl.training import run_local_experiment
+from wm_infra.workloads.reinforcement_learning.training import ExperimentSpec
+from wm_infra.workloads.reinforcement_learning.training import run_local_experiment
 
 
 DemoConfig = ExperimentSpec

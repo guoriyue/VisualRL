@@ -20,7 +20,7 @@ from wm_infra.controlplane import (
     TemporalStatus,
     TemporalStore,
 )
-from wm_infra.workloads.rl.runtime import TemporalEnvManager
+from wm_infra.workloads.reinforcement_learning.runtime import TemporalEnvManager
 
 
 @dataclass(slots=True)

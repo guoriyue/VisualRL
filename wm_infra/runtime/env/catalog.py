@@ -12,7 +12,7 @@ from typing import Any
 import torch
 
 from wm_infra.controlplane import EnvironmentSpec, TaskSpec, TemporalStore
-from wm_infra.envs.defaults import (
+from wm_infra.workloads.reinforcement_learning.defaults import (
     default_environment_specs,
     default_task_specs,
     register_defaults,

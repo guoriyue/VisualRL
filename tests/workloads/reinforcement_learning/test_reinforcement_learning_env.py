@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 import torch
 
-from wm_infra.workloads.rl.env import GoalReward, WorldModelEnv, WorldModelVectorEnv
-from wm_infra.workloads.rl.toy import ToyLineWorldModel
+from wm_infra.workloads.reinforcement_learning.env import GoalReward, WorldModelEnv, WorldModelVectorEnv
+from wm_infra.workloads.reinforcement_learning.toy import ToyLineWorldModel
 
 
 def _initial_sampler(
@@ -102,11 +102,11 @@ def test_world_model_vector_env_auto_reset_recycles_finished_slots() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Genie adapter tests (merged from test_rl_genie_adapter.py)
+# Genie adapter tests (merged from the old reinforcement-learning adapter test file)
 # ---------------------------------------------------------------------------
 
 from wm_infra.backends.genie_runner import GenieRunner
-from wm_infra.workloads.rl.genie_adapter import GenieRLSpec, GenieTokenReward, GenieWorldModelAdapter
+from wm_infra.workloads.reinforcement_learning.genie_adapter import GenieRLSpec, GenieTokenReward, GenieWorldModelAdapter
 
 
 def _stub_adapter() -> GenieWorldModelAdapter:

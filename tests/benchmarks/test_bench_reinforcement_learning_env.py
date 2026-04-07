@@ -12,7 +12,7 @@ def _load_benchmark_module():
     return module
 
 
-def test_run_benchmark_emits_required_rl_metrics(tmp_path):
+def test_run_benchmark_emits_required_reinforcement_learning_metrics(tmp_path):
     bench = _load_benchmark_module()
 
     result = bench.run_benchmark(

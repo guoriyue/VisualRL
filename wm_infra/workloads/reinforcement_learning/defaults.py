@@ -11,9 +11,9 @@ from typing import Any
 import torch
 
 from wm_infra.controlplane import EnvironmentSpec, TaskSpec
-from wm_infra.envs.genie import GenieRLSpec, GenieTokenReward, GenieWorldModelAdapter
-from wm_infra.envs.rewards import GoalReward
-from wm_infra.envs.toy import ToyLineWorldModel, ToyLineWorldSpec
+from wm_infra.workloads.reinforcement_learning.genie_adapter import GenieRLSpec, GenieTokenReward, GenieWorldModelAdapter
+from wm_infra.workloads.reinforcement_learning.rewards import GoalReward
+from wm_infra.workloads.reinforcement_learning.toy import ToyLineWorldModel, ToyLineWorldSpec
 from wm_infra.runtime.env.registry import EnvRegistry
 
 

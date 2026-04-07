@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 from wm_infra.models.base import WorldModel
-from wm_infra.envs.rewards import GoalReward
+from wm_infra.workloads.reinforcement_learning.rewards import GoalReward
 
 
 TensorSampler = Callable[[int, torch.device, torch.dtype, Optional[torch.Generator]], torch.Tensor]
