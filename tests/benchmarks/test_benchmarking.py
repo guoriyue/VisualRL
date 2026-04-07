@@ -2,8 +2,8 @@ import pytest
 import subprocess
 from pathlib import Path
 
-from wm_infra import benchmarking as bench
-from wm_infra.benchmarking import benchmark_gate_report, capture_runtime_context, comparable_run_pair, comparison_report, format_gpu_summary, genie_cleanup_gate_report, load_json, percentile, run_summary_from_samples, summarize_gpu_samples, summarize_latency_ms
+from benchmarks import benchmarking as bench
+from benchmarks.benchmarking import benchmark_gate_report, capture_runtime_context, comparable_run_pair, comparison_report, format_gpu_summary, genie_cleanup_gate_report, load_json, percentile, run_summary_from_samples, summarize_gpu_samples, summarize_latency_ms
 
 
 def test_percentile_interpolates():

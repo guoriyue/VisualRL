@@ -26,7 +26,7 @@ import torch
 from asgi_lifespan import LifespanManager
 
 from wm_infra.api.server import create_app
-from wm_infra.benchmarking import GpuSampler, capture_runtime_context, comparison_report, format_gpu_summary, load_json, run_summary_from_samples, utc_timestamp, write_json
+from benchmarks.benchmarking import GpuSampler, capture_runtime_context, comparison_report, format_gpu_summary, load_json, run_summary_from_samples, utc_timestamp, write_json
 from wm_infra.config import ControlPlaneConfig, DynamicsConfig, EngineConfig, StateCacheConfig, TokenizerConfig
 from wm_infra.controlplane import SampleManifestStore
 

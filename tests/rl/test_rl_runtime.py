@@ -3,12 +3,12 @@ from __future__ import annotations
 import pytest
 
 from wm_infra.controlplane import TemporalStore
-from wm_infra.runtime.env.manager import RLEnvironmentManager
+from wm_infra.runtime.env.manager import TemporalEnvManager
 from wm_infra.runtime.env.state import load_runtime_state_view, split_state_handle_refs
 
 
 def test_step_many_splits_into_multiple_chunks_when_batch_exceeds_limit(tmp_path) -> None:
-    manager = RLEnvironmentManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
+    manager = TemporalEnvManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
     sessions = [
         manager.create_session(
             env_name="toy-line-v0",
@@ -52,7 +52,7 @@ def test_step_many_splits_into_multiple_chunks_when_batch_exceeds_limit(tmp_path
 
 
 def test_stateless_predict_many_splits_into_multiple_chunks_when_batch_exceeds_limit(tmp_path) -> None:
-    manager = RLEnvironmentManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
+    manager = TemporalEnvManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
     contexts = [
         manager.initialize_transition_context(
             env_name="toy-line-v0",
@@ -92,7 +92,7 @@ def test_stateless_predict_many_splits_into_multiple_chunks_when_batch_exceeds_l
 
 
 def test_genie_env_step_many_uses_genie_action_contract(tmp_path) -> None:
-    manager = RLEnvironmentManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
+    manager = TemporalEnvManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
     sessions = [
         manager.create_session(
             env_name="genie-token-grid-v0",
@@ -128,7 +128,7 @@ def test_genie_env_step_many_uses_genie_action_contract(tmp_path) -> None:
 
 
 def test_stateless_genie_predict_many_uses_genie_action_contract(tmp_path) -> None:
-    manager = RLEnvironmentManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
+    manager = TemporalEnvManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
     contexts = [
         manager.initialize_transition_context(
             env_name="genie-token-grid-v0",
@@ -166,7 +166,7 @@ def test_stateless_genie_predict_many_uses_genie_action_contract(tmp_path) -> No
 
 def test_runtime_state_view_splits_execution_residency_from_lineage(tmp_path) -> None:
     store = TemporalStore(tmp_path / "temporal")
-    manager = RLEnvironmentManager(store)
+    manager = TemporalEnvManager(store)
     context = manager.initialize_transition_context(
         env_name="toy-line-v0",
         task_id="toy-line-train",
@@ -192,7 +192,7 @@ def test_runtime_state_view_splits_execution_residency_from_lineage(tmp_path) ->
 
 @pytest.mark.asyncio
 async def test_async_transition_dispatch_and_collect(tmp_path) -> None:
-    manager = RLEnvironmentManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
+    manager = TemporalEnvManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
     context = manager.initialize_transition_context(
         env_name="toy-line-v0",
         task_id="toy-line-eval",

@@ -12,7 +12,7 @@ from typing import Any
 
 import torch
 
-from wm_infra.benchmarking import GpuSampler, format_gpu_summary
+from benchmarks.benchmarking import GpuSampler, format_gpu_summary
 from wm_infra.config import EngineConfig, DynamicsConfig
 from wm_infra.core.engine import WorldModelEngine, RolloutJob
 from wm_infra.models.dynamics import LatentDynamicsModel

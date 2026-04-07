@@ -7,8 +7,8 @@ import argparse
 from pathlib import Path
 from typing import Any
 
-from wm_infra.benchmarking import capture_runtime_context, load_json, utc_timestamp, write_json
-from wm_infra.consumers.rl.training import ExperimentSpec, run_local_experiment
+from benchmarks.benchmarking import capture_runtime_context, load_json, utc_timestamp, write_json
+from wm_infra.workloads.rl.training import ExperimentSpec, run_local_experiment
 
 
 _BACKEND_BY_ENV = {

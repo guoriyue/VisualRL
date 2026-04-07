@@ -2,8 +2,8 @@
 
 from wm_infra.runtime.env.catalog import LearnedEnvCatalog
 from wm_infra.runtime.env.async_runtime import AsyncTransitionDispatcher, TransitionDispatch
-from wm_infra.runtime.env.genie import GenieRLSpec, GenieTokenReward, GenieWorldModelAdapter
-from wm_infra.runtime.env.manager import RLEnvironmentManager
+from wm_infra.envs.genie import GenieRLSpec, GenieTokenReward, GenieWorldModelAdapter
+from wm_infra.runtime.env.manager import TemporalEnvManager
 from wm_infra.runtime.env.persistence import (
     TransitionCommitResult,
     TransitionExecutionResult,
@@ -21,7 +21,15 @@ from wm_infra.runtime.env.pipeline import (
     TransitionStagePipeline,
     TransitionStageProfile,
 )
-from wm_infra.runtime.env.rewards import GoalReward
+from wm_infra.runtime.env.registry import (
+    EnvInfoProvider,
+    EnvRegistry,
+    InitialStateSampler,
+    LearnedEnvProtocol,
+    RegisteredEnv,
+    RewardProtocol,
+)
+from wm_infra.envs.rewards import GoalReward
 from wm_infra.runtime.env.state import (
     RuntimeStateView,
     StateHandleRefs,
@@ -29,17 +37,23 @@ from wm_infra.runtime.env.state import (
     load_runtime_state_view,
     split_state_handle_refs,
 )
-from wm_infra.runtime.env.toy import ToyContinuousWorldModel, ToyLineWorldModel, ToyLineWorldSpec, ToyWorldSpec
+from wm_infra.envs.toy import ToyContinuousWorldModel, ToyLineWorldModel, ToyLineWorldSpec, ToyWorldSpec
 from wm_infra.runtime.env.transition import StatelessTransitionContext, build_stateless_step_chunks
 
 __all__ = [
     "AsyncTransitionDispatcher",
+    "EnvInfoProvider",
+    "EnvRegistry",
     "GenieRLSpec",
     "GenieTokenReward",
     "GenieWorldModelAdapter",
     "GoalReward",
+    "InitialStateSampler",
     "LearnedEnvCatalog",
-    "RLEnvironmentManager",
+    "LearnedEnvProtocol",
+    "TemporalEnvManager",
+    "RegisteredEnv",
+    "RewardProtocol",
     "RuntimeStateView",
     "StateHandleRefs",
     "StatelessTransitionContext",

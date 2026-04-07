@@ -15,7 +15,7 @@ from typing import Any
 
 import torch
 
-from wm_infra.benchmarking import capture_runtime_context, utc_timestamp, write_json
+from benchmarks.benchmarking import capture_runtime_context, utc_timestamp, write_json
 from wm_infra.core.state import LatentStateManager
 
 

@@ -4,7 +4,7 @@ import torch
 
 from wm_infra.controlplane import TemporalStore
 from wm_infra.runtime.env.async_runtime import AsyncTransitionDispatcher
-from wm_infra.runtime.env.manager import RLEnvironmentManager
+from wm_infra.runtime.env.manager import TemporalEnvManager
 from wm_infra.runtime.env.persistence import (
     TransitionExecutionResult,
     TransitionPersistenceContext,
@@ -34,7 +34,7 @@ def test_async_transition_dispatcher_batches_homogeneous_payloads() -> None:
 
 
 def test_transition_stage_pipeline_emits_persist_intent(tmp_path) -> None:
-    manager = RLEnvironmentManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
+    manager = TemporalEnvManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
     initialized = manager.initialize_transition_context(
         env_name="toy-line-v0",
         task_id="toy-line-eval",
@@ -80,7 +80,7 @@ def test_transition_stage_pipeline_emits_persist_intent(tmp_path) -> None:
 
 def test_transition_persistence_layer_commits_state_transition(tmp_path) -> None:
     store = TemporalStore(tmp_path / "temporal")
-    manager = RLEnvironmentManager(store)
+    manager = TemporalEnvManager(store)
     initialized = manager.initialize_transition_context(
         env_name="toy-line-v0",
         task_id="toy-line-eval",

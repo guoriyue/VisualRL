@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from wm_infra.benchmarking import comparison_report, load_json
+from benchmarks.benchmarking import comparison_report, load_json
 
 
 def parse_args():

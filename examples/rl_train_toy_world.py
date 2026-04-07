@@ -6,7 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
-from wm_infra.consumers.rl.training import ExperimentSpec, run_local_experiment
+from wm_infra.workloads.rl.training import ExperimentSpec, run_local_experiment
 
 
 def main() -> None:

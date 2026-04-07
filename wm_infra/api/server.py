@@ -62,7 +62,7 @@ from wm_infra.controlplane import (
 )
 from wm_infra.core.engine import AsyncWorldModelEngine, RolloutJob
 from wm_infra.models.dynamics import LatentDynamicsModel
-from wm_infra.runtime.env import RLEnvironmentManager
+from wm_infra.runtime.env import TemporalEnvManager
 from wm_infra.tokenizer.video_tokenizer import VideoTokenizer
 
 logger = logging.getLogger("wm_infra")
@@ -260,7 +260,7 @@ def create_app(
         app.state.wan_job_queue = wan_job_queue
         app.state.cosmos_job_queue = cosmos_job_queue
         app.state.genie_job_queue = genie_job_queue
-        app.state.rl_env_manager = RLEnvironmentManager(temporal_store)
+        app.state.temporal_env_manager = TemporalEnvManager(temporal_store)
 
         device_str = config.device.value if hasattr(config.device, "value") else str(config.device)
         logger.info(
@@ -717,19 +717,19 @@ def create_app(
 
     @app.get("/v1/env-specs")
     async def list_environment_specs():
-        manager: RLEnvironmentManager = app.state.rl_env_manager
+        manager: TemporalEnvManager = app.state.temporal_env_manager
         items = manager.list_environment_specs()
         return {"environment_specs": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
     @app.get("/v1/task-specs")
     async def list_task_specs(env_name: str | None = None):
-        manager: RLEnvironmentManager = app.state.rl_env_manager
+        manager: TemporalEnvManager = app.state.temporal_env_manager
         items = manager.list_task_specs(env_name=env_name)
         return {"task_specs": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
     @app.post("/v1/transitions/initialize")
     async def initialize_transition_context(request: TransitionInitializeRequest):
-        manager: RLEnvironmentManager = app.state.rl_env_manager
+        manager: TemporalEnvManager = app.state.temporal_env_manager
         try:
             response = manager.initialize_transition_context(
                 env_name=request.env_name,
@@ -747,7 +747,7 @@ def create_app(
 
     @app.post("/v1/transitions/predict")
     async def predict_transition(request: TransitionPredictRequest):
-        manager: RLEnvironmentManager = app.state.rl_env_manager
+        manager: TemporalEnvManager = app.state.temporal_env_manager
         try:
             response = manager.predict_transition(
                 state_handle_id=request.state_handle_id,
@@ -766,7 +766,7 @@ def create_app(
 
     @app.post("/v1/transitions/predict_many")
     async def predict_many_transitions(request: TransitionPredictManyRequest):
-        manager: RLEnvironmentManager = app.state.rl_env_manager
+        manager: TemporalEnvManager = app.state.temporal_env_manager
         try:
             response = manager.predict_many_transitions(
                 items=[item.model_dump(mode="python") for item in request.items],
@@ -782,19 +782,19 @@ def create_app(
 
     @app.get("/v1/transitions")
     async def list_transitions(env_id: str | None = None, trajectory_id: str | None = None):
-        manager: RLEnvironmentManager = app.state.rl_env_manager
+        manager: TemporalEnvManager = app.state.temporal_env_manager
         items = manager.list_transitions(env_id=env_id, trajectory_id=trajectory_id)
         return {"transitions": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
     @app.get("/v1/trajectories")
     async def list_trajectories(env_id: str | None = None, episode_id: str | None = None):
-        manager: RLEnvironmentManager = app.state.rl_env_manager
+        manager: TemporalEnvManager = app.state.temporal_env_manager
         items = manager.list_trajectories(env_id=env_id, episode_id=episode_id)
         return {"trajectories": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
     @app.get("/v1/evaluations")
     async def list_evaluation_runs():
-        manager: RLEnvironmentManager = app.state.rl_env_manager
+        manager: TemporalEnvManager = app.state.temporal_env_manager
         items = manager.list_evaluation_runs()
         return {"evaluation_runs": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
