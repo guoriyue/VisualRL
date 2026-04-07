@@ -2,7 +2,7 @@
 
 The estimator is intentionally simple and scheduler-friendly.
 It uses the current first-class task configs instead of guessing from loose
-metadata, and it can score both rollout-style and Wan-style video requests.
+metadata, and it can score both rollout-style and Wan 2.2-style video requests.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def estimate_wan_request(wan_config: WanTaskConfig | None) -> ResourceEstimate:
         memory_profile=wan_config.memory_profile,
     )
     estimate = estimate_rollout_request(rollout_like)
-    estimate.notes.append("Wan estimate is calibrated from the Wan2.2 baseline and first-class wan_config fields.")
+    estimate.notes.append("Wan estimate is calibrated from the Wan 2.2 A14B baseline and first-class wan_config fields.")
     return estimate
 
 

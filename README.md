@@ -6,7 +6,7 @@ Temporal model serving and control-plane infrastructure for video sample product
 It is a repo for **temporal model infra**: running, tracking, and extending systems that produce time-based outputs such as video generations and world-model rollouts.
 
 Today, the real implemented paths are:
-- **Wan video generation** via the `wan-video` backend
+- **Wan 2.2 video generation** via the `wan-video` backend
 - **Genie temporal rollouts** via the `genie-rollout` backend
 - the legacy low-level **rollout engine** API for internal/runtime bring-up
 
@@ -47,7 +47,7 @@ The durable value is in the control plane around samples, artifacts, lineage, ev
 
 ## Implemented backend paths
 
-### 1. Wan video (`wan-video`)
+### 1. Wan 2.2 video (`wan-video`)
 Implemented and wired through `POST /v1/samples`.
 
 Current capabilities:
@@ -55,14 +55,16 @@ Current capabilities:
 - async job submission + queue-backed execution
 - persisted sample manifests and artifacts
 - first-class `wan_config` with video execution knobs
+- explicit model identifiers such as `wan2.2-t2v-A14B` and `wan2.2-i2v-A14B`
 - runner modes:
   - `stub`
   - `shell`
-  - `official` (local Wan repo + conda env)
+  - `official` (local Wan 2.2 repo + conda env)
 
 Important reality:
 - this is the clearest current path for **video generation serving** in the repo
-- the control plane is already shaped around Wan's real operational constraints: frame count, resolution, steps, and low-VRAM/offload mode
+- the control plane is already shaped around Wan 2.2's real operational constraints: frame count, resolution, steps, and low-VRAM/offload mode
+- the currently wired official runner path is aligned with `wan2.2-t2v-A14B` and `wan2.2-i2v-A14B`
 
 ### 2. Genie rollout (`genie-rollout`)
 Implemented and wired through `POST /v1/samples`.
@@ -148,7 +150,7 @@ Useful for engine work, but not the primary framing for the repo.
 ```text
 wm_infra/
   api/            HTTP surface for temporal sample production and rollout bring-up
-  backends/       concrete temporal backend adapters (Wan, Genie, rollout-engine)
+  backends/       concrete temporal backend adapters (Wan 2.2, Genie, rollout-engine)
   controlplane/   sample schemas, manifests, temporal lineage, resource estimates
   core/           runtime engine, scheduler, state handling
   models/         model interfaces and registry
@@ -167,7 +169,7 @@ The config should mirror the actual product shape:
 - core runtime config
 - server config
 - control-plane storage config
-- backend-specific config for Wan and Genie queue/runner behavior
+- backend-specific config for Wan 2.2 and Genie queue/runner behavior
 
 Current environment variables include:
 - `WM_MANIFEST_STORE_ROOT`
@@ -196,7 +198,7 @@ That is why `wm-infra` makes these fields first-class in request/config models i
 
 ## Near-term repo priorities
 
-1. Keep Wan and Genie paths explicit and honest
+1. Keep Wan 2.2 and Genie paths explicit and honest
 2. Keep the control plane schema-first
 3. Avoid vague generic-inference messaging
 4. Make backend onboarding easier by separating runtime code from sample/control-plane code
@@ -212,12 +214,12 @@ wm-serve
 
 Defaults:
 - sample manifests: `${TMPDIR:-/tmp}/wm_infra`
-- Wan outputs: `${TMPDIR:-/tmp}/wm_infra_wan`
+- Wan 2.2 outputs: `${TMPDIR:-/tmp}/wm_infra_wan`
 - Genie outputs: `${TMPDIR:-/tmp}/wm_infra_genie`
 
 For `POST /v1/samples`:
 - rollout-style execution parameters belong in `task_config`
-- Wan-specific parameters belong in `wan_config`
+- Wan 2.2-specific parameters belong in `wan_config`
 - Genie-specific parameters belong in `genie_config`
 - some legacy metadata backfilling still exists for compatibility, but new callers should use first-class config objects
 

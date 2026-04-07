@@ -2,7 +2,7 @@
 
 Provides two distinct surfaces:
 - low-level rollout runtime endpoints for engine bring-up
-- higher-level temporal sample-production endpoints for Wan/Genie-style backends
+- higher-level temporal sample-production endpoints for Wan 2.2 / Genie-style backends
 
 Endpoints include:
 - POST /v1/rollout — submit a rollout prediction (supports stream=true for SSE)

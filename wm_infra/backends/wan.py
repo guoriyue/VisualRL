@@ -1,4 +1,4 @@
-"""Wan-family video backend with async job queue and official runner support.
+"""Wan 2.2 video backend with async job queue and official runner support.
 
 This backend supports three execution modes:
 - **stub**: No runner configured — materializes request/log paths only.
@@ -46,7 +46,7 @@ from wm_infra.backends.wan_runtime import (
 
 
 class WanVideoBackend(ProduceSampleBackend):
-    """Wan video generation backend with stub, shell, and official runner modes."""
+    """Wan 2.2 video generation backend with stub, shell, and official runner modes."""
 
     def __init__(
         self,
@@ -60,7 +60,7 @@ class WanVideoBackend(ProduceSampleBackend):
         max_batch_size: int = 4,
         batch_wait_ms: float = 2.0,
         warm_pool_size: int = 16,
-        prewarm_common_signatures: bool = True,
+        prewarm_common_signatures: bool = False,
         # Official runner config
         wan_repo_dir: str | None = None,
         wan_conda_env: str | None = None,
@@ -117,15 +117,15 @@ class WanVideoBackend(ProduceSampleBackend):
 
     def _validate_request(self, request: ProduceSampleRequest) -> None:
         if request.task_type not in {TaskType.TEXT_TO_VIDEO, TaskType.IMAGE_TO_VIDEO, TaskType.VIDEO_TO_VIDEO}:
-            raise ValueError(f"Backend {self.backend_name} only supports Wan-style video tasks")
+            raise ValueError(f"Backend {self.backend_name} only supports Wan 2.2-style video tasks")
 
         references = request.sample_spec.references
         if request.task_type == TaskType.TEXT_TO_VIDEO and not (request.sample_spec.prompt or "").strip():
-            raise ValueError("Wan text_to_video requests require a non-empty sample_spec.prompt")
+            raise ValueError("Wan 2.2 text_to_video requests require a non-empty sample_spec.prompt")
         if request.task_type in {TaskType.IMAGE_TO_VIDEO, TaskType.VIDEO_TO_VIDEO} and not references:
-            raise ValueError(f"Wan {request.task_type.value} requests require at least one sample_spec.references item")
+            raise ValueError(f"Wan 2.2 {request.task_type.value} requests require at least one sample_spec.references item")
         if self.runner_mode == "official" and request.task_type == TaskType.VIDEO_TO_VIDEO:
-            raise ValueError("Official Wan runner wiring currently supports text_to_video and image_to_video only")
+            raise ValueError("Official Wan 2.2 runner wiring currently supports text_to_video and image_to_video only")
 
     def _admission_result(self, request: ProduceSampleRequest, wan_config: WanTaskConfig) -> tuple[bool, dict[str, Any], Any]:
         estimate = estimate_wan_request(wan_config)
@@ -168,7 +168,7 @@ class WanVideoBackend(ProduceSampleBackend):
         reference_request: ProduceSampleRequest,
         candidate_request: ProduceSampleRequest,
     ) -> float | None:
-        """Rank near-shape Wan requests when exact queue keys do not match."""
+        """Rank near-shape Wan 2.2 requests when exact queue keys do not match."""
 
         try:
             self._validate_request(reference_request)
@@ -371,7 +371,7 @@ class WanVideoBackend(ProduceSampleBackend):
         batch_sample_ids: list[str],
         engine_profile: dict[str, Any] | None = None,
     ) -> SampleRecord:
-        """Execute one Wan job with optional queue-batch metadata."""
+        """Execute one Wan 2.2 job with optional queue-batch metadata."""
         self._validate_request(request)
 
         wan_config = self._resolve_wan_config(request)
@@ -513,7 +513,7 @@ class WanVideoBackend(ProduceSampleBackend):
                 status = SampleStatus.FAILED
                 metadata["runner_error"] = str(exc)
                 runtime["spawn_error"] = str(exc)
-                log_path.write_text(f"Failed to launch Wan runner: {exc}\n")
+                log_path.write_text(f"Failed to launch Wan 2.2 runner: {exc}\n")
                 failure_path.write_text(
                     json.dumps(
                         self._failure_payload(
@@ -532,7 +532,7 @@ class WanVideoBackend(ProduceSampleBackend):
                     )
                 )
         else:
-            log_path.write_text("Wan backend scaffold executed in stub mode. No runner configured.\n")
+            log_path.write_text("Wan 2.2 backend scaffold executed in stub mode. No runner configured.\n")
 
         completed_at = time.time()
         runtime["completed_at"] = completed_at
@@ -601,7 +601,7 @@ class WanVideoBackend(ProduceSampleBackend):
         )
 
     async def execute_job(self, request: ProduceSampleRequest, sample_id: str) -> SampleRecord:
-        """Execute a Wan job synchronously (called by queue worker or produce_sample)."""
+        """Execute a Wan 2.2 job synchronously (called by queue worker or produce_sample)."""
 
         return await self._execute_job_impl(
             request,
@@ -612,7 +612,7 @@ class WanVideoBackend(ProduceSampleBackend):
         )
 
     async def execute_job_batch(self, items: list[tuple[ProduceSampleRequest, str]]) -> list[SampleRecord]:
-        """Execute a queue batch of compatible Wan jobs under one warmed profile."""
+        """Execute a queue batch of compatible Wan 2.2 jobs under one warmed profile."""
 
         if not items:
             return []
@@ -626,7 +626,7 @@ class WanVideoBackend(ProduceSampleBackend):
         expected_key = build_wan_batch_key(first_request, wan_config, runner_mode=self.runner_mode)
         for request, _sample_id in items[1:]:
             if self.queue_batch_key(request) != expected_key:
-                raise ValueError("Wan execute_job_batch received incompatible requests")
+                raise ValueError("Wan 2.2 execute_job_batch received incompatible requests")
         shared_profile = self._engine_pool.reserve(signature, batch_size=len(items))
         sample_ids = [sample_id for _request, sample_id in items]
         records: list[SampleRecord] = []

@@ -136,7 +136,11 @@ class RolloutTaskConfig(BaseModel):
 
 
 class WanTaskConfig(BaseModel):
-    """Wan-family video generation config — first-class knobs for Wan2.2 and variants."""
+    """Wan 2.2 video generation config for `wan-video`.
+
+    The current concrete model identifiers used by the backend are
+    `wan2.2-t2v-A14B` and `wan2.2-i2v-A14B`.
+    """
 
     num_steps: int = Field(default=4, ge=1, description="Number of denoising steps (sample_steps)")
     frame_count: int = Field(default=9, ge=1, description="Target frame count (frame_num)")
@@ -148,8 +152,8 @@ class WanTaskConfig(BaseModel):
     convert_model_dtype: bool = Field(default=True, description="Enable reduced-precision model conversion")
     t5_cpu: bool = Field(default=True, description="Keep T5 text encoder on CPU")
     memory_profile: VideoMemoryProfile = Field(default=VideoMemoryProfile.LOW_VRAM, description="Coarse memory/quality mode")
-    model_size: str = Field(default="A14B", description="Wan model size variant (e.g. A14B)")
-    ckpt_dir: Optional[str] = Field(default=None, description="Path to Wan checkpoint directory")
+    model_size: str = Field(default="A14B", description="Wan 2.2 model-size suffix used in model ids such as wan2.2-t2v-A14B")
+    ckpt_dir: Optional[str] = Field(default=None, description="Path to the Wan 2.2 checkpoint directory")
 
 
 class GenieTaskConfig(BaseModel):
@@ -253,7 +257,7 @@ class ProduceSampleRequest(BaseModel):
     wan_config: Optional[WanTaskConfig] = Field(
         default=None,
         description=(
-            "Wan-family video generation config. Used when backend is a Wan runtime "
+            "Wan 2.2 video generation config. Used when backend is the wan-video runtime "
             "(text_to_video, image_to_video). Ignored for rollout-engine jobs."
         ),
     )

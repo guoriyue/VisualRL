@@ -4,7 +4,7 @@
 
 **wm-infra is a serving-first platform for temporal sample production.**
 
-In the current codebase, that means concrete support for Wan video generation and Genie-style temporal rollouts.
+In the current codebase, that means concrete support for Wan 2.2 video generation and Genie-style temporal rollouts.
 
 It starts as infra because that is the wedge.
 It becomes durable when it owns the full sample lifecycle:
