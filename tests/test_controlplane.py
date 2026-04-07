@@ -2,8 +2,12 @@
 
 from wm_infra.controlplane import (
     ArtifactKind,
+    BranchCreate,
+    CheckpointCreate,
     EvaluationRecord,
     EvaluationStatus,
+    ExecutionStateRef,
+    EpisodeCreate,
     ExperimentRef,
     FailureTag,
     ProduceSampleRequest,
@@ -13,14 +17,13 @@ from wm_infra.controlplane import (
     SampleRecord,
     SampleSpec,
     SampleStatus,
+    StateLineageRef,
     StateHandleCreate,
+    StateResidency,
     TaskType,
     TemporalRefs,
     TemporalStore,
     VideoMemoryProfile,
-    EpisodeCreate,
-    BranchCreate,
-    CheckpointCreate,
     WanTaskConfig,
     estimate_wan_request,
 )
@@ -247,3 +250,45 @@ def test_temporal_store_round_trip(tmp_path):
     assert store.branches.get(branch.branch_id) is not None
     assert store.state_handles.get(state.state_handle_id) is not None
     assert store.checkpoints.get(checkpoint.checkpoint_id) is not None
+
+
+def test_state_handle_can_separate_execution_state_from_lineage(tmp_path):
+    store = TemporalStore(tmp_path)
+    episode = store.create_episode(EpisodeCreate(title="runtime split"))
+    branch = store.create_branch(BranchCreate(episode_id=episode.episode_id, name="main"))
+    handle = store.create_state_handle(
+        StateHandleCreate(
+            episode_id=episode.episode_id,
+            branch_id=branch.branch_id,
+            kind="latent",
+            execution_state_ref=ExecutionStateRef(
+                residency=StateResidency.INLINE,
+                storage_backend="state_handle_metadata",
+                state_key="latent_state",
+                goal_key="goal_state",
+                step_key="step_idx",
+                device="cpu",
+            ),
+            lineage_ref=StateLineageRef(
+                env_name="toy-line-v0",
+                task_id="toy-line-train",
+                trajectory_id="traj-1",
+                step_idx=3,
+                parent_state_handle_id="parent-1",
+            ),
+            metadata={
+                "latent_state": [[0.0]],
+                "goal_state": [[0.5]],
+                "step_idx": 3,
+            },
+        )
+    )
+
+    loaded = store.state_handles.get(handle.state_handle_id)
+
+    assert loaded is not None
+    assert loaded.execution_state_ref is not None
+    assert loaded.execution_state_ref.residency == StateResidency.INLINE
+    assert loaded.lineage_ref is not None
+    assert loaded.lineage_ref.trajectory_id == "traj-1"
+    assert loaded.lineage_ref.parent_state_handle_id == "parent-1"

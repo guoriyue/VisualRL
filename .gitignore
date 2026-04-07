@@ -13,6 +13,9 @@ build/
 .venv/
 venv/
 env/
+!wm_infra/runtime/env/
+!wm_infra/runtime/env/**
+wm_infra/runtime/env/__pycache__/
 
 # IDE
 .idea/

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from wm_infra.controlplane import TemporalStore
 from wm_infra.rl.runtime import RLEnvironmentManager
 
@@ -42,6 +44,10 @@ def test_step_many_splits_into_multiple_chunks_when_batch_exceeds_limit(tmp_path
     assert response.runtime["northbound_reset_policy"] == "explicit_reset_required"
     assert response.runtime["reward_stage_ms"] >= 0.0
     assert response.runtime["trajectory_persist_ms"] >= 0.0
+    assert response.runtime["stage_profile"]["stages"]["materialize"]["count"] == 1
+    assert response.runtime["stage_profile"]["stages"]["transition"]["count"] == 3
+    assert response.runtime["stage_profile"]["stages"]["reward"]["count"] == 3
+    assert response.runtime["stage_profile"]["stages"]["persist"]["count"] == 3
 
 
 def test_stateless_predict_many_splits_into_multiple_chunks_when_batch_exceeds_limit(tmp_path) -> None:
@@ -80,6 +86,8 @@ def test_stateless_predict_many_splits_into_multiple_chunks_when_batch_exceeds_l
     assert response.runtime["max_chunk_size"] == 2
     assert response.runtime["reward_stage_ms"] >= 0.0
     assert response.runtime["trajectory_persist_ms"] >= 0.0
+    assert response.runtime["dispatch_mode"] == "sync_inline"
+    assert response.runtime["stage_profile"]["stages"]["materialize"]["count"] == 1
 
 
 def test_genie_env_step_many_uses_genie_action_contract(tmp_path) -> None:
@@ -153,3 +161,36 @@ def test_stateless_genie_predict_many_uses_genie_action_contract(tmp_path) -> No
     assert response.runtime["chunk_sizes"] == [2, 1]
     assert all("token_l1" in item.info for item in response.results)
     assert all(len(item.observation) == manager.genie_world_model.spec.state_token_count for item in response.results)
+
+
+@pytest.mark.asyncio
+async def test_async_transition_dispatch_and_collect(tmp_path) -> None:
+    manager = RLEnvironmentManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
+    context = manager.initialize_transition_context(
+        env_name="toy-line-v0",
+        task_id="toy-line-eval",
+        seed=41,
+        policy_version="pi-async",
+        max_episode_steps=4,
+        branch_name=None,
+        labels={},
+        metadata={},
+    )
+
+    dispatch = manager.dispatch_transition_batch(
+        items=[
+            {
+                "state_handle_id": context.state_handle_id,
+                "trajectory_id": context.trajectory_id,
+                "action": [0.0, 0.0, 1.0],
+            }
+        ],
+        policy_version="pi-async",
+        checkpoint=False,
+        metadata={},
+    )
+    response = await manager.collect_transition_batch_async(dispatch.dispatch_id)
+
+    assert len(response.results) == 1
+    assert response.runtime["dispatch_mode"] == "async_dispatched"
+    assert response.runtime["stage_profile"]["stages"]["transition"]["count"] == 1
