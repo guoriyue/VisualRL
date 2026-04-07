@@ -1,20 +1,15 @@
-"""Flash Attention op with autograd support.
+"""Attention dispatch built on vendor and framework implementations.
 
-Wraps the forward and backward Triton kernels with GQA and causal masking.
-Supports multiple backends: flash_attn, flashinfer, triton (custom), sdpa.
+Priority order:
+1. FlashAttention when available
+2. PyTorch SDPA
+3. Explicit FlashInfer decode path when requested
+
+The custom Triton attention kernels have been removed from the default path.
 """
 
-import math
 import torch
-import triton
 from typing import Optional
-
-from wm_infra.kernels.flash_attn_kernel import (
-    flash_attn_fwd_kernel,
-    flash_attn_decode_kernel,
-    flash_attn_bwd_preprocess,
-    flash_attn_bwd_kernel,
-)
 
 # ─── Backend detection ───
 _HAS_FA2 = False
@@ -44,9 +39,7 @@ def resolve_attention_backend(backend: str = "auto") -> str:
     if backend == "auto":
         if _HAS_FA2:
             return "flash_attn"
-        if _HAS_FLASHINFER:
-            return "flashinfer"
-        return "triton"
+        return "sdpa"
 
     if backend == "flash_attn":
         if not _HAS_FA2:
@@ -58,137 +51,15 @@ def resolve_attention_backend(backend: str = "auto") -> str:
             raise ImportError("flashinfer not installed. pip install flashinfer")
         return backend
 
-    if backend not in {"triton", "sdpa"}:
+    if backend == "triton":
+        # Preserve the legacy config value, but route it to the maintained
+        # framework backend instead of carrying a custom attention kernel.
+        return "sdpa"
+
+    if backend != "sdpa":
         raise ValueError(f"Unknown attention backend: {backend}")
 
     return backend
-
-
-def _build_kv_head_map(B: int, Hq: int, Hkv: int, device: torch.device) -> torch.Tensor:
-    """Build GQA head mapping: [B * Hq] -> index into [B * Hkv].
-
-    For each (b, hq), maps to b * Hkv + hq // kv_groups.
-    """
-    groups = Hq // Hkv
-    # For batch b, q-head hq: kv index = b * Hkv + hq // groups
-    b_idx = torch.arange(B, device=device).repeat_interleave(Hq)
-    hq_idx = torch.arange(Hq, device=device).repeat(B)
-    kv_map = b_idx * Hkv + hq_idx // groups
-    return kv_map.to(torch.int64)
-
-
-def _get_kv_head_map(
-    B: int,
-    Hq: int,
-    Hkv: int,
-    device: torch.device,
-    kv_head_map: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Reuse a caller-provided GQA head map when available."""
-    if kv_head_map is not None:
-        return kv_head_map
-    return _build_kv_head_map(B, Hq, Hkv, device)
-
-
-class FlashAttentionFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, Q, K, V, causal):
-        """
-        Args:
-            Q: [B, Hq, Sq, D]
-            K: [B, Hkv, Sk, D]
-            V: [B, Hkv, Sk, D]
-            causal: bool
-
-        Returns:
-            O: [B, Hq, Sq, D]
-        """
-        B, Hq, Sq, D = Q.shape
-        _, Hkv, Sk, _ = K.shape
-        assert D in (16, 32, 64, 128, 256), f"HEAD_DIM must be power of 2, got {D}"
-        assert Hq % Hkv == 0, f"Hq ({Hq}) must be divisible by Hkv ({Hkv})"
-
-        # Make contiguous with merged batch*head dims
-        Q_3d = Q.reshape(B * Hq, Sq, D).contiguous()
-        K_3d = K.reshape(B * Hkv, Sk, D).contiguous()
-        V_3d = V.reshape(B * Hkv, Sk, D).contiguous()
-
-        O_3d = torch.empty_like(Q_3d)
-        LSE = torch.empty(B * Hq, Sq, device=Q.device, dtype=torch.float32)
-
-        kv_head_map = _get_kv_head_map(B, Hq, Hkv, Q.device)
-
-        sm_scale = 1.0 / math.sqrt(D)
-        HEAD_DIM = triton.next_power_of_2(D)
-
-        grid = lambda META: (triton.cdiv(Sq, META["BLOCK_M"]), B * Hq)
-
-        flash_attn_fwd_kernel[grid](
-            Q_3d, K_3d, V_3d, O_3d, LSE,
-            kv_head_map,
-            Q_3d.stride(1), Q_3d.stride(2),
-            K_3d.stride(1), K_3d.stride(2),
-            V_3d.stride(1), V_3d.stride(2),
-            O_3d.stride(1), O_3d.stride(2),
-            Sq, Sk,
-            sm_scale,
-            HEAD_DIM=HEAD_DIM, IS_CAUSAL=causal,
-        )
-
-        O = O_3d.reshape(B, Hq, Sq, D)
-
-        ctx.save_for_backward(Q_3d, K_3d, V_3d, O_3d, LSE, kv_head_map)
-        ctx.causal = causal
-        ctx.shape = (B, Hq, Hkv, Sq, Sk, D)
-        ctx.sm_scale = sm_scale
-        return O
-
-    @staticmethod
-    def backward(ctx, dO):
-        Q_3d, K_3d, V_3d, O_3d, LSE, kv_head_map = ctx.saved_tensors
-        B, Hq, Hkv, Sq, Sk, D = ctx.shape
-
-        dO_3d = dO.reshape(B * Hq, Sq, D).contiguous()
-
-        HEAD_DIM = triton.next_power_of_2(D)
-        BLOCK_M_pre = min(128, triton.next_power_of_2(Sq))
-
-        # Precompute Delta = rowsum(O * dO)
-        Delta = torch.empty(B * Hq, Sq, device=dO.device, dtype=torch.float32)
-        grid_pre = (triton.cdiv(Sq, BLOCK_M_pre), B * Hq)
-        flash_attn_bwd_preprocess[grid_pre](
-            O_3d, dO_3d, Delta,
-            O_3d.stride(1), O_3d.stride(2),
-            Sq,
-            HEAD_DIM=HEAD_DIM, BLOCK_M=BLOCK_M_pre,
-        )
-
-        # Allocate grads
-        dQ_3d = torch.empty_like(Q_3d)
-        dK_3d = torch.zeros_like(K_3d)  # zero: accumulated via atomic_add from multiple Q heads
-        dV_3d = torch.zeros_like(V_3d)  # zero: same reason
-
-        grid = lambda META: (triton.cdiv(Sq, META["BLOCK_M"]), B * Hq)
-
-        flash_attn_bwd_kernel[grid](
-            Q_3d, K_3d, V_3d, dO_3d,
-            dQ_3d, dK_3d, dV_3d,
-            LSE, Delta,
-            kv_head_map,
-            Q_3d.stride(1), Q_3d.stride(2),
-            K_3d.stride(1), K_3d.stride(2),
-            V_3d.stride(1), V_3d.stride(2),
-            O_3d.stride(1), O_3d.stride(2),
-            Sq, Sk,
-            ctx.sm_scale,
-            HEAD_DIM=HEAD_DIM, IS_CAUSAL=ctx.causal,
-        )
-
-        dQ = dQ_3d.reshape(B, Hq, Sq, D)
-        dK = dK_3d.reshape(B, Hkv, Sk, D)
-        dV = dV_3d.reshape(B, Hkv, Sk, D)
-
-        return dQ, dK, dV, None  # None for causal
 
 
 def _flash_attention_fa2(Q, K, V, causal):
@@ -220,42 +91,6 @@ def _flash_attention_sdpa(Q, K, V, causal):
     )
 
 
-def _flash_attention_triton_decode(
-    Q: torch.Tensor,
-    K: torch.Tensor,
-    V: torch.Tensor,
-    kv_head_map: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
-    """Triton decode-only fast path for Sq=1 autoregressive inference."""
-    B, Hq, Sq, D = Q.shape
-    _, Hkv, Sk, _ = K.shape
-    assert Sq == 1, f"decode fast path expects Sq=1, got {Sq}"
-    assert D in (16, 32, 64, 128, 256), f"HEAD_DIM must be power of 2, got {D}"
-    assert Hq % Hkv == 0, f"Hq ({Hq}) must be divisible by Hkv ({Hkv})"
-
-    Q_3d = Q.reshape(B * Hq, Sq, D).contiguous()
-    K_3d = K.reshape(B * Hkv, Sk, D).contiguous()
-    V_3d = V.reshape(B * Hkv, Sk, D).contiguous()
-    O_2d = torch.empty(B * Hq, D, device=Q.device, dtype=Q.dtype)
-
-    kv_head_map = _get_kv_head_map(B, Hq, Hkv, Q.device, kv_head_map)
-    sm_scale = 1.0 / math.sqrt(D)
-    HEAD_DIM = triton.next_power_of_2(D)
-
-    flash_attn_decode_kernel[(B * Hq,)](
-        Q_3d, K_3d, V_3d, O_2d,
-        kv_head_map,
-        Q_3d.stride(1), Q_3d.stride(2),
-        K_3d.stride(1), K_3d.stride(2),
-        V_3d.stride(1), V_3d.stride(2),
-        O_2d.stride(0), O_2d.stride(1),
-        Sk,
-        sm_scale,
-        HEAD_DIM=HEAD_DIM,
-    )
-    return O_2d.view(B, Hq, 1, D)
-
-
 def flash_attention(
     Q: torch.Tensor,
     K: torch.Tensor,
@@ -270,7 +105,7 @@ def flash_attention(
         K: [B, Hkv, Sk, D] keys
         V: [B, Hkv, Sk, D] values
         causal: whether to apply causal masking
-        backend: "auto" | "flash_attn" | "flashinfer" | "triton" | "sdpa"
+        backend: "auto" | "flash_attn" | "flashinfer" | "sdpa" | legacy "triton"
 
     Returns:
         Output: [B, Hq, Sq, D]
@@ -279,14 +114,10 @@ def flash_attention(
 
     if backend == "flash_attn":
         return _flash_attention_fa2(Q, K, V, causal)
-    elif backend == "flashinfer":
-        # FlashInfer prefill: use SDPA as fallback for prefill path
+    if backend in {"flashinfer", "sdpa"}:
+        # FlashInfer remains decode-specialized; the maintained prefill path is SDPA.
         return _flash_attention_sdpa(Q, K, V, causal)
-    elif backend == "sdpa":
-        return _flash_attention_sdpa(Q, K, V, causal)
-    else:
-        # "triton" or fallback
-        return FlashAttentionFunction.apply(Q, K, V, causal)
+    raise ValueError(f"Unsupported resolved attention backend: {backend}")
 
 
 def _flash_attention_flashinfer_decode(Q, K, V):
@@ -331,7 +162,6 @@ def flash_attention_decode(
     K: torch.Tensor,
     V: torch.Tensor,
     backend: str = "auto",
-    kv_head_map: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """Decode-only attention path for Sq=1 autoregressive inference."""
     backend = resolve_attention_backend(backend)
@@ -342,7 +172,7 @@ def flash_attention_decode(
         return _flash_attention_fa2(Q, K, V, causal=False)
     if backend == "sdpa":
         return _flash_attention_sdpa(Q, K, V, causal=False)
-    return _flash_attention_triton_decode(Q, K, V, kv_head_map=kv_head_map)
+    raise ValueError(f"Unsupported resolved attention backend: {backend}")
 
 
 def flash_attention_naive(

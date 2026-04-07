@@ -19,7 +19,7 @@ from wm_infra.ops.kv_cache import KVCache, MLAKVCache
 
 
 class RMSNorm(nn.Module):
-    """RMSNorm as nn.Module, wrapping the Triton op."""
+    """RMSNorm as nn.Module, using torch by default and Triton for decode buffers."""
 
     def __init__(self, hidden_dim: int, eps: float = 1e-5):
         super().__init__()

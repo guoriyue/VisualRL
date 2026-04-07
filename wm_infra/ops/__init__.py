@@ -1,10 +1,12 @@
-"""PyTorch-wrapped ops with autograd support.
+"""PyTorch-wrapped ops for wm-infra model execution.
 
-Each op wraps one or more Triton kernels and provides:
+Most repo-specific fast paths still wrap Triton kernels, while generic
+attention dispatch is delegated to FlashAttention or PyTorch SDPA.
+The common interface here provides:
   - Tensor-in, tensor-out interface (no raw pointers)
   - Automatic autograd backward
   - Shape validation and dtype handling
-  - Grid/block size selection
+  - Backend dispatch and grid/block size selection
 
 Usage:
     from wm_infra.ops import topk_route, permute_tokens, grouped_gemm, fused_moe

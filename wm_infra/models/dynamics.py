@@ -7,8 +7,8 @@ Each z_t is a set of N spatial latent tokens. Each a_t is a single action token
 (projected from the action vector). The transformer uses causal attention so that
 predictions at time t only depend on states and actions at times <= t.
 
-This model uses the Triton flash attention kernel from moemoekit for the core
-attention computation, with RMSNorm and RoPE for normalization and position encoding.
+This model uses vendor/framework attention backends for the core attention
+computation, with RMSNorm and RoPE for normalization and position encoding.
 """
 
 from __future__ import annotations
@@ -46,7 +46,8 @@ class DynamicsBlock(nn.Module):
     """Single transformer block for dynamics model.
 
     Uses RMSNorm + causal self-attention + SwiGLU FFN.
-    Reuses Triton kernels from moemoekit for all compute-heavy ops.
+    Uses framework attention dispatch plus Triton fast paths where the repo has
+    workload-specific fused operators.
     """
 
     def __init__(self, hidden_dim: int, num_heads: int, dropout: float = 0.0):
@@ -76,7 +77,7 @@ class DynamicsBlock(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, S, D = x.shape
 
-        # Pre-norm attention (use naive impl on CPU since Triton requires CUDA)
+        # Pre-norm attention (use naive impl on CPU since fused RMSNorm requires CUDA)
         _norm = rms_norm if x.is_cuda else rms_norm_naive
         normed = _norm(x, self.norm1_weight)
 

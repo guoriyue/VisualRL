@@ -20,13 +20,7 @@ from wm_infra.ops.kv_cache import KVCache, MLAKVCache
 
 
 def _apply_rope_inline(x, cos_row, sin_row):
-    """Apply RoPE to a single position using a fused Triton kernel.
-
-    Replaces the original 5-op PyTorch implementation (2 muls + 2 fma + 1 cat)
-    with a single Triton kernel launch for significant kernel count reduction.
-
-    For S=1 decode, the input is [B, H, 1, D] or [B, 1, H, D].
-    We make it contiguous, apply the rotation in-place, and return it.
+    """Apply RoPE to a single decode position using plain torch tensor ops.
 
     Args:
         x: [B, 1, H, D] or [B, H, 1, D] input tensor
@@ -36,39 +30,12 @@ def _apply_rope_inline(x, cos_row, sin_row):
     Returns:
         Rotated tensor, same shape as x.
     """
-    if not x.is_cuda:
-        # Fallback for CPU tensors
-        half_d = x.shape[-1] // 2
-        x0 = x[..., :half_d]
-        x1 = x[..., half_d:]
-        y0 = x0 * cos_row - x1 * sin_row
-        y1 = x0 * sin_row + x1 * cos_row
-        return torch.cat([y0, y1], dim=-1)
-
-    import triton
-    from wm_infra.kernels.rope_decode_kernel import rope_single_pos_kernel
-
-    D = x.shape[-1]
-    HALF_D = triton.next_power_of_2(D // 2)
-    # Make contiguous so we can treat as [num_rows, D] flat layout
-    x_contig = x.contiguous()
-    out = torch.empty_like(x_contig)
-    flat_in = x_contig.view(-1, D)
-    flat_out = out.view(-1, D)
-    num_rows = flat_in.shape[0]
-    cos_c = cos_row.contiguous()
-    sin_c = sin_row.contiguous()
-
-    rope_single_pos_kernel[(num_rows,)](
-        flat_in,
-        flat_out,
-        cos_c,
-        sin_c,
-        num_rows,
-        D=D,
-        HALF_D=HALF_D,
-    )
-    return out
+    half_d = x.shape[-1] // 2
+    x0 = x[..., :half_d]
+    x1 = x[..., half_d:]
+    y0 = x0 * cos_row - x1 * sin_row
+    y1 = x0 * sin_row + x1 * cos_row
+    return torch.cat([y0, y1], dim=-1)
 
 
 class AttentionLayer(nn.Module):
@@ -125,7 +92,6 @@ class AttentionLayer(nn.Module):
         self._compile_attention = getattr(config, 'compile_attention', False)
         self._compiled_decode = None  # lazily compiled
         self._decode_position_buffer = None
-        self._decode_kv_head_map = None
         self._rope_cache = {}
 
         # Precompute RoPE cos/sin as persistent buffers
@@ -226,7 +192,7 @@ class AttentionLayer(nn.Module):
         else:
             causal = True
 
-        # Make contiguous for Triton kernels
+        # Keep layouts explicit before dispatching to FlashAttention or SDPA.
         q = q.contiguous()
         k = k.contiguous()
         v = v.contiguous()
@@ -270,23 +236,6 @@ class AttentionLayer(nn.Module):
             self._rope_cache[key] = cached
         return cached
 
-    def _get_decode_kv_head_map(
-        self,
-        batch_size: int,
-        device: torch.device,
-    ) -> torch.Tensor:
-        expected = batch_size * self.num_heads
-        if (
-            self._decode_kv_head_map is None
-            or self._decode_kv_head_map.device != device
-            or self._decode_kv_head_map.numel() != expected
-        ):
-            groups = self.num_heads // self.num_kv_heads
-            b_idx = torch.arange(batch_size, device=device).repeat_interleave(self.num_heads)
-            hq_idx = torch.arange(self.num_heads, device=device).repeat(batch_size)
-            self._decode_kv_head_map = (b_idx * self.num_kv_heads + hq_idx // groups).to(torch.int64)
-        return self._decode_kv_head_map
-
     def forward_decode(
         self,
         x: torch.Tensor,
@@ -297,7 +246,7 @@ class AttentionLayer(nn.Module):
 
         Compared to the generic forward(), this path:
         1. Fused QKV projection: single matmul instead of 3 separate ones
-        2. Inline RoPE: avoids Triton kernel launch for a single position
+        2. Inline RoPE: uses plain torch tensor ops for a single position
         3. Minimal reshapes: no unnecessary .contiguous() calls
         4. SDPA decode: uses F.scaled_dot_product_attention (fast for S_q=1)
         """
@@ -312,7 +261,7 @@ class AttentionLayer(nn.Module):
         qkv = self._qkv_proj(x)  # [B, 1, (Hq + 2*Hkv) * D]
         q, k, v = self._split_qkv(qkv, B)  # each: [B, H, 1, D]
 
-        # ── Inline RoPE for single position (no Triton kernel launch) ──
+        # ── Inline RoPE for single position (plain torch tensor ops) ──
         cos_full, sin_full = self._get_rope_tables(x.device, x.dtype)
         cos_row = cos_full[position]  # [D//2]
         sin_row = sin_full[position]  # [D//2]
@@ -627,7 +576,7 @@ class MLAAttentionLayer(nn.Module):
         q_nope = q[..., :self.qk_nope_head_dim]
         q_rope = q[..., self.qk_nope_head_dim:].contiguous()
 
-        # Inline RoPE for single position (avoid Triton kernel launch)
+        # Inline RoPE for single position (plain torch tensor ops)
         cos_full = self.rope_cos.to(x.dtype)
         sin_full = self.rope_sin.to(x.dtype)
         cos_row = cos_full[position]  # [qk_rope_head_dim // 2]

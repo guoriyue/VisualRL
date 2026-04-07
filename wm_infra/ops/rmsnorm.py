@@ -1,69 +1,24 @@
-"""RMSNorm op with autograd support."""
+"""RMSNorm helpers with torch-native training path."""
 
 import torch
+import torch.nn.functional as F
 import triton
 
-from wm_infra.kernels.rmsnorm_kernel import rmsnorm_fwd_kernel, rmsnorm_bwd_kernel
-
-
-class RMSNormFunction(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, weight, eps):
-        assert x.is_contiguous()
-        M, N = x.shape
-        BLOCK_N = triton.next_power_of_2(N)
-
-        y = torch.empty_like(x)
-        rstd = torch.empty(M, device=x.device, dtype=torch.float32)
-
-        rmsnorm_fwd_kernel[(M,)](
-            x, weight, y, rstd,
-            N, eps=eps, BLOCK_N=BLOCK_N,
-        )
-
-        ctx.save_for_backward(x, weight, rstd)
-        ctx.N = N
-        ctx.eps = eps
-        return y
-
-    @staticmethod
-    def backward(ctx, dy):
-        x, weight, rstd = ctx.saved_tensors
-        dy = dy.contiguous()
-        M, N = x.shape
-        BLOCK_N = triton.next_power_of_2(N)
-
-        dx = torch.empty_like(x)
-        # Per-row partial dweight: [M, N]
-        dw_partial = torch.empty_like(x)
-
-        rmsnorm_bwd_kernel[(M,)](
-            dy, x, weight, rstd,
-            dx, dw_partial,
-            N, BLOCK_N=BLOCK_N,
-        )
-
-        # Reduce dweight across rows
-        dweight = dw_partial.sum(dim=0)
-
-        return dx, dweight, None  # None for eps
+from wm_infra.kernels.rmsnorm_kernel import rmsnorm_fwd_kernel
 
 
 def rms_norm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
-    """Triton-accelerated RMSNorm.
+    """PyTorch RMSNorm for the general training path.
 
     Args:
-        x: [*, N] input (will be reshaped to [M, N] internally)
+        x: [*, N] input
         weight: [N] learnable scale
         eps: epsilon for numerical stability
 
     Returns:
         Normalized tensor, same shape as x
     """
-    orig_shape = x.shape
-    x_2d = x.contiguous().view(-1, x.shape[-1])
-    out = RMSNormFunction.apply(x_2d, weight, eps)
-    return out.view(orig_shape)
+    return F.rms_norm(x, (x.shape[-1],), weight=weight, eps=eps)
 
 
 def rms_norm_into(
@@ -73,7 +28,7 @@ def rms_norm_into(
     rstd_buf: torch.Tensor,
     eps: float = 1e-5,
 ) -> torch.Tensor:
-    """Triton-accelerated RMSNorm that writes into pre-allocated buffers.
+    """Triton RMSNorm that writes into pre-allocated buffers.
 
     Used in the decode fast path to eliminate per-call tensor allocations.
     Does NOT save tensors for backward (inference only).
