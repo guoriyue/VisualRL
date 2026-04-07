@@ -54,4 +54,7 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 
+# Benchmark results (regenerable)
+benchmarks/results/
+
 external/*

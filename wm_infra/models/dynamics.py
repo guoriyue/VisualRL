@@ -22,8 +22,16 @@ import torch.nn.functional as F
 
 from wm_infra.config import DynamicsConfig
 from wm_infra.models.base import WorldModel, RolloutInput, RolloutOutput
-from wm_infra.ops.rmsnorm import rms_norm, rms_norm_naive
-from wm_infra.ops.activation import fused_swiglu
+
+
+def _rms_norm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
+    return F.rms_norm(x, (x.shape[-1],), weight=weight, eps=eps)
+
+
+def _rms_norm_naive(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-5) -> torch.Tensor:
+    x_f32 = x.float()
+    rms = torch.sqrt(x_f32.pow(2).mean(dim=-1, keepdim=True) + eps)
+    return (x_f32 / rms * weight.float()).to(x.dtype)
 
 
 class ActionProjection(nn.Module):
@@ -78,7 +86,7 @@ class DynamicsBlock(nn.Module):
         B, S, D = x.shape
 
         # Pre-norm attention (use naive impl on CPU since fused RMSNorm requires CUDA)
-        _norm = rms_norm if x.is_cuda else rms_norm_naive
+        _norm = _rms_norm if x.is_cuda else _rms_norm_naive
         normed = _norm(x, self.norm1_weight)
 
         qkv = self.qkv_proj(normed)
@@ -101,7 +109,7 @@ class DynamicsBlock(nn.Module):
 
         # Use Triton fused SwiGLU when on CUDA
         if gate.is_cuda:
-            ffn_out = fused_swiglu(gate.contiguous(), up.contiguous())
+            ffn_out = F.silu(gate) * up
         else:
             ffn_out = F.silu(gate) * up
 
@@ -208,7 +216,7 @@ class LatentDynamicsModel(nn.Module, WorldModel):
         for block in self.blocks:
             x = block(x)
 
-        _norm = rms_norm if x.is_cuda else rms_norm_naive
+        _norm = _rms_norm if x.is_cuda else _rms_norm_naive
         x = _norm(x, self.norm_out)
         return self.head(x)
 

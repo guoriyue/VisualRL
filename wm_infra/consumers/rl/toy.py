@@ -1,6 +1,6 @@
 """Consumer-side toy world models layered on top of runtime env primitives."""
 
-from wm_infra.runtime.env.toy import (
+from wm_infra.envs.toy import (
     ToyContinuousWorldModel,
     ToyLineWorldModel,
     ToyLineWorldSpec,
