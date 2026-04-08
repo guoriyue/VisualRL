@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 class TaskType(str, Enum):
     """Product-level task semantics for persisted sample requests.
 
-    Backend identifiers such as ``genie-rollout`` belong in the separate
+    Backend identifiers such as ``matrix-game`` belong in the separate
     ``backend`` field, not in this enum.
     """
 
@@ -24,6 +24,13 @@ class TaskType(str, Enum):
     TEXT_TO_VIDEO = "text_to_video"
     IMAGE_TO_VIDEO = "image_to_video"
     VIDEO_TO_VIDEO = "video_to_video"
+
+
+class WorldModelKind(str, Enum):
+    """Internal world-model family classification for runtime and control-plane routing."""
+
+    DYNAMICS = "dynamics"
+    GENERATION = "generation"
 
 
 class SampleStatus(str, Enum):
@@ -53,14 +60,6 @@ class ArtifactKind(str, Enum):
     LOG = "log"
     EMBEDDING = "embedding"
     CHECKPOINT = "checkpoint"
-
-
-class TokenizerKind(str, Enum):
-    """Tokenizer type for token-based world model pipelines."""
-    GENIE_STMASKGIT = "genie_stmaskgit"
-    MAGVIT2 = "magvit2"
-    FSQ_COSMOS = "fsq_cosmos"
-    RAW = "raw"  # pre-tokenized, no decode available
 
 
 class CosmosVariant(str, Enum):
@@ -166,18 +165,6 @@ class WanTaskConfig(BaseModel):
     ckpt_dir: Optional[str] = Field(default=None, description="Path to the Wan 2.2 checkpoint directory")
 
 
-class GenieTaskConfig(BaseModel):
-    """Genie-family world model rollout config — first-class knobs for STMaskGIT and future MAGVIT2."""
-
-    num_frames: int = Field(default=16, ge=1, description="Total frames in output window (including prompt)")
-    num_prompt_frames: int = Field(default=8, ge=0, description="Context frames not generated")
-    maskgit_steps: int = Field(default=2, ge=1, description="MaskGIT refinement steps per frame")
-    temperature: float = Field(default=0.0, ge=0, description="Sampling temperature (0=argmax)")
-    tokenizer_kind: TokenizerKind = Field(default=TokenizerKind.GENIE_STMASKGIT, description="Which tokenizer produced/consumes the tokens")
-    checkpoint_every_n_frames: int = Field(default=0, ge=0, description="Create per-step checkpoint every N frames (0=terminal only)")
-    input_tokens_b64: Optional[str] = Field(default=None, description="Base64-encoded numpy array of prompt tokens (T,H,W) uint32")
-
-
 class CosmosTaskConfig(BaseModel):
     """Cosmos-family world generation config for NIM or local shell runners."""
 
@@ -245,6 +232,14 @@ class ProduceSampleRequest(BaseModel):
     task_type: TaskType
     backend: str = Field(..., description="Backend/runtime identifier")
     model: str = Field(..., description="Logical model identifier")
+    world_model_kind: Optional[WorldModelKind] = Field(
+        default=None,
+        description=(
+            "Optional client-declared world-model family. "
+            "`dynamics` is for state/action-conditioned rollout systems such as Matrix/Genie-style models; "
+            "`generation` is for world/video generation systems such as Cosmos-style models."
+        ),
+    )
     model_revision: Optional[str] = None
     experiment: Optional[ExperimentRef] = None
     sample_spec: SampleSpec
@@ -259,8 +254,8 @@ class ProduceSampleRequest(BaseModel):
     task_config: Optional[RolloutTaskConfig] = Field(
         default=None,
         description=(
-            "Task-specific execution config for rollout-engine or genie-rollout jobs. Video-relevant "
-            "execution knobs such as num_steps, frame_count, width, height, and memory/offload mode belong here."
+            "Task-specific execution config for dynamics backends such as rollout-engine or matrix-game. "
+            "Video-relevant execution knobs such as num_steps, frame_count, width, height, and memory/offload mode belong here."
         ),
     )
     wan_config: Optional[WanTaskConfig] = Field(
@@ -268,13 +263,6 @@ class ProduceSampleRequest(BaseModel):
         description=(
             "Wan 2.2 video generation config. Used when backend is the wan-video runtime "
             "(text_to_video, image_to_video). Ignored for rollout-engine jobs."
-        ),
-    )
-    genie_config: Optional[GenieTaskConfig] = Field(
-        default=None,
-        description=(
-            "Genie-family world model config. Used when backend is genie-rollout. "
-            "Controls tokenizer kind, checkpointing, and raw token input."
         ),
     )
     cosmos_config: Optional[CosmosTaskConfig] = Field(
@@ -295,6 +283,7 @@ class SampleRecord(BaseModel):
     task_type: TaskType
     backend: str
     model: str
+    world_model_kind: Optional[WorldModelKind] = None
     model_revision: Optional[str] = None
     status: SampleStatus = SampleStatus.QUEUED
     experiment: Optional[ExperimentRef] = None
@@ -303,7 +292,6 @@ class SampleRecord(BaseModel):
     token_input: Optional[TokenInputSpec] = None
     task_config: Optional[RolloutTaskConfig] = None
     wan_config: Optional[WanTaskConfig] = None
-    genie_config: Optional[GenieTaskConfig] = None
     cosmos_config: Optional[CosmosTaskConfig] = None
     resource_estimate: Optional[ResourceEstimate] = None
     artifacts: list[ArtifactRecord] = Field(default_factory=list)

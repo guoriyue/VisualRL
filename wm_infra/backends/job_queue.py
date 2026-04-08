@@ -1,8 +1,4 @@
-"""In-process async job queue for sample production backends.
-
-Originally introduced for Wan video generation, but now reusable for any backend
-that wants queued sample execution (e.g. Genie temporal rollouts).
-"""
+"""In-process async job queue for sample production backends."""
 
 from __future__ import annotations
 
@@ -263,7 +259,3 @@ class SampleJobQueue:
 
 WanJobQueue = SampleJobQueue
 CosmosJobQueue = SampleJobQueue
-
-
-class GenieJobQueue(SampleJobQueue):
-    """Queue specialization that can micro-batch compatible Genie jobs."""

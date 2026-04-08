@@ -15,8 +15,6 @@ import pytest_asyncio
 
 import wm_infra.api.server as server_module
 from wm_infra.api.server import create_app
-from wm_infra.backends import BackendRegistry, GenieRolloutBackend
-from wm_infra.backends.genie_runner import GenieRunner
 from wm_infra.config import ControlPlaneConfig, DynamicsConfig, EngineConfig, StateCacheConfig, TokenizerConfig
 from wm_infra.controlplane import ArtifactKind, SampleManifestStore, TemporalStore
 
@@ -118,21 +116,9 @@ async def client(tmp_path):
     config.controlplane.wan_output_root = str(tmp_path / "wan")
     config.controlplane.wan_engine_adapter = "stub"
     temporal_store = TemporalStore(tmp_path / "temporal")
-    registry = BackendRegistry()
-    genie_runner = GenieRunner()
-    genie_runner._mode = "stub"
-    genie_runner.load = lambda: "stub"  # type: ignore[method-assign]
-    registry.register(
-        GenieRolloutBackend(
-            temporal_store,
-            output_root=tmp_path / "genie",
-            runner=genie_runner,
-        )
-    )
     app = create_app(
         config,
         sample_store=SampleManifestStore(tmp_path),
-        backend_registry=registry,
         temporal_store=temporal_store,
     )
 
@@ -190,15 +176,26 @@ class TestBackends:
         assert resp.status_code == 200
         backends = {backend["name"]: backend for backend in resp.json()["backends"]}
         assert "cosmos-predict" in backends
+        assert "matrix-game" in backends
         assert "rollout-engine" in backends
         assert "wan-video" in backends
+        assert backends["cosmos-predict"]["world_model_kind"] == "generation"
+        assert backends["matrix-game"]["world_model_kind"] == "dynamics"
+        assert backends["matrix-game"]["runtime_substrate"] == "rollout-engine"
+        assert backends["matrix-game"]["stateful"] is True
+        assert backends["matrix-game"]["async_queue"] is False
         assert backends["cosmos-predict"]["runner_mode"] == "stub"
         assert backends["cosmos-predict"]["async_queue"] is True
+        assert backends["cosmos-predict"]["operator"]["family"] == "generation"
+        assert backends["cosmos-predict"]["operator"]["runtime"]["backend"] == "native"
+        assert backends["wan-video"]["world_model_kind"] == "generation"
         assert backends["wan-video"]["shell_runner_configured"] is False
         assert backends["wan-video"]["runner_mode"] == "stub"
         assert backends["wan-video"]["async_queue"] is True
         assert backends["wan-video"]["execution_backend"] == "in_process_stage_scheduler"
         assert backends["wan-video"]["engine_adapter"]["name"] == "stub-wan-engine"
+        assert backends["wan-video"]["operator"]["family"] == "generation"
+        assert backends["wan-video"]["operator"]["runtime"]["local_scheduler"] is True
         assert backends["wan-video"]["max_batch_size"] == 4
         assert backends["wan-video"]["batch_wait_ms"] == 2.0
         assert backends["wan-video"]["prewarm_common_signatures"] is False
@@ -317,6 +314,7 @@ class TestSamples:
             "task_type": "text_to_video",
             "backend": "cosmos-predict",
             "model": "cosmos-predict1-7b-text2world",
+            "world_model_kind": "generation",
             "sample_spec": {
                 "prompt": "A warehouse robot navigating around boxes.",
                 "width": 1024,
@@ -331,6 +329,49 @@ class TestSamples:
         terminal = await _wait_for_terminal_sample(client, data["sample_id"])
         assert terminal["status"] == "succeeded"
         assert terminal["runtime"]["runner_mode"] == "stub"
+        assert terminal["world_model_kind"] == "generation"
+
+    @pytest.mark.asyncio
+    async def test_create_matrix_sample_returns_dynamics_record(self, client):
+        resp = await client.post("/v1/samples", json={
+            "task_type": "temporal_rollout",
+            "backend": "matrix-game",
+            "model": "matrix-game-bringup",
+            "world_model_kind": "dynamics",
+            "return_artifacts": [ArtifactKind.LATENT.value],
+            "task_config": {"num_steps": 3, "frame_count": 3},
+            "sample_spec": {
+                "prompt": "roll the world forward under player actions",
+                "controls": {
+                    "actions": [
+                        [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                        [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                    ]
+                },
+            },
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "succeeded"
+        assert data["world_model_kind"] == "dynamics"
+        assert data["runtime"]["runtime_substrate"] == "rollout-engine"
+        assert data["runtime"]["action_count"] == 3
+        assert any(artifact["kind"] == "latent" for artifact in data["artifacts"])
+
+    @pytest.mark.asyncio
+    async def test_create_sample_rejects_mismatched_world_model_kind(self, client):
+        resp = await client.post("/v1/samples", json={
+            "task_type": "text_to_video",
+            "backend": "cosmos-predict",
+            "model": "cosmos-predict1-7b-text2world",
+            "world_model_kind": "dynamics",
+            "sample_spec": {"prompt": "bad world model family"},
+            "task_config": {"num_steps": 12, "frame_count": 16, "width": 1024, "height": 640},
+            "cosmos_config": {"variant": "predict1_text2world", "model_size": "7B", "frames_per_second": 16},
+        })
+        assert resp.status_code == 400
+        assert "world_model_kind=generation" in resp.json()["detail"]
 
     @pytest.mark.asyncio
     async def test_create_sample_persists_under_experiment_directory(self, client, tmp_path):
@@ -554,186 +595,6 @@ class TestArtifacts:
 
 class TestTemporalControlPlane:
     @pytest.mark.asyncio
-    async def test_create_temporal_entities_and_genie_rollout(self, client):
-        ep_resp = await client.post("/v1/episodes", json={"title": "Temporal MVP"})
-        assert ep_resp.status_code == 200
-        episode = ep_resp.json()
-
-        branch_resp = await client.post("/v1/branches", json={
-            "episode_id": episode["episode_id"],
-            "name": "main",
-        })
-        assert branch_resp.status_code == 200
-        branch = branch_resp.json()
-
-        state_resp = await client.post("/v1/state-handles", json={
-            "episode_id": episode["episode_id"],
-            "branch_id": branch["branch_id"],
-            "kind": "latent",
-            "dtype": "float16",
-            "shape": [16, 6],
-        })
-        assert state_resp.status_code == 200
-        state = state_resp.json()
-
-        sample_resp = await client.post("/v1/samples", json={
-            "task_type": "temporal_rollout",
-            "backend": "genie-rollout",
-            "model": "genie-local",
-            "sample_spec": {"prompt": "roll forward in time"},
-            "temporal": {
-                "episode_id": episode["episode_id"],
-                "branch_id": branch["branch_id"],
-                "state_handle_id": state["state_handle_id"],
-            },
-            "task_config": {"num_steps": 3, "width": 832, "height": 480},
-            "genie_config": {"num_frames": 9, "num_prompt_frames": 4, "maskgit_steps": 3, "temperature": 0.1},
-            "return_artifacts": ["metadata"],
-        })
-        assert sample_resp.status_code == 200
-        queued = sample_resp.json()
-        assert queued["status"] == "queued"
-        assert queued["runtime"]["async"] is True
-        assert queued["genie_config"]["num_frames"] == 9
-        assert queued["task_config"]["frame_count"] == 9
-        sample = await _wait_for_terminal_sample(client, queued["sample_id"])
-        assert sample["status"] == "succeeded"
-        assert sample["runtime"]["runner"] == "genie-stub"
-        assert sample["runtime"]["runner_mode"] == "stub"
-        assert sample["genie_config"]["num_frames"] == 9
-        assert sample["genie_config"]["num_prompt_frames"] == 4
-        assert sample["runtime"]["genie_config"]["maskgit_steps"] == 3
-        assert sample["runtime"]["genie_config"]["temperature"] == 0.1
-        assert sample["temporal"]["episode_id"] == episode["episode_id"]
-        assert sample["temporal"]["rollout_id"] is not None
-        assert sample["temporal"]["checkpoint_id"] is not None
-        assert sample["temporal"]["state_handle_id"] is not None
-
-        # Verify persisted artifacts exist
-        artifact_kinds = {a["kind"] for a in sample["artifacts"]}
-        assert "metadata" in artifact_kinds
-        assert "log" in artifact_kinds
-        assert "latent" in artifact_kinds  # tokens.npy
-
-        # Verify tokens artifact has shape metadata
-        token_artifacts = [a for a in sample["artifacts"] if a["artifact_id"].endswith(":tokens")]
-        assert len(token_artifacts) == 1
-        assert token_artifacts[0]["metadata"]["format"] == "numpy"
-        assert token_artifacts[0]["metadata"]["dtype"] == "uint32"
-
-        # Verify state artifact exists
-        state_artifacts = [a for a in sample["artifacts"] if a["artifact_id"].endswith(":state")]
-        assert len(state_artifacts) == 1
-
-        # Verify runtime has file paths
-        assert sample["runtime"]["tokens_path"] is not None
-        assert sample["runtime"]["state_path"] is not None
-        assert sample["runtime"]["log_path"] is not None
-        assert sample["runtime"]["frames_generated"] > 0
-        assert sample["runtime"]["tokens_generated"] > 0
-
-        # Verify metadata correctly reports mode
-        assert sample["metadata"]["runner_mode"] == "stub"
-        assert sample["metadata"]["stubbed"] is True
-
-        rollout_resp = await client.get(f"/v1/rollouts/{sample['temporal']['rollout_id']}")
-        assert rollout_resp.status_code == 200
-        rollout = rollout_resp.json()
-        assert rollout["status"] == "succeeded"
-        assert rollout["checkpoint_ids"] == [sample["temporal"]["checkpoint_id"]]
-        assert rollout["metrics"]["frames_generated"] > 0
-        assert rollout["metrics"]["tokens_generated"] > 0
-
-        checkpoints_resp = await client.get("/v1/checkpoints", params={"rollout_id": sample["temporal"]["rollout_id"]})
-        assert checkpoints_resp.status_code == 200
-        assert checkpoints_resp.json()["count"] == 1
-
-        # Verify state handle has real URI
-        sh_resp = await client.get(f"/v1/state-handles/{sample['temporal']['state_handle_id']}")
-        assert sh_resp.status_code == 200
-        sh = sh_resp.json()
-        assert sh["uri"] is not None
-        assert sh["uri"].startswith("file://")
-        assert sh["dtype"] == "uint32"
-        assert sh["shape"] == [sample["runtime"]["total_frames"], 16, 16]
-        assert sh["checkpoint_id"] == sample["temporal"]["checkpoint_id"]
-
-    @pytest.mark.asyncio
-    async def test_genie_rollout_artifact_content_downloadable(self, client):
-        """Submit a Genie rollout, then download the runner log content."""
-        ep_resp = await client.post("/v1/episodes", json={"title": "Download test"})
-        episode = ep_resp.json()
-        branch_resp = await client.post("/v1/branches", json={
-            "episode_id": episode["episode_id"], "name": "main",
-        })
-        branch = branch_resp.json()
-        state_resp = await client.post("/v1/state-handles", json={
-            "episode_id": episode["episode_id"],
-            "branch_id": branch["branch_id"],
-            "kind": "latent", "dtype": "float16", "shape": [16, 6],
-        })
-        state = state_resp.json()
-
-        sample_resp = await client.post("/v1/samples", json={
-            "task_type": "temporal_rollout",
-            "backend": "genie-rollout",
-            "model": "genie-local",
-            "sample_spec": {"prompt": "download test"},
-            "temporal": {
-                "episode_id": episode["episode_id"],
-                "branch_id": branch["branch_id"],
-                "state_handle_id": state["state_handle_id"],
-            },
-            "task_config": {"num_steps": 1},
-        })
-        assert sample_resp.status_code == 200
-        sample = await _wait_for_terminal_sample(client, sample_resp.json()["sample_id"])
-        sample_id = sample["sample_id"]
-
-        log_artifact_id = quote(f"{sample_id}:log", safe="")
-        content_resp = await client.get(f"/v1/samples/{sample_id}/artifacts/{log_artifact_id}/content")
-        assert content_resp.status_code == 200
-        assert "Genie runner mode: stub" in content_resp.text
-
-    @pytest.mark.asyncio
-    async def test_list_backends_includes_genie_rollout(self, client):
-        resp = await client.get("/v1/backends")
-        assert resp.status_code == 200
-        backends = {backend["name"]: backend for backend in resp.json()["backends"]}
-        assert "genie-rollout" in backends
-        assert backends["genie-rollout"]["stateful"] is True
-        assert backends["genie-rollout"]["runner_mode"] == "stub"
-        assert backends["genie-rollout"]["async_queue"] is True
-        assert "model" in backends["genie-rollout"]
-
-    @pytest.mark.asyncio
-    async def test_default_genie_backend_uses_controlplane_batching_config(self, tmp_path):
-        from asgi_lifespan import LifespanManager
-
-        config = _test_config()
-        config.controlplane.manifest_store_root = str(tmp_path / "manifests")
-        config.controlplane.genie_output_root = str(tmp_path / "genie")
-        config.controlplane.wan_output_root = str(tmp_path / "wan")
-        config.controlplane.cosmos_output_root = str(tmp_path / "cosmos")
-        config.controlplane.genie_max_batch_size = 3
-        config.controlplane.genie_batch_wait_ms = 9.0
-
-        temporal_store = TemporalStore(tmp_path / "temporal")
-        app = create_app(
-            config,
-            sample_store=SampleManifestStore(tmp_path / "manifests"),
-            temporal_store=temporal_store,
-        )
-
-        async with LifespanManager(app):
-            backend = app.state.backend_registry.get("genie-rollout")
-            assert backend is not None
-            assert backend._transition_batcher.max_batch_size == 3
-            assert backend._transition_batcher.batch_wait_ms == 9.0
-            assert app.state.genie_job_queue is not None
-            assert app.state.genie_job_queue.snapshot()["max_batch_size"] == 2
-
-    @pytest.mark.asyncio
     async def test_default_wan_backend_uses_controlplane_batching_config(self, tmp_path):
         from asgi_lifespan import LifespanManager
 
@@ -741,7 +602,6 @@ class TestTemporalControlPlane:
         config.controlplane.manifest_store_root = str(tmp_path / "manifests")
         config.controlplane.wan_output_root = str(tmp_path / "wan")
         config.controlplane.cosmos_output_root = str(tmp_path / "cosmos")
-        config.controlplane.genie_output_root = str(tmp_path / "genie")
         config.controlplane.wan_max_batch_size = 3
         config.controlplane.wan_batch_wait_ms = 7.5
         config.controlplane.wan_warm_pool_size = 5
@@ -766,47 +626,6 @@ class TestTemporalControlPlane:
             snapshot = app.state.wan_job_queue.snapshot()
             assert snapshot["max_batch_size"] == 3
             assert snapshot["batch_select_enabled"] is True
-
-    @pytest.mark.asyncio
-    async def test_genie_rollout_accepts_inline_raw_tokens(self, client):
-        ep_resp = await client.post("/v1/episodes", json={"title": "Raw token input"})
-        episode = ep_resp.json()
-        branch_resp = await client.post("/v1/branches", json={"episode_id": episode["episode_id"], "name": "main"})
-        branch = branch_resp.json()
-        state_resp = await client.post("/v1/state-handles", json={
-            "episode_id": episode["episode_id"],
-            "branch_id": branch["branch_id"],
-            "kind": "latent",
-        })
-        state = state_resp.json()
-
-        inline_tokens = list(range(4 * 16 * 16))
-        sample_resp = await client.post("/v1/samples", json={
-            "task_type": "temporal_rollout",
-            "backend": "genie-rollout",
-            "model": "genie-local",
-            "sample_spec": {"prompt": "raw tokens path"},
-            "temporal": {
-                "episode_id": episode["episode_id"],
-                "branch_id": branch["branch_id"],
-                "state_handle_id": state["state_handle_id"],
-            },
-            "token_input": {
-                "source": "inline",
-                "tokenizer_family": "magvit2",
-                "layout": "flat",
-                "shape": [4, 16, 16],
-                "inline_tokens": inline_tokens,
-                "dtype": "uint32",
-            },
-            "task_config": {"num_steps": 1, "frame_count": 8},
-        })
-        sample = await _wait_for_terminal_sample(client, sample_resp.json()["sample_id"])
-        assert sample["status"] == "succeeded"
-        assert sample["runtime"]["token_input"]["token_input_mode"] == "raw_tokens"
-        assert sample["runtime"]["token_input"]["magvit2_scaffold"] is True
-        input_artifacts = [a for a in sample["artifacts"] if a["artifact_id"].endswith(":input-tokens")]
-        assert len(input_artifacts) == 1
 
 
 class TestQueueStatus:

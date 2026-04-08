@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import torch
 
-from wm_infra.core.execution import (
+from wm_infra.execution import (
     BatchSignature,
     ExecutionBatchPolicy,
     ExecutionEntity,
     build_execution_chunks,
     summarize_execution_chunks,
 )
-from wm_infra.runtime.execution import (
+from wm_infra.execution import (
+    ExecutionRuntimeTrace,
+    ExecutionStageRecord,
     ExecutionWorkItem,
+    GroupedChunkDecision,
     HomogeneousChunkScheduler,
+    schedule_grouped_chunks,
 )
 
 
@@ -125,3 +129,107 @@ def test_homogeneous_chunk_scheduler_groups_by_signature() -> None:
     assert decisions[0].chunk_count == 2
     assert decisions[1].ready_count == 1
     assert decisions[1].chunk_count == 1
+
+
+def test_schedule_grouped_chunks_builds_backend_specific_metadata() -> None:
+    signature = BatchSignature(
+        stage="transition",
+        latent_shape=(1, 1),
+        action_dim=3,
+        dtype="float32",
+        device="cpu",
+        needs_decode=False,
+    )
+    entities = [
+        ExecutionEntity(
+            entity_id=f"env-{index}:transition:0",
+            rollout_id=f"env-{index}",
+            stage="transition",
+            step_idx=0,
+            batch_signature=signature,
+        )
+        for index in range(5)
+    ]
+    priorities = {entity.entity_id: float(5 - index) for index, entity in enumerate(entities)}
+
+    decisions = schedule_grouped_chunks(
+        entities=entities,
+        max_chunk_size=2,
+        group_key=lambda entity: entity.stage,
+        entity_sort_key=lambda entity: (-priorities[entity.entity_id], entity.entity_id),
+        build_chunk=lambda group_key, chunk_entities, chunk_index: {
+            "group": group_key,
+            "chunk_index": chunk_index,
+            "entity_ids": [entity.entity_id for entity in chunk_entities],
+            "size": len(chunk_entities),
+        },
+        build_scheduler_inputs=lambda group_key, chunk_entities, chunk, group_count: {
+            "group": group_key,
+            "group_count": group_count,
+            "chunk_size": len(chunk_entities),
+            "first_entity": chunk["entity_ids"][0],
+        },
+        decision_sort_key=lambda decision: (-decision.scheduler_inputs["chunk_size"], decision.chunk["chunk_index"]),
+    )
+
+    assert all(isinstance(decision, GroupedChunkDecision) for decision in decisions)
+    assert [decision.chunk["size"] for decision in decisions] == [2, 2, 1]
+    assert decisions[0].scheduler_inputs["group_count"] == 1
+    assert decisions[0].scheduler_inputs["first_entity"] == "env-0:transition:0"
+
+
+def test_execution_runtime_trace_summarizes_stage_and_chunk_metrics() -> None:
+    trace = ExecutionRuntimeTrace()
+    trace.record(
+        ExecutionStageRecord(
+            stage="admission",
+            entity_id="sample:0",
+            queue_lane="hot",
+            elapsed_ms=1.25,
+            chunk_id="chunk-0",
+            chunk_size=2,
+            expected_occupancy=1.0,
+        )
+    )
+    trace.record(
+        ExecutionStageRecord(
+            stage="transition",
+            entity_id="sample:0",
+            queue_lane="warm",
+            elapsed_ms=2.5,
+            chunk_id="chunk-1",
+            chunk_size=1,
+            expected_occupancy=0.5,
+            estimated_transfer_bytes=4096,
+        )
+    )
+
+    assert trace.queue_lanes_seen == ["hot", "warm"]
+    assert trace.stage_timings_ms() == {"admission": 1.25, "transition": 2.5}
+    assert trace.chunk_summary() == {
+        "chunk_count": 2,
+        "avg_chunk_size": 1.5,
+        "max_chunk_size": 2,
+        "avg_expected_occupancy": 0.75,
+    }
+
+
+def test_execution_runtime_trace_can_include_transfer_bytes() -> None:
+    class TransferAwareTrace(ExecutionRuntimeTrace):
+        include_estimated_transfer_bytes = True
+
+    trace = TransferAwareTrace()
+    trace.record(
+        ExecutionStageRecord(
+            stage="transition",
+            entity_id="sample:1",
+            queue_lane="hot",
+            elapsed_ms=3.0,
+            chunk_id="chunk-2",
+            chunk_size=3,
+            expected_occupancy=0.75,
+            estimated_transfer_bytes=1024,
+        )
+    )
+
+    assert trace.chunk_summary()["estimated_transfer_bytes"] == 1024

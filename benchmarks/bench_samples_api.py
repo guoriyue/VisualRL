@@ -43,10 +43,6 @@ def _resolve_device(device: str) -> str:
 def _test_config(
     tmp_root: Path,
     device: str,
-    *,
-    genie_max_concurrent_jobs: int = 1,
-    genie_max_batch_size: int = 1,
-    genie_batch_wait_ms: float = 0.0,
 ) -> EngineConfig:
     return EngineConfig(
         device=device,
@@ -75,11 +71,7 @@ def _test_config(
         controlplane=ControlPlaneConfig(
             manifest_store_root=str(tmp_root / "manifests"),
             wan_output_root=str(tmp_root / "wan"),
-            genie_output_root=str(tmp_root / "genie"),
-            genie_device=device,
-            genie_max_concurrent_jobs=genie_max_concurrent_jobs,
-            genie_max_batch_size=genie_max_batch_size,
-            genie_batch_wait_ms=genie_batch_wait_ms,
+            cosmos_output_root=str(tmp_root / "cosmos"),
         ),
     )
 
@@ -132,41 +124,7 @@ async def _run_iteration(client: httpx.AsyncClient, request_payload: dict[str, A
 
 
 async def _prepare_request_payload(client: httpx.AsyncClient, request_payload: dict[str, Any]) -> dict[str, Any]:
-    payload = copy.deepcopy(request_payload)
-    if payload.get("backend") != "genie-rollout":
-        return payload
-
-    temporal = payload.get("temporal") or {}
-    if temporal.get("episode_id") and temporal.get("branch_id") and temporal.get("state_handle_id"):
-        return payload
-
-    episode_resp = await client.post("/v1/episodes", json={"title": "Benchmark Genie Episode"})
-    episode_resp.raise_for_status()
-    episode = episode_resp.json()
-
-    branch_resp = await client.post("/v1/branches", json={"episode_id": episode["episode_id"], "name": "main"})
-    branch_resp.raise_for_status()
-    branch = branch_resp.json()
-
-    state_resp = await client.post(
-        "/v1/state-handles",
-        json={
-            "episode_id": episode["episode_id"],
-            "branch_id": branch["branch_id"],
-            "kind": "latent",
-            "dtype": "float16",
-            "shape": [16, 6],
-        },
-    )
-    state_resp.raise_for_status()
-    state = state_resp.json()
-
-    payload["temporal"] = {
-        "episode_id": episode["episode_id"],
-        "branch_id": branch["branch_id"],
-        "state_handle_id": state["state_handle_id"],
-    }
-    return payload
+    return copy.deepcopy(request_payload)
 
 
 async def _run_client(client: httpx.AsyncClient, request_payload: dict[str, Any], iterations: int, timeout_s: float, concurrency: int) -> list[dict[str, Any]]:
@@ -197,19 +155,9 @@ async def _run_in_process(
     execution_mode: str,
     *,
     persist_root: str | None,
-    genie_max_concurrent_jobs: int,
-    genie_cross_request_batching: str,
-    genie_transition_batch_wait_ms: float,
-    genie_transition_max_batch_size: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     async def _run_with_root(tmp_root: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-        config = _test_config(
-            tmp_root,
-            device,
-            genie_max_concurrent_jobs=genie_max_concurrent_jobs,
-            genie_max_batch_size=1 if genie_cross_request_batching == "off" else genie_transition_max_batch_size,
-            genie_batch_wait_ms=genie_transition_batch_wait_ms if genie_cross_request_batching == "on" else 0.0,
-        )
+        config = _test_config(tmp_root, device)
         app = create_app(config, sample_store=SampleManifestStore(tmp_root / "manifests"), execution_mode=execution_mode)
         with GpuSampler(poll_interval_s=gpu_poll_interval_s) as sampler:
             async with LifespanManager(app) as manager:
@@ -243,14 +191,20 @@ DEFAULT_ROLLOUT_PAYLOAD = {
     "task_config": {"num_steps": 4, "frame_count": 9, "width": 256, "height": 256},
 }
 
-DEFAULT_GENIE_PAYLOAD = {
+DEFAULT_MATRIX_PAYLOAD = {
     "task_type": "temporal_rollout",
-    "backend": "genie-rollout",
-    "model": "genie-local",
-    "sample_spec": {"prompt": "roll forward in time", "width": 256, "height": 256},
+    "backend": "matrix-game",
+    "model": "matrix-game3-preview",
+    "sample_spec": {
+        "prompt": "roll forward in time",
+        "width": 256,
+        "height": 256,
+        "controls": {
+            "actions": [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0] for _ in range(4)],
+        },
+    },
     "task_config": {"num_steps": 4, "width": 256, "height": 256},
-    "genie_config": {"num_frames": 9, "num_prompt_frames": 4, "maskgit_steps": 3, "temperature": 0.0},
-    "return_artifacts": ["metadata"],
+    "return_artifacts": ["latent"],
 }
 
 DEFAULT_COSMOS_PAYLOAD = {
@@ -268,7 +222,7 @@ def parse_args() -> argparse.Namespace:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--base-url", help="Live wm-infra server base URL, e.g. http://127.0.0.1:8000")
     mode.add_argument("--in-process", action="store_true", help="Run against an in-process ASGI app")
-    parser.add_argument("--workload", choices=["wan", "rollout", "genie", "cosmos"], default="wan")
+    parser.add_argument("--workload", choices=["wan", "rollout", "matrix", "cosmos"], default="wan")
     parser.add_argument("--payload-file", help="Optional JSON payload for POST /v1/samples")
     parser.add_argument("--iterations", type=int, default=5)
     parser.add_argument("--concurrency", type=int, default=1)
@@ -277,10 +231,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--execution-mode", choices=["chunked"], default="chunked")
     parser.add_argument("--gpu-sample-interval-ms", type=float, default=100.0)
     parser.add_argument("--persist-root", help="Optional root directory to keep in-process sample manifests and backend outputs")
-    parser.add_argument("--genie-max-concurrent-jobs", type=int, default=1)
-    parser.add_argument("--genie-cross-request-batching", choices=["on", "off"], default="on")
-    parser.add_argument("--genie-transition-batch-wait-ms", type=float, default=2.0)
-    parser.add_argument("--genie-transition-max-batch-size", type=int, default=8)
     parser.add_argument("--system-name", default="wm-infra")
     parser.add_argument("--runner-name", default="unknown")
     parser.add_argument("--output", default="benchmarks/results/sample_api_benchmark.json")
@@ -294,8 +244,8 @@ def _load_payload(args: argparse.Namespace) -> dict[str, Any]:
         return json.loads(Path(args.payload_file).read_text())
     if args.workload == "wan":
         return DEFAULT_WAN_PAYLOAD
-    if args.workload == "genie":
-        return DEFAULT_GENIE_PAYLOAD
+    if args.workload == "matrix":
+        return DEFAULT_MATRIX_PAYLOAD
     if args.workload == "cosmos":
         return DEFAULT_COSMOS_PAYLOAD
     return DEFAULT_ROLLOUT_PAYLOAD
@@ -475,10 +425,6 @@ async def _main_async() -> None:
             args.gpu_sample_interval_ms / 1000.0,
             args.execution_mode,
             persist_root=args.persist_root,
-            genie_max_concurrent_jobs=args.genie_max_concurrent_jobs,
-            genie_cross_request_batching=args.genie_cross_request_batching,
-            genie_transition_batch_wait_ms=args.genie_transition_batch_wait_ms,
-            genie_transition_max_batch_size=args.genie_transition_max_batch_size,
         )
         execution_mode = "in_process"
     else:
@@ -486,7 +432,6 @@ async def _main_async() -> None:
         execution_mode = "remote"
 
     task_cfg = payload.get("wan_config") or payload.get("task_config") or {}
-    genie_cfg = payload.get("genie_config") or {}
     summary = run_summary_from_samples(samples)
     profiling = _profile_samples(samples)
     execution_fields, workload_runtime_fields = _observed_runtime_fields(
@@ -511,10 +456,6 @@ async def _main_async() -> None:
             "timeout_s": args.timeout_s,
             "gpu_sample_interval_ms": args.gpu_sample_interval_ms,
             "persist_root": args.persist_root,
-            "genie_max_concurrent_jobs": args.genie_max_concurrent_jobs,
-            "genie_cross_request_batching": args.genie_cross_request_batching,
-            "genie_transition_batch_wait_ms": args.genie_transition_batch_wait_ms,
-            "genie_transition_max_batch_size": args.genie_transition_max_batch_size,
             "base_url": args.base_url,
             "in_process": args.in_process,
             "workload": args.workload,
@@ -528,7 +469,7 @@ async def _main_async() -> None:
             "model": payload.get("model"),
             "num_prompts": 1,
             "prompt_shape": "single",
-            "frame_count": task_cfg.get("frame_count") or genie_cfg.get("num_frames"),
+            "frame_count": task_cfg.get("frame_count"),
             "width": task_cfg.get("width") or payload.get("sample_spec", {}).get("width"),
             "height": task_cfg.get("height") or payload.get("sample_spec", {}).get("height"),
             "num_steps": task_cfg.get("num_steps"),

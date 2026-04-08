@@ -7,19 +7,24 @@ import uuid
 import torch
 
 from wm_infra.backends.base import ProduceSampleBackend
-from wm_infra.controlplane.schemas import ArtifactKind, ArtifactRecord, ProduceSampleRequest, ResourceEstimate, SampleRecord, SampleStatus, TaskType
-from wm_infra.core.engine import AsyncWorldModelEngine, RolloutJob
-from wm_infra.core.scheduler import DEFAULT_RESOURCE_UNITS_PER_GB, RolloutRequest
+from wm_infra.controlplane.schemas import ArtifactKind, ArtifactRecord, ProduceSampleRequest, ResourceEstimate, SampleRecord, SampleStatus, TaskType, WorldModelKind
+from wm_infra.rollout_engine import AsyncWorldModelEngine, DEFAULT_RESOURCE_UNITS_PER_GB, RolloutJob, RolloutRequest
+from wm_infra.operators import RolloutEngineDynamicsOperator
 
 
 class RolloutBackend(ProduceSampleBackend):
     """Produce sample records using the existing world-model rollout engine."""
 
+    world_model_kind = WorldModelKind.DYNAMICS
+    capability_flags = frozenset({"actions", "rollout"})
+
     def __init__(self, engine: AsyncWorldModelEngine, backend_name: str = "rollout-engine") -> None:
         self.engine = engine
+        self._operator = RolloutEngineDynamicsOperator(engine)
         self.backend_name = backend_name
 
     async def produce_sample(self, request: ProduceSampleRequest) -> SampleRecord:
+        self.validate_world_model_kind(request)
         if request.task_type != TaskType.TEMPORAL_ROLLOUT:
             raise ValueError(f"Backend {self.backend_name} only supports temporal_rollout")
 
@@ -45,20 +50,25 @@ class RolloutBackend(ProduceSampleBackend):
         latent_dim = self.engine.engine.config.dynamics.latent_token_dim
         job.initial_latent = torch.randn(num_tokens, latent_dim)
 
-        result = await self.engine.submit(job)
-
+        result = await self._operator.rollout(job)
         record = SampleRecord(
             sample_id=sample_id,
             task_type=request.task_type,
             backend=request.backend,
             model=request.model,
+            world_model_kind=self.world_model_kind,
             model_revision=request.model_revision,
             status=SampleStatus.SUCCEEDED,
             experiment=request.experiment,
             sample_spec=request.sample_spec,
             task_config=task_config,
             resource_estimate=estimate,
-            runtime={"rollout_job_id": result.job_id, "steps_completed": result.steps_completed, "elapsed_ms": result.elapsed_ms},
+            runtime={
+                "rollout_job_id": result.job_id,
+                "steps_completed": result.steps_completed,
+                "elapsed_ms": result.elapsed_ms,
+                "operator": self._operator.describe(),
+            },
             metadata={"evaluation_policy": request.evaluation_policy, "priority": request.priority, "labels": request.labels},
         )
 

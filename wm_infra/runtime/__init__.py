@@ -1,32 +1,34 @@
-"""Runtime substrate exports.
+"""SGLang-inspired runtime substrate for video/world generation."""
 
-Keep package import side effects minimal so low-level execution primitives can
-be imported without pulling in env or trainer-facing modules.
-"""
-
-from wm_infra.runtime.execution import (
-    BatchSignature,
-    ExecutionBatchPolicy,
-    ExecutionChunk,
-    ExecutionEntity,
-    ExecutionStats,
-    ExecutionWorkItem,
-    HomogeneousChunkScheduler,
-    SchedulerDecision,
-    build_execution_chunks,
-    chunk_fill_ratio,
-    summarize_execution_chunks,
+from .composed_generation_pipeline import (
+    CallableGenerationStage,
+    ComposedGenerationPipeline,
+    GenerationPipelineRun,
+    GenerationPipelineStageSpec,
+    GenerationRuntimeConfig,
+    GenerationStageUpdate,
 )
+from .server_args import GenerationRuntimeBackend, GenerationServerArgs
+from .pipelines_core.composed_pipeline_base import ComposedPipelineBase
+from .pipelines_core.executors.pipeline_executor import PipelineExecutor
+from .pipelines_core.executors.sync_executor import SyncPipelineExecutor
+from .pipelines_core.schedule_batch import GenerationOutputBatch, GenerationRequestState
+from .pipelines_core.stages.base import PipelineStage, StageParallelismType
+
 __all__ = [
-    "BatchSignature",
-    "ExecutionBatchPolicy",
-    "ExecutionChunk",
-    "ExecutionEntity",
-    "ExecutionStats",
-    "ExecutionWorkItem",
-    "HomogeneousChunkScheduler",
-    "SchedulerDecision",
-    "build_execution_chunks",
-    "chunk_fill_ratio",
-    "summarize_execution_chunks",
+    "CallableGenerationStage",
+    "ComposedPipelineBase",
+    "ComposedGenerationPipeline",
+    "GenerationOutputBatch",
+    "GenerationPipelineRun",
+    "GenerationPipelineStageSpec",
+    "GenerationRequestState",
+    "GenerationRuntimeBackend",
+    "GenerationRuntimeConfig",
+    "GenerationServerArgs",
+    "GenerationStageUpdate",
+    "PipelineExecutor",
+    "PipelineStage",
+    "StageParallelismType",
+    "SyncPipelineExecutor",
 ]

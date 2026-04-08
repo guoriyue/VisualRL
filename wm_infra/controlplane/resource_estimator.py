@@ -8,7 +8,7 @@ metadata, and it can score both rollout-style and Wan 2.2-style video requests.
 from __future__ import annotations
 
 from wm_infra.controlplane.schemas import CosmosTaskConfig, ResourceEstimate, RolloutTaskConfig, VideoMemoryProfile, WanTaskConfig
-from wm_infra.core.scheduler import DEFAULT_RESOURCE_UNITS_PER_GB, RolloutRequest
+from wm_infra.rollout_engine import DEFAULT_RESOURCE_UNITS_PER_GB, RolloutRequest
 
 _BASELINE_FRAMES = 9
 _BASELINE_WIDTH = 832

@@ -3,15 +3,19 @@ from __future__ import annotations
 import torch
 
 from wm_infra.controlplane import TemporalStore
-from wm_infra.runtime.env.async_runtime import AsyncTransitionDispatcher
-from wm_infra.runtime.env.manager import TemporalEnvManager
-from wm_infra.runtime.env.persistence import (
+from wm_infra.execution import ExecutionBatchPolicy
+from wm_infra.env_runtime.async_runtime import AsyncTransitionDispatcher
+from wm_infra.env_runtime.catalog import LearnedEnvCatalog
+from wm_infra.env_runtime.persistence import (
     TransitionExecutionResult,
     TransitionPersistenceContext,
     TransitionPersistenceLayer,
     build_transition_persistence_plan,
 )
-from wm_infra.runtime.env.pipeline import TransitionStagePipeline
+from wm_infra.env_runtime.pipeline import TransitionStagePipeline
+from wm_infra.env_runtime.transition_executor import TransitionExecutor
+from wm_infra.workloads.reinforcement_learning.defaults import build_default_registry
+from wm_infra.workloads.reinforcement_learning.runtime import ReinforcementLearningEnvManager
 
 
 def test_async_transition_dispatcher_batches_homogeneous_payloads() -> None:
@@ -33,8 +37,36 @@ def test_async_transition_dispatcher_batches_homogeneous_payloads() -> None:
         dispatcher.close()
 
 
+def _build_transition_executor(store: TemporalStore, *, max_chunk_size: int = 2) -> TransitionExecutor:
+    device = torch.device("cpu")
+    dtype = torch.float32
+    catalog = LearnedEnvCatalog(
+        store,
+        device=device,
+        dtype=dtype,
+        registry=build_default_registry(device=device, dtype=dtype),
+    )
+    catalog.sync_to_store()
+    return TransitionExecutor(
+        temporal_store=store,
+        catalog=catalog,
+        dispatcher=AsyncTransitionDispatcher(),
+        batch_policy=ExecutionBatchPolicy(
+            mode="sync",
+            max_chunk_size=max_chunk_size,
+            min_ready_size=1,
+            return_when_ready_count=max_chunk_size,
+            allow_partial_batch=True,
+        ),
+        device=device,
+        dtype=dtype,
+    )
+
+
 def test_transition_stage_pipeline_emits_persist_intent(tmp_path) -> None:
-    manager = TemporalEnvManager(TemporalStore(tmp_path / "temporal"), max_chunk_size=2)
+    store = TemporalStore(tmp_path / "temporal")
+    manager = ReinforcementLearningEnvManager(store, max_chunk_size=2)
+    executor = _build_transition_executor(store, max_chunk_size=2)
     initialized = manager.initialize_transition_context(
         env_name="toy-line-v0",
         task_id="toy-line-eval",
@@ -45,23 +77,23 @@ def test_transition_stage_pipeline_emits_persist_intent(tmp_path) -> None:
         labels={},
         metadata={},
     )
-    context = manager._load_stateless_context(
+    context = executor.load_stateless_context(
         state_handle_id=initialized.state_handle_id,
         trajectory_id=initialized.trajectory_id,
         max_episode_steps=initialized.max_episode_steps,
         policy_version=initialized.policy_version,
     )
     pipeline = TransitionStagePipeline(
-        world_model=manager.catalog.world_model_for_env(context.env_name),
-        reward_fn=manager.catalog.reward_fn_for_env(context.env_name),
-        dtype=manager.dtype,
-        device=manager.device,
-        policy=manager.env_step_batch_policy,
+        world_model=executor.catalog.world_model_for_env(context.env_name),
+        reward_fn=executor.catalog.reward_fn_for_env(context.env_name),
+        dtype=executor.dtype,
+        device=executor.device,
+        policy=executor.batch_policy,
     )
 
     prepared = pipeline.prepare(
         contexts=[context],
-        action_tensor=torch.tensor([[0.0, 0.0, 1.0]], dtype=manager.dtype, device=manager.device),
+        action_tensor=torch.tensor([[0.0, 0.0, 1.0]], dtype=executor.dtype, device=executor.device),
     )
     run = pipeline.run_chunk(
         prepared.chunks[0],
@@ -80,7 +112,8 @@ def test_transition_stage_pipeline_emits_persist_intent(tmp_path) -> None:
 
 def test_transition_persistence_layer_commits_state_transition(tmp_path) -> None:
     store = TemporalStore(tmp_path / "temporal")
-    manager = TemporalEnvManager(store)
+    manager = ReinforcementLearningEnvManager(store)
+    executor = _build_transition_executor(store)
     initialized = manager.initialize_transition_context(
         env_name="toy-line-v0",
         task_id="toy-line-eval",
@@ -91,7 +124,7 @@ def test_transition_persistence_layer_commits_state_transition(tmp_path) -> None
         labels={},
         metadata={},
     )
-    context = manager._load_stateless_context(
+    context = executor.load_stateless_context(
         state_handle_id=initialized.state_handle_id,
         trajectory_id=initialized.trajectory_id,
         max_episode_steps=initialized.max_episode_steps,

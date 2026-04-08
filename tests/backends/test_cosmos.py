@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from wm_infra.backends.cosmos import CosmosPredictBackend
-from wm_infra.backends.cosmos_runner import CosmosRunner
+from wm_infra.backends.cosmos import CosmosRunner
 from wm_infra.backends.job_queue import CosmosJobQueue
 from wm_infra.controlplane import (
     CosmosTaskConfig,
@@ -72,6 +72,10 @@ class TestCosmosBackend:
         assert record.runtime["runner_mode"] == "stub"
         assert record.runtime["chunk_summary"]["max_chunk_size"] == 1
         assert "infer" in record.runtime["stage_timings_ms"]
+        assert record.runtime["pipeline"]["pipeline_name"] == "cosmos-generation"
+        assert record.runtime["pipeline"]["stage_count"] == 1
+        assert record.runtime["stages"][0]["name"] == "infer"
+        assert record.runtime["operator"]["runtime"]["local_scheduler"] is True
         assert any(artifact.artifact_id.endswith(":video") for artifact in record.artifacts)
 
         runtime_artifact = next(artifact for artifact in record.artifacts if artifact.artifact_id.endswith(":metadata"))

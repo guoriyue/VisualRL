@@ -13,7 +13,6 @@ from wm_infra.workloads.reinforcement_learning.training import ExperimentSpec, r
 
 _BACKEND_BY_ENV = {
     "toy-line-v0": "toy-line-world-model",
-    "genie-token-grid-v0": "genie-rollout",
 }
 
 
@@ -25,11 +24,16 @@ def _summary_from_result(result: dict[str, Any]) -> dict[str, Any]:
     metrics = result.get("metrics", [])
     env_steps_per_sec = [float(item.get("env_steps_per_sec", 0.0)) for item in metrics]
     step_latency_ms = [float(item.get("step_latency_ms", 0.0)) for item in metrics]
-    reward_stage_latency_ms = [float(item.get("reward_stage_latency_ms", 0.0)) for item in metrics]
-    trajectory_persist_latency_ms = [float(item.get("trajectory_persist_latency_ms", 0.0)) for item in metrics]
+    schedule_latency_ms = [float(item.get("schedule_latency_ms", 0.0)) for item in metrics]
+    transition_latency_ms = [float(item.get("transition_latency_ms", 0.0)) for item in metrics]
+    reward_latency_ms = [float(item.get("reward_latency_ms", 0.0)) for item in metrics]
+    persist_latency_ms = [float(item.get("persist_latency_ms", 0.0)) for item in metrics]
     chunk_count = [float(item.get("chunk_count", 0.0)) for item in metrics]
     max_chunk_size = [float(item.get("max_chunk_size", 0.0)) for item in metrics]
     avg_chunk_size = [float(item.get("avg_chunk_size", 0.0)) for item in metrics]
+    state_bytes = [float(item.get("state_bytes", 0.0)) for item in metrics]
+    state_count = [float(item.get("state_count", 0.0)) for item in metrics]
+    queue_wait_ms = [float(item.get("queue_wait_ms", 0.0)) for item in metrics]
     state_locality = [float(item.get("state_locality_hit_rate", 0.0)) for item in metrics]
     auto_reset_count = [float(item.get("auto_reset_count", 0.0)) for item in metrics]
 
@@ -44,15 +48,25 @@ def _summary_from_result(result: dict[str, Any]) -> dict[str, Any]:
             "min": min(step_latency_ms) if step_latency_ms else 0.0,
             "max": max(step_latency_ms) if step_latency_ms else 0.0,
         },
-        "reward_stage_latency_ms": {
-            "mean": _mean(reward_stage_latency_ms),
-            "min": min(reward_stage_latency_ms) if reward_stage_latency_ms else 0.0,
-            "max": max(reward_stage_latency_ms) if reward_stage_latency_ms else 0.0,
+        "schedule_latency_ms": {
+            "mean": _mean(schedule_latency_ms),
+            "min": min(schedule_latency_ms) if schedule_latency_ms else 0.0,
+            "max": max(schedule_latency_ms) if schedule_latency_ms else 0.0,
         },
-        "trajectory_persist_latency_ms": {
-            "mean": _mean(trajectory_persist_latency_ms),
-            "min": min(trajectory_persist_latency_ms) if trajectory_persist_latency_ms else 0.0,
-            "max": max(trajectory_persist_latency_ms) if trajectory_persist_latency_ms else 0.0,
+        "transition_latency_ms": {
+            "mean": _mean(transition_latency_ms),
+            "min": min(transition_latency_ms) if transition_latency_ms else 0.0,
+            "max": max(transition_latency_ms) if transition_latency_ms else 0.0,
+        },
+        "reward_latency_ms": {
+            "mean": _mean(reward_latency_ms),
+            "min": min(reward_latency_ms) if reward_latency_ms else 0.0,
+            "max": max(reward_latency_ms) if reward_latency_ms else 0.0,
+        },
+        "persist_latency_ms": {
+            "mean": _mean(persist_latency_ms),
+            "min": min(persist_latency_ms) if persist_latency_ms else 0.0,
+            "max": max(persist_latency_ms) if persist_latency_ms else 0.0,
         },
         "chunk_count": {
             "mean": _mean(chunk_count),
@@ -65,6 +79,18 @@ def _summary_from_result(result: dict[str, Any]) -> dict[str, Any]:
         "max_chunk_size": {
             "mean": _mean(max_chunk_size),
             "max": max(max_chunk_size) if max_chunk_size else 0.0,
+        },
+        "state_bytes": {
+            "mean": _mean(state_bytes),
+            "max": max(state_bytes) if state_bytes else 0.0,
+        },
+        "state_count": {
+            "mean": _mean(state_count),
+            "max": max(state_count) if state_count else 0.0,
+        },
+        "queue_wait_ms": {
+            "mean": _mean(queue_wait_ms),
+            "max": max(queue_wait_ms) if queue_wait_ms else 0.0,
         },
         "state_locality_hit_rate": {
             "mean": _mean(state_locality),
@@ -188,10 +214,15 @@ def main() -> None:
             [
                 f"env_steps_per_sec={summary['env_steps_per_sec']['mean']:.3f}",
                 f"step_latency_ms={summary['step_latency_ms']['mean']:.3f}",
-                f"reward_stage_latency_ms={summary['reward_stage_latency_ms']['mean']:.6f}",
-                f"trajectory_persist_latency_ms={summary['trajectory_persist_latency_ms']['mean']:.6f}",
+                f"schedule_latency_ms={summary['schedule_latency_ms']['mean']:.6f}",
+                f"transition_latency_ms={summary['transition_latency_ms']['mean']:.6f}",
+                f"reward_latency_ms={summary['reward_latency_ms']['mean']:.6f}",
+                f"persist_latency_ms={summary['persist_latency_ms']['mean']:.6f}",
                 f"chunk_count={summary['chunk_count']['mean']:.3f}",
                 f"max_chunk_size={summary['max_chunk_size']['max']:.0f}",
+                f"state_bytes={summary['state_bytes']['mean']:.1f}",
+                f"state_count={summary['state_count']['mean']:.1f}",
+                f"queue_wait_ms={summary['queue_wait_ms']['mean']:.6f}",
                 f"state_locality_hit_rate={summary['state_locality_hit_rate']['mean']:.3f}",
                 f"auto_reset_count={summary['auto_reset_count']['mean']:.3f}",
                 f"final_success_rate={summary['final_success_rate']:.3f}",

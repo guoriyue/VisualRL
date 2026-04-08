@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from wm_infra.backends.wan import WanVideoBackend
-from wm_infra.backends.wan_engine import (
+from wm_infra.backends.wan.engine import (
     DiffusersWanI2VAdapter,
     OfficialWanInProcessAdapter,
     WanCompiledGraphManager,
@@ -14,7 +14,7 @@ from wm_infra.backends.wan_engine import (
     WanExecutionContext,
     load_wan_engine_adapter,
 )
-from wm_infra.backends.wan_runtime import build_wan_transfer_plan
+from wm_infra.backends.wan.runtime import build_wan_transfer_plan
 from wm_infra.controlplane import ProduceSampleRequest, SampleSpec, TaskType, WanTaskConfig
 
 
@@ -235,9 +235,11 @@ async def test_in_process_stub_scheduler_records_pipeline_and_stage_metadata(tmp
     assert record.runtime["execution_backend"] == "in_process_stage_scheduler"
     assert record.runtime["engine"]["name"] == "stub-wan-engine"
     assert record.runtime["pipeline"]["execution_backend"] == "in_process_stage_scheduler"
+    assert record.runtime["pipeline"]["pipeline_name"] == "wan-generation"
     assert record.runtime["pipeline"]["stage_count"] >= 6
     assert record.runtime["pipeline"]["stage_sequence"][0] == "text_encode"
     assert record.runtime["pipeline"]["stage_sequence"][-1] == "persist"
+    assert record.runtime["operator"]["runtime"]["local_scheduler"] is True
     assert record.runtime["pipeline"]["compiled_graph_lifecycle"]["graph_count"] >= 1
     assert record.runtime["stages"][0]["name"] == "text_encode"
     assert record.runtime["stages"][2]["name"] == "vae_decode" or record.runtime["stages"][2]["name"] == "diffusion"

@@ -7,7 +7,8 @@ It is a repo for **temporal model infra**: running, tracking, and extending syst
 
 Today, the real implemented paths are:
 - **Wan 2.2 video generation** via the `wan-video` backend
-- **Genie temporal rollouts** via the `genie-rollout` backend
+- **Dynamics-style temporal rollouts** via the `matrix-game` backend
+- **World/video generation** via the `cosmos-predict` backend
 - the legacy low-level **rollout engine** API for internal/runtime bring-up
 
 That distinction matters. The repo should read like a temporal infra system with concrete backend paths, not like a broad "serve any model" project.
@@ -66,23 +67,31 @@ Important reality:
 - the control plane is already shaped around Wan 2.2's real operational constraints: frame count, resolution, steps, and low-VRAM/offload mode
 - the currently wired official runner path is aligned with `wan2.2-t2v-A14B` and `wan2.2-i2v-A14B`
 
-### 2. Genie rollout (`genie-rollout`)
+### 2. Dynamics rollout backend (`matrix-game`)
 Implemented and wired through `POST /v1/samples`.
 
 Current capabilities:
 - temporal rollout-style sample production
-- real or stub runner modes
-- stateful temporal references (`episode_id`, rollout/state handles)
-- persisted tokens/runtime artifacts
-- first-class `genie_config` for rollout/tokenizer execution knobs
-- explicit real-mode contract validation for Genie token windows and tokenizer compatibility
+- explicit action-conditioned latent stepping
+- `dynamics` world-model classification in the control plane
+- matrix-style action traces through `sample_spec.controls.actions`
+- reusable rollout-engine substrate for bring-up
 
 Important reality:
 - this is the clearest current path for **world-model / temporal rollout serving** in the repo
-- it is not yet a generic tokenized-video platform; it is specifically aligned with the current Genie path
-- real Genie execution currently expects STMaskGIT-compatible token inputs and validates them explicitly
+- it is video-model-based dynamics infra, not a generic env platform
+- the current concrete implementation stabilizes the northbound `dynamics` contract before a dedicated Matrix runtime lands
 
-### 3. Legacy rollout engine (`rollout-engine`)
+### 3. Cosmos generation backend (`cosmos-predict`)
+Implemented and wired through `POST /v1/samples`.
+
+Current capabilities:
+- Cosmos-family text/video to world generation
+- `generation` world-model classification in the control plane
+- queue-backed async execution
+- explicit `cosmos_config` for variant and runner behavior
+
+### 4. Legacy rollout engine (`rollout-engine`)
 Still present and useful, but lower-level.
 
 Purpose:
@@ -102,7 +111,8 @@ Responsible for actually executing temporal model workloads.
 
 Examples in this repo:
 - `wan-video`
-- `genie-rollout`
+- `matrix-game`
+- `cosmos-predict`
 - low-level rollout engine
 
 ### Control plane
@@ -162,9 +172,11 @@ submitting those IDs explicitly rather than relying on an in-memory session.
 ```text
 wm_infra/
   api/            HTTP surface for temporal sample production and rollout bring-up
-  backends/       concrete temporal backend adapters (Wan 2.2, Genie, rollout-engine)
+  backends/       concrete temporal backend adapters (Wan 2.2, Matrix, Cosmos, rollout-engine)
   controlplane/   sample schemas, manifests, temporal lineage, resource estimates
-  core/           runtime engine, scheduler, state handling
+  rollout_engine/ legacy low-level rollout runtime substrate
+  execution/      shared execution substrate
+  env_runtime/    learned-env runtime substrate
   models/         model interfaces and registry
   tokenizer/      token/video tokenizer code
   ops/            backend ops / kernels
@@ -181,7 +193,7 @@ The config should mirror the actual product shape:
 - core runtime config
 - server config
 - control-plane storage config
-- backend-specific config for Wan 2.2 and Genie queue/runner behavior
+- backend-specific config for Wan 2.2 and Cosmos queue/runner behavior
 
 Current environment variables include:
 - `WM_MANIFEST_STORE_ROOT`
@@ -191,14 +203,12 @@ Current environment variables include:
 - `WM_WAN_CONDA_ENV`
 - `WM_WAN_MAX_QUEUE_SIZE`
 - `WM_WAN_MAX_CONCURRENT_JOBS`
-- `WM_GENIE_OUTPUT_ROOT`
-- `WM_GENIE_MODEL_NAME`
-- `WM_GENIE_DEVICE`
-- `WM_GENIE_NUM_PROMPT_FRAMES`
-- `WM_GENIE_MASKGIT_STEPS`
-- `WM_GENIE_TEMPERATURE`
-- `WM_GENIE_MAX_QUEUE_SIZE`
-- `WM_GENIE_MAX_CONCURRENT_JOBS`
+- `WM_COSMOS_OUTPUT_ROOT`
+- `WM_COSMOS_BASE_URL`
+- `WM_COSMOS_MODEL_NAME`
+- `WM_COSMOS_SHELL_RUNNER`
+- `WM_COSMOS_MAX_QUEUE_SIZE`
+- `WM_COSMOS_MAX_CONCURRENT_JOBS`
 
 ## Why the memory-aware framing exists
 
@@ -210,7 +220,7 @@ That is why `wm-infra` makes these fields first-class in request/config models i
 
 ## Near-term repo priorities
 
-1. Keep Wan 2.2 and Genie paths explicit and honest
+1. Keep Wan 2.2, Matrix, and Cosmos paths explicit and honest
 2. Keep the control plane schema-first
 3. Avoid vague generic-inference messaging
 4. Make backend onboarding easier by separating runtime code from sample/control-plane code
@@ -227,12 +237,12 @@ wm-serve
 Defaults:
 - sample manifests: `${TMPDIR:-/tmp}/wm_infra`
 - Wan 2.2 outputs: `${TMPDIR:-/tmp}/wm_infra_wan`
-- Genie outputs: `${TMPDIR:-/tmp}/wm_infra_genie`
+- Cosmos outputs: `${TMPDIR:-/tmp}/wm_infra_cosmos`
 
 For `POST /v1/samples`:
 - rollout-style execution parameters belong in `task_config`
 - Wan 2.2-specific parameters belong in `wan_config`
-- Genie-specific parameters belong in `genie_config`
+- Cosmos-specific parameters belong in `cosmos_config`
 - some legacy metadata backfilling still exists for compatibility, but new callers should use first-class config objects
 
 ## Benchmarking and comparison tooling

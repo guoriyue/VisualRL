@@ -7,10 +7,8 @@ import pytest_asyncio
 from asgi_lifespan import LifespanManager
 
 from wm_infra.api.server import create_app
-from wm_infra.backends import BackendRegistry, GenieRolloutBackend
-from wm_infra.backends.genie_runner import GenieRunner
 from wm_infra.config import ControlPlaneConfig, DynamicsConfig, EngineConfig, StateCacheConfig, TokenizerConfig
-from wm_infra.controlplane import SampleManifestStore, TemporalStore
+from wm_infra.controlplane import SampleManifestStore
 
 
 def _load_benchmark_module():
@@ -51,7 +49,7 @@ def _test_config(tmp_path: Path) -> EngineConfig:
         controlplane=ControlPlaneConfig(
             manifest_store_root=str(tmp_path / "manifests"),
             wan_output_root=str(tmp_path / "wan"),
-            genie_output_root=str(tmp_path / "genie"),
+            cosmos_output_root=str(tmp_path / "cosmos"),
         ),
     )
 
@@ -59,23 +57,9 @@ def _test_config(tmp_path: Path) -> EngineConfig:
 @pytest_asyncio.fixture
 async def client(tmp_path):
     config = _test_config(tmp_path)
-    temporal_store = TemporalStore(tmp_path / "temporal")
-    registry = BackendRegistry()
-    genie_runner = GenieRunner()
-    genie_runner._mode = "stub"
-    genie_runner.load = lambda: "stub"  # type: ignore[method-assign]
-    registry.register(
-        GenieRolloutBackend(
-            temporal_store,
-            output_root=tmp_path / "genie",
-            runner=genie_runner,
-        )
-    )
     app = create_app(
         config,
         sample_store=SampleManifestStore(tmp_path / "manifests"),
-        backend_registry=registry,
-        temporal_store=temporal_store,
     )
 
     async with LifespanManager(app) as manager:
@@ -87,18 +71,15 @@ async def client(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_prepare_request_payload_creates_temporal_refs_for_genie(client):
+async def test_prepare_request_payload_is_identity_for_matrix_payload(client):
     bench = _load_benchmark_module()
 
-    prepared = await bench._prepare_request_payload(client, bench.DEFAULT_GENIE_PAYLOAD)
-    assert prepared["backend"] == "genie-rollout"
-    assert prepared["temporal"]["episode_id"]
-    assert prepared["temporal"]["branch_id"]
-    assert prepared["temporal"]["state_handle_id"]
+    prepared = await bench._prepare_request_payload(client, bench.DEFAULT_MATRIX_PAYLOAD)
+    assert prepared == bench.DEFAULT_MATRIX_PAYLOAD
 
 
 @pytest.mark.asyncio
-async def test_prepare_request_payload_leaves_non_genie_payload_unchanged(client):
+async def test_prepare_request_payload_leaves_non_matrix_payload_unchanged(client):
     bench = _load_benchmark_module()
 
     prepared = await bench._prepare_request_payload(client, bench.DEFAULT_WAN_PAYLOAD)
@@ -132,6 +113,14 @@ def test_load_payload_supports_cosmos(monkeypatch):
     args = bench.parse_args()
     payload = bench._load_payload(args)
     assert payload["backend"] == "cosmos-predict"
+
+
+def test_load_payload_supports_matrix(monkeypatch):
+    bench = _load_benchmark_module()
+    monkeypatch.setattr("sys.argv", ["bench_samples_api.py", "--in-process", "--workload", "matrix"])
+    args = bench.parse_args()
+    payload = bench._load_payload(args)
+    assert payload["backend"] == "matrix-game"
 
 
 def test_observed_runtime_fields_in_process():
@@ -210,8 +199,8 @@ def test_runtime_accounting_extracts_compile_cache_transfer_and_residency():
     assert wan_accounting["transfer"]["total_bytes"] == 7296
     assert wan_accounting["residency"]["tier_counts"]["gpu_hot"] == 1
 
-    genie_payload = {
-        "backend": "genie-rollout",
+    matrix_payload = {
+        "backend": "matrix-game",
         "runtime": {
             "runtime_state": {
                 "prompt_reuse_hit": True,
@@ -239,10 +228,10 @@ def test_runtime_accounting_extracts_compile_cache_transfer_and_residency():
             }
         },
     }
-    genie_accounting = bench._runtime_accounting(genie_payload)
-    assert genie_accounting["cache"]["prompt_reuse_hit"] is True
-    assert genie_accounting["cache"]["page_count"] == 4
-    assert genie_accounting["transfer"]["artifact_io_bytes"] == 128
+    matrix_accounting = bench._runtime_accounting(matrix_payload)
+    assert matrix_accounting["cache"]["prompt_reuse_hit"] is True
+    assert matrix_accounting["cache"]["page_count"] == 4
+    assert matrix_accounting["transfer"]["artifact_io_bytes"] == 128
 
 
 def test_profile_samples_aggregates_runtime_accounting():
@@ -260,9 +249,9 @@ def test_profile_samples_aggregates_runtime_accounting():
             },
         },
         {
-            "backend": "genie-rollout",
+            "backend": "matrix-game",
             "accounting": {
-                "backend": "genie-rollout",
+                "backend": "matrix-game",
                 "compile": {"compile_state": "cold_start", "warm_profile_hit": False},
                 "cache": {"prompt_reuse_hit": True, "page_count": 4},
                 "transfer": {"total_bytes": 384, "h2d_bytes": 256, "d2h_bytes": 0, "artifact_io_bytes": 128},
@@ -273,7 +262,7 @@ def test_profile_samples_aggregates_runtime_accounting():
 
     profile = bench._profile_samples(samples)
     assert profile["compile"]["warm_profile_hits"] == 1
-    assert profile["compile"]["backend_hits"] == {"wan-video": 1, "genie-rollout": 1}
+    assert profile["compile"]["backend_hits"] == {"wan-video": 1, "matrix-game": 1}
     assert profile["cache"]["prompt_cache_hits"] == 1
     assert profile["cache"]["mean_page_count"] == 4.0
     assert profile["transfer"]["total_bytes"] == 7680

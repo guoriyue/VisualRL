@@ -18,7 +18,6 @@ from .schemas import (
     EvaluationStatus,
     ExperimentRef,
     FailureTag,
-    GenieTaskConfig,
     ProduceSampleRequest,
     ResourceEstimate,
     RolloutTaskConfig,
@@ -30,10 +29,10 @@ from .schemas import (
     TokenInputSource,
     TokenInputSpec,
     TokenizerFamily,
-    TokenizerKind,
     TrainingExportRecord,
     VideoMemoryProfile,
     WanTaskConfig,
+    WorldModelKind,
 )
 from .storage import SampleManifestStore
 from .temporal import (
@@ -105,7 +104,6 @@ __all__ = [
     "EvaluationStatus",
     "ExperimentRef",
     "FailureTag",
-    "GenieTaskConfig",
     "ProduceSampleRequest",
     "ReplayShardCreate",
     "ReplayShardManifest",
@@ -130,7 +128,6 @@ __all__ = [
     "TokenInputSource",
     "TokenInputSpec",
     "TokenizerFamily",
-    "TokenizerKind",
     "TrainingExportRecord",
     "TrajectoryCreate",
     "TrajectoryRecord",
@@ -138,6 +135,7 @@ __all__ = [
     "TransitionRecord",
     "VideoMemoryProfile",
     "WanTaskConfig",
+    "WorldModelKind",
     "estimate_cosmos_request",
     "estimate_rollout_request",
     "estimate_wan_request",

@@ -6,9 +6,7 @@ import pytest
 import torch
 
 from wm_infra.config import EngineConfig, DynamicsConfig, TokenizerConfig, StateCacheConfig
-from wm_infra.core.engine import WorldModelEngine, AsyncWorldModelEngine, RolloutJob
-from wm_infra.core.state import LatentStateManager
-from wm_infra.core.scheduler import RolloutScheduler, RolloutRequest
+from wm_infra.rollout_engine import AsyncWorldModelEngine, LatentStateManager, RolloutJob, RolloutRequest, RolloutScheduler, WorldModelEngine
 from wm_infra.models.dynamics import LatentDynamicsModel
 from wm_infra.models.base import RolloutInput
 from wm_infra.tokenizer.video_tokenizer import VideoTokenizer, FSQQuantizer

@@ -14,8 +14,8 @@ import torch
 
 from benchmarks.benchmarking import GpuSampler, format_gpu_summary
 from wm_infra.config import EngineConfig, DynamicsConfig
-from wm_infra.core.engine import WorldModelEngine, RolloutJob
 from wm_infra.models.dynamics import LatentDynamicsModel
+from wm_infra.rollout_engine import RolloutJob, WorldModelEngine
 
 
 def _tensor_nbytes(shape: tuple[int, ...], dtype: torch.dtype) -> int:

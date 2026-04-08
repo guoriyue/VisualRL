@@ -20,7 +20,7 @@ from wm_infra.controlplane import (
     TemporalStatus,
     TemporalStore,
 )
-from wm_infra.workloads.reinforcement_learning.runtime import TemporalEnvManager
+from wm_infra.workloads.reinforcement_learning.runtime import ReinforcementLearningEnvManager
 
 
 @dataclass(slots=True)
@@ -183,8 +183,10 @@ class LocalActorCriticLearner(LearnerAdapter):
         collection_ms = float(batch.collection_ms)
         env_steps_per_sec = (num_transitions / (collection_ms / 1000.0)) if collection_ms > 0 else 0.0
         step_latency_ms = (collection_ms / num_transitions) if num_transitions > 0 else 0.0
-        reward_stage_ms = float(batch.runtime_profile.get("reward_stage_ms", 0.0))
-        trajectory_persist_ms = float(batch.runtime_profile.get("trajectory_persist_ms", 0.0))
+        schedule_ms = float(batch.runtime_profile.get("schedule_ms", 0.0))
+        transition_ms = float(batch.runtime_profile.get("transition_ms", 0.0))
+        reward_ms = float(batch.runtime_profile.get("reward_ms", 0.0))
+        persist_ms = float(batch.runtime_profile.get("persist_ms", 0.0))
         return {
             "loss": float(loss.item()),
             "policy_loss": float(policy_loss.item()),
@@ -203,10 +205,17 @@ class LocalActorCriticLearner(LearnerAdapter):
                 if batch.runtime_profile.get("chunk_sizes")
                 else 0.0
             ),
-            "reward_stage_ms": reward_stage_ms,
-            "reward_stage_latency_ms": (reward_stage_ms / num_transitions) if num_transitions > 0 else 0.0,
-            "trajectory_persist_ms": trajectory_persist_ms,
-            "trajectory_persist_latency_ms": (trajectory_persist_ms / num_transitions) if num_transitions > 0 else 0.0,
+            "schedule_ms": schedule_ms,
+            "schedule_latency_ms": (schedule_ms / num_transitions) if num_transitions > 0 else 0.0,
+            "transition_ms": transition_ms,
+            "transition_latency_ms": (transition_ms / num_transitions) if num_transitions > 0 else 0.0,
+            "reward_ms": reward_ms,
+            "reward_latency_ms": (reward_ms / num_transitions) if num_transitions > 0 else 0.0,
+            "persist_ms": persist_ms,
+            "persist_latency_ms": (persist_ms / num_transitions) if num_transitions > 0 else 0.0,
+            "state_bytes": float(batch.runtime_profile.get("state_bytes", 0)),
+            "state_count": float(batch.runtime_profile.get("state_count", 0)),
+            "queue_wait_ms": float(batch.runtime_profile.get("queue_wait_ms", 0.0)),
             "state_locality_hit_rate": float(batch.runtime_profile.get("state_locality_hit_rate", 0.0)),
             "auto_reset_count": float(batch.runtime_profile.get("auto_reset_count", 0)),
         }
@@ -219,7 +228,7 @@ class SynchronousCollector(Collector):
     explicit reset semantics after terminal or truncated steps.
     """
 
-    def __init__(self, manager: TemporalEnvManager, spec: ExperimentSpec) -> None:
+    def __init__(self, manager: ReinforcementLearningEnvManager, spec: ExperimentSpec) -> None:
         self.manager = manager
         self.spec = spec
         self.device = torch.device("cpu")
@@ -265,8 +274,13 @@ class SynchronousCollector(Collector):
             "chunk_count": 0,
             "chunk_sizes": [],
             "max_chunk_size": 0,
-            "reward_stage_ms": 0.0,
-            "trajectory_persist_ms": 0.0,
+            "schedule_ms": 0.0,
+            "transition_ms": 0.0,
+            "reward_ms": 0.0,
+            "persist_ms": 0.0,
+            "state_bytes": 0,
+            "state_count": 0,
+            "queue_wait_ms": 0.0,
             "state_locality_hit_rate": 1.0,
             "auto_reset_count": 0,
         }
@@ -298,8 +312,13 @@ class SynchronousCollector(Collector):
                 int(runtime_profile["max_chunk_size"]),
                 int(response.runtime.get("max_chunk_size", 0)),
             )
-            runtime_profile["reward_stage_ms"] += float(response.runtime.get("reward_stage_ms", 0.0))
-            runtime_profile["trajectory_persist_ms"] += float(response.runtime.get("trajectory_persist_ms", 0.0))
+            runtime_profile["schedule_ms"] += float(response.runtime.get("schedule_ms", 0.0))
+            runtime_profile["transition_ms"] += float(response.runtime.get("transition_ms", 0.0))
+            runtime_profile["reward_ms"] += float(response.runtime.get("reward_ms", 0.0))
+            runtime_profile["persist_ms"] += float(response.runtime.get("persist_ms", 0.0))
+            runtime_profile["state_bytes"] += int(response.runtime.get("state_bytes", 0))
+            runtime_profile["state_count"] += int(response.runtime.get("state_count", 0))
+            runtime_profile["queue_wait_ms"] += float(response.runtime.get("queue_wait_ms", 0.0))
             rewards = torch.as_tensor([item.reward for item in response.results], dtype=self.dtype, device=self.device)
             terminated = torch.as_tensor([item.terminated for item in response.results], dtype=torch.bool, device=self.device)
             truncated = torch.as_tensor([item.truncated for item in response.results], dtype=torch.bool, device=self.device)
@@ -373,7 +392,7 @@ class SynchronousCollector(Collector):
 class FixedTaskEvaluator(Evaluator):
     """Deterministic evaluator that runs a fixed task split against current policy."""
 
-    def __init__(self, manager: TemporalEnvManager, spec: ExperimentSpec, temporal_store: TemporalStore) -> None:
+    def __init__(self, manager: ReinforcementLearningEnvManager, spec: ExperimentSpec, temporal_store: TemporalStore) -> None:
         self.manager = manager
         self.spec = spec
         self.temporal_store = temporal_store
@@ -529,8 +548,8 @@ def run_local_experiment(spec: ExperimentSpec | None = None) -> dict[str, Any]:
     cfg = spec or ExperimentSpec()
     temporal_root = Path(cfg.temporal_root) if cfg.temporal_root else Path("/tmp") / "wm_infra_rl" / cfg.experiment_name
     temporal_store = TemporalStore(temporal_root)
-    collector_manager = TemporalEnvManager(temporal_store)
-    evaluator_manager = TemporalEnvManager(temporal_store)
+    collector_manager = ReinforcementLearningEnvManager(temporal_store)
+    evaluator_manager = ReinforcementLearningEnvManager(temporal_store)
     collector = SynchronousCollector(collector_manager, cfg)
 
     try:
@@ -574,9 +593,11 @@ def run_local_experiment(spec: ExperimentSpec | None = None) -> dict[str, Any]:
             "backend_runtime": {
                 "backend_family": collector_manager.backend_for_env(cfg.train_env_name),
                 "runner_mode": (
-                    collector_manager.genie_world_model.runner.mode
-                    if cfg.train_env_name == "genie-token-grid-v0"
-                    else "native"
+                    getattr(
+                        getattr(collector_manager.catalog.world_model_for_env(cfg.train_env_name), "runner", None),
+                        "mode",
+                        "native",
+                    )
                 ),
             },
             "final_mean_return": metrics[-1]["mean_return"],

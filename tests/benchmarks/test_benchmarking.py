@@ -3,7 +3,7 @@ import subprocess
 from pathlib import Path
 
 from benchmarks import benchmarking as bench
-from benchmarks.benchmarking import benchmark_gate_report, capture_runtime_context, comparable_run_pair, comparison_report, format_gpu_summary, genie_cleanup_gate_report, load_json, percentile, run_summary_from_samples, summarize_gpu_samples, summarize_latency_ms
+from benchmarks.benchmarking import benchmark_gate_report, capture_runtime_context, comparable_run_pair, comparison_report, format_gpu_summary, percentile, run_summary_from_samples, summarize_gpu_samples, summarize_latency_ms
 
 
 def test_percentile_interpolates():
@@ -127,7 +127,7 @@ def test_comparison_report_embeds_metric_deltas():
 
 def test_benchmark_gate_report_enforces_thresholds():
     baseline = {
-        "workload": {"workload_kind": "sample_api", "backend_family": "genie-rollout", "runtime_execution_mode": "chunked"},
+        "workload": {"workload_kind": "sample_api", "backend_family": "matrix-game", "runtime_execution_mode": "chunked"},
         "summary": {
             "latency": {
                 "submit": {"mean_ms": 10.0, "p95_ms": 12.0},
@@ -137,7 +137,7 @@ def test_benchmark_gate_report_enforces_thresholds():
         },
     }
     current = {
-        "workload": {"workload_kind": "sample_api", "backend_family": "genie-rollout", "runtime_execution_mode": "chunked"},
+        "workload": {"workload_kind": "sample_api", "backend_family": "matrix-game", "runtime_execution_mode": "chunked"},
         "summary": {
             "latency": {
                 "submit": {"mean_ms": 9.0, "p95_ms": 11.0},
@@ -178,29 +178,6 @@ def test_benchmark_gate_report_enforces_thresholds():
     assert fail_report["success_rate_pass"] is False
     assert fail_report["terminal_mean_pass"] is False
     assert fail_report["terminal_p95_pass"] is False
-
-
-def test_committed_genie_cleanup_gate_artifacts_pass():
-    root = Path(__file__).resolve().parents[2]
-    paths = [
-        root / "benchmarks/results/genie_default_baseline.json",
-        root / "benchmarks/results/genie_default_batched.json",
-        root / "benchmarks/results/genie_heavy_off.json",
-        root / "benchmarks/results/genie_heavy_on.json",
-    ]
-    if not all(p.exists() for p in paths):
-        pytest.skip("benchmark result artifacts not present (run benchmarks first)")
-    report = genie_cleanup_gate_report(
-        default_baseline=load_json(paths[0]),
-        default_batched=load_json(paths[1]),
-        heavy_off=load_json(paths[2]),
-        heavy_on=load_json(paths[3]),
-    )
-
-    assert report["default"]["pass"] is True
-    assert report["heavy"]["pass"] is True
-    assert report["overall_pass"] is True
-
 
 def test_sample_gpu_snapshot_parses_nvidia_smi_output(monkeypatch):
     monkeypatch.setattr(bench.shutil, "which", lambda _: "/usr/bin/nvidia-smi")

@@ -2,7 +2,7 @@
 
 Provides two distinct surfaces:
 - low-level rollout runtime endpoints for engine bring-up
-- higher-level temporal sample-production endpoints for Wan 2.2 / Genie-style backends
+- higher-level temporal sample-production endpoints for backend-specific temporal workloads such as Wan 2.2, Matrix-Game, and Cosmos
 
 Endpoints include:
 - POST /v1/rollout — submit a rollout prediction (supports stream=true for SSE)
@@ -46,9 +46,8 @@ from wm_infra.api.protocol import (
     TransitionPredictManyRequest,
     TransitionPredictRequest,
 )
-from wm_infra.backends import BackendRegistry, CosmosJobQueue, CosmosPredictBackend, GenieJobQueue, GenieRolloutBackend, RolloutBackend, WanJobQueue, WanVideoBackend
-from wm_infra.backends.cosmos_runner import CosmosRunner
-from wm_infra.backends.genie_runner import GenieRunner
+from wm_infra.backends import BackendRegistry, CosmosJobQueue, CosmosPredictBackend, MatrixGameBackend, RolloutBackend, WanJobQueue, WanVideoBackend
+from wm_infra.backends.cosmos import CosmosRunner
 from wm_infra.config import EngineConfig, load_config
 from wm_infra.controlplane import (
     BranchCreate,
@@ -60,9 +59,9 @@ from wm_infra.controlplane import (
     StateHandleCreate,
     TemporalStore,
 )
-from wm_infra.core.engine import AsyncWorldModelEngine, RolloutJob
+from wm_infra.rollout_engine import AsyncWorldModelEngine, RolloutJob
 from wm_infra.models.dynamics import LatentDynamicsModel
-from wm_infra.runtime.env import TemporalEnvManager
+from wm_infra.workloads.reinforcement_learning.runtime import ReinforcementLearningEnvManager
 from wm_infra.tokenizer.video_tokenizer import VideoTokenizer
 
 logger = logging.getLogger("wm_infra")
@@ -147,25 +146,8 @@ def create_app(
         registry = backend_registry or BackendRegistry()
         if registry.get("rollout-engine") is None:
             registry.register(RolloutBackend(_engine))
-        if registry.get("genie-rollout") is None:
-            genie_output = config.controlplane.genie_output_root or str(
-                Path(tempfile.gettempdir()) / "wm_infra_genie"
-            )
-            genie_runner = GenieRunner(
-                model_name_or_path=config.controlplane.genie_model_name or "1x-technologies/GENIE_210M_v0",
-                device=config.controlplane.genie_device or "cuda",
-                num_prompt_frames=config.controlplane.genie_num_prompt_frames,
-                maskgit_steps=config.controlplane.genie_maskgit_steps,
-                temperature=config.controlplane.genie_temperature,
-            )
-            genie_backend = GenieRolloutBackend(
-                temporal_store,
-                output_root=genie_output,
-                runner=genie_runner,
-                transition_max_batch_size=config.controlplane.genie_max_batch_size,
-                transition_batch_wait_ms=config.controlplane.genie_batch_wait_ms,
-            )
-            registry.register(genie_backend)
+        if registry.get("matrix-game") is None:
+            registry.register(MatrixGameBackend(_engine))
         if registry.get("wan-video") is None:
             wan_root = config.controlplane.wan_output_root or str(Path(tempfile.gettempdir()) / "wm_infra_wan")
             wan_backend = WanVideoBackend(
@@ -236,31 +218,12 @@ def create_app(
             cosmos_backend._job_queue = cosmos_job_queue
             cosmos_job_queue.start()
 
-        genie_job_queue = None
-        genie_backend = registry.get("genie-rollout")
-        if isinstance(genie_backend, GenieRolloutBackend):
-            genie_queue_batch_size = genie_backend.queue_batch_size_limit(config.controlplane.genie_max_batch_size)
-            genie_job_queue = GenieJobQueue(
-                execute_fn=genie_backend.execute_job,
-                execute_many_fn=genie_backend.execute_job_batch,
-                batch_key_fn=genie_backend.queue_batch_key,
-                store=sample_store,
-                queue_name="genie",
-                max_queue_size=config.controlplane.genie_max_queue_size,
-                max_concurrent=config.controlplane.genie_max_concurrent_jobs,
-                max_batch_size=genie_queue_batch_size,
-                batch_wait_ms=config.controlplane.genie_batch_wait_ms,
-            )
-            genie_backend._job_queue = genie_job_queue
-            genie_job_queue.start()
-
         app.state.backend_registry = registry
         app.state.sample_store = sample_store
         app.state.temporal_store = temporal_store
         app.state.wan_job_queue = wan_job_queue
         app.state.cosmos_job_queue = cosmos_job_queue
-        app.state.genie_job_queue = genie_job_queue
-        app.state.temporal_env_manager = TemporalEnvManager(temporal_store)
+        app.state.temporal_env_manager = ReinforcementLearningEnvManager(temporal_store)
 
         device_str = config.device.value if hasattr(config.device, "value") else str(config.device)
         logger.info(
@@ -272,8 +235,6 @@ def create_app(
             await wan_job_queue.stop()
         if cosmos_job_queue is not None:
             await cosmos_job_queue.stop()
-        if genie_job_queue is not None:
-            await genie_job_queue.stop()
         await _engine.stop()
 
     app = FastAPI(title="wm-infra", description="Temporal model serving and control-plane infrastructure", version="0.1.0", lifespan=lifespan)
@@ -322,7 +283,7 @@ def create_app(
         backends = []
         for name in registry.names():
             backend = registry.get(name)
-            info = {"name": name, "type": backend.__class__.__name__}
+            info = {"name": name, "type": backend.__class__.__name__, **backend.backend_descriptor()}
             if isinstance(backend, WanVideoBackend):
                 info.update(
                     {
@@ -343,6 +304,9 @@ def create_app(
                         "warm_pool": backend._engine_pool.snapshot(),
                         "admission_max_units": backend.wan_admission_max_units,
                         "admission_max_vram_gb": backend.wan_admission_max_vram_gb,
+                        "operator": (
+                            None if backend._in_process_operator is None else backend._in_process_operator.describe()
+                        ),
                     }
                 )
             if isinstance(backend, CosmosPredictBackend):
@@ -354,16 +318,19 @@ def create_app(
                         "async_queue": backend._job_queue is not None,
                         "nim_base_url": backend.runner.base_url,
                         "shell_runner_configured": backend.runner.shell_runner is not None,
+                        "operator": backend._operator.describe(),
                     }
                 )
-            if isinstance(backend, GenieRolloutBackend):
-                info.update({
-                    "stateful": True,
-                    "runner_mode": backend.runner_mode,
-                    "model": backend.runner.model_name_or_path,
-                    "output_root": str(backend.output_root) if backend.output_root else None,
-                    "async_queue": backend._job_queue is not None,
-                })
+            if isinstance(backend, MatrixGameBackend):
+                info.update(
+                    {
+                        "stateful": True,
+                        "runtime_substrate": "rollout-engine",
+                        "async_queue": False,
+                        "action_dim": backend.engine.engine.config.dynamics.action_dim,
+                        "latent_token_dim": backend.engine.engine.config.dynamics.latent_token_dim,
+                    }
+                )
             backends.append(info)
         return {"backends": backends}
 
@@ -544,19 +511,16 @@ def create_app(
     async def queue_status():
         wan_queue = app.state.wan_job_queue
         cosmos_queue = app.state.cosmos_job_queue
-        genie_queue = app.state.genie_job_queue
-        if wan_queue is None and cosmos_queue is None and genie_queue is None:
+        if wan_queue is None and cosmos_queue is None:
             QUEUE_DEPTH.set(0)
             return {"queue_enabled": False}
         pending = (
             (wan_queue.pending_count if wan_queue else 0)
             + (cosmos_queue.pending_count if cosmos_queue else 0)
-            + (genie_queue.pending_count if genie_queue else 0)
         )
         running = (
             (wan_queue.running_count if wan_queue else 0)
             + (cosmos_queue.running_count if cosmos_queue else 0)
-            + (genie_queue.running_count if genie_queue else 0)
         )
         QUEUE_DEPTH.set(pending)
         return {
@@ -566,12 +530,10 @@ def create_app(
             "total_tracked": (
                 (wan_queue.total_count if wan_queue else 0)
                 + (cosmos_queue.total_count if cosmos_queue else 0)
-                + (genie_queue.total_count if genie_queue else 0)
             ),
             "queues": {
                 "wan": None if wan_queue is None else wan_queue.snapshot(),
                 "cosmos": None if cosmos_queue is None else cosmos_queue.snapshot(),
-                "genie": None if genie_queue is None else genie_queue.snapshot(),
             },
         }
 
@@ -717,19 +679,19 @@ def create_app(
 
     @app.get("/v1/env-specs")
     async def list_environment_specs():
-        manager: TemporalEnvManager = app.state.temporal_env_manager
+        manager: ReinforcementLearningEnvManager = app.state.temporal_env_manager
         items = manager.list_environment_specs()
         return {"environment_specs": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
     @app.get("/v1/task-specs")
     async def list_task_specs(env_name: str | None = None):
-        manager: TemporalEnvManager = app.state.temporal_env_manager
+        manager: ReinforcementLearningEnvManager = app.state.temporal_env_manager
         items = manager.list_task_specs(env_name=env_name)
         return {"task_specs": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
     @app.post("/v1/transitions/initialize")
     async def initialize_transition_context(request: TransitionInitializeRequest):
-        manager: TemporalEnvManager = app.state.temporal_env_manager
+        manager: ReinforcementLearningEnvManager = app.state.temporal_env_manager
         try:
             response = manager.initialize_transition_context(
                 env_name=request.env_name,
@@ -747,7 +709,7 @@ def create_app(
 
     @app.post("/v1/transitions/predict")
     async def predict_transition(request: TransitionPredictRequest):
-        manager: TemporalEnvManager = app.state.temporal_env_manager
+        manager: ReinforcementLearningEnvManager = app.state.temporal_env_manager
         try:
             response = manager.predict_transition(
                 state_handle_id=request.state_handle_id,
@@ -766,7 +728,7 @@ def create_app(
 
     @app.post("/v1/transitions/predict_many")
     async def predict_many_transitions(request: TransitionPredictManyRequest):
-        manager: TemporalEnvManager = app.state.temporal_env_manager
+        manager: ReinforcementLearningEnvManager = app.state.temporal_env_manager
         try:
             response = manager.predict_many_transitions(
                 items=[item.model_dump(mode="python") for item in request.items],
@@ -782,19 +744,19 @@ def create_app(
 
     @app.get("/v1/transitions")
     async def list_transitions(env_id: str | None = None, trajectory_id: str | None = None):
-        manager: TemporalEnvManager = app.state.temporal_env_manager
+        manager: ReinforcementLearningEnvManager = app.state.temporal_env_manager
         items = manager.list_transitions(env_id=env_id, trajectory_id=trajectory_id)
         return {"transitions": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
     @app.get("/v1/trajectories")
     async def list_trajectories(env_id: str | None = None, episode_id: str | None = None):
-        manager: TemporalEnvManager = app.state.temporal_env_manager
+        manager: ReinforcementLearningEnvManager = app.state.temporal_env_manager
         items = manager.list_trajectories(env_id=env_id, episode_id=episode_id)
         return {"trajectories": [item.model_dump(mode="json") for item in items], "count": len(items)}
 
     @app.get("/v1/evaluations")
     async def list_evaluation_runs():
-        manager: TemporalEnvManager = app.state.temporal_env_manager
+        manager: ReinforcementLearningEnvManager = app.state.temporal_env_manager
         items = manager.list_evaluation_runs()
         return {"evaluation_runs": [item.model_dump(mode="json") for item in items], "count": len(items)}
 

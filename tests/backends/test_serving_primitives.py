@@ -41,19 +41,17 @@ def test_transfer_plan_tracks_total_bytes():
 
 def test_compiled_profile_embeds_execution_family():
     family = ExecutionFamily(
-        backend="genie-rollout",
-        model="genie-local",
-        stage="transition",
+        backend="matrix-game",
+        model="matrix-game3-preview",
+        stage="rollout",
         device="cuda",
-        dtype="uint32",
-        runner_mode="real",
+        dtype="float16",
+        runner_mode="native",
         batch_size_family="small",
-        width=16,
-        height=16,
-        frame_count=4,
-        num_steps=2,
-        prompt_frames=4,
-        tokenizer_kind="genie_stmaskgit",
+        width=256,
+        height=256,
+        frame_count=9,
+        num_steps=4,
     )
     profile = CompiledProfile(
         profile_id="profile-1",
@@ -67,7 +65,7 @@ def test_compiled_profile_embeds_execution_family():
     )
     payload = profile.as_dict()
 
-    assert payload["execution_family"]["backend"] == "genie-rollout"
+    assert payload["execution_family"]["backend"] == "matrix-game"
     assert payload["compiled_batch_sizes"] == [1, 2]
 
 

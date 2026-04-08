@@ -192,18 +192,6 @@ class ControlPlaneConfig:
     cosmos_timeout_s: int = 600
     cosmos_max_queue_size: int = 64
     cosmos_max_concurrent_jobs: int = 1
-    # Genie backend
-    genie_output_root: Optional[str] = None
-    genie_model_name: Optional[str] = None
-    genie_device: Optional[str] = None
-    genie_num_prompt_frames: int = 8
-    genie_maskgit_steps: int = 2
-    genie_temperature: float = 0.0
-    genie_max_queue_size: int = 64
-    genie_max_concurrent_jobs: int = 1
-    genie_max_batch_size: int = 1
-    genie_batch_wait_ms: float = 0.0
-
 
 @dataclass
 class EngineConfig:
@@ -313,16 +301,6 @@ def _env_overrides() -> dict:
         "WM_COSMOS_TIMEOUT_S": (["controlplane", "cosmos_timeout_s"], int),
         "WM_COSMOS_MAX_QUEUE_SIZE": (["controlplane", "cosmos_max_queue_size"], int),
         "WM_COSMOS_MAX_CONCURRENT_JOBS": (["controlplane", "cosmos_max_concurrent_jobs"], int),
-        "WM_GENIE_OUTPUT_ROOT": (["controlplane", "genie_output_root"], str),
-        "WM_GENIE_MODEL_NAME": (["controlplane", "genie_model_name"], str),
-        "WM_GENIE_DEVICE": (["controlplane", "genie_device"], str),
-        "WM_GENIE_NUM_PROMPT_FRAMES": (["controlplane", "genie_num_prompt_frames"], int),
-        "WM_GENIE_MASKGIT_STEPS": (["controlplane", "genie_maskgit_steps"], int),
-        "WM_GENIE_TEMPERATURE": (["controlplane", "genie_temperature"], float),
-        "WM_GENIE_MAX_QUEUE_SIZE": (["controlplane", "genie_max_queue_size"], int),
-        "WM_GENIE_MAX_CONCURRENT_JOBS": (["controlplane", "genie_max_concurrent_jobs"], int),
-        "WM_GENIE_MAX_BATCH_SIZE": (["controlplane", "genie_max_batch_size"], int),
-        "WM_GENIE_BATCH_WAIT_MS": (["controlplane", "genie_batch_wait_ms"], float),
     }
 
     for env_key, (path, typ) in env_map.items():

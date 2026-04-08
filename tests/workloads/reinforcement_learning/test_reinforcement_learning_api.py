@@ -5,8 +5,6 @@ import pytest
 import pytest_asyncio
 
 from wm_infra.api.server import create_app
-from wm_infra.backends import BackendRegistry, GenieRolloutBackend
-from wm_infra.backends.genie_runner import GenieRunner
 from wm_infra.config import ControlPlaneConfig, DynamicsConfig, EngineConfig, StateCacheConfig, TokenizerConfig
 from wm_infra.controlplane import SampleManifestStore, TemporalStore
 
@@ -48,21 +46,9 @@ async def client(tmp_path):
     config.controlplane.cosmos_output_root = str(tmp_path / "cosmos")
     config.controlplane.wan_output_root = str(tmp_path / "wan")
     temporal_store = TemporalStore(tmp_path / "temporal")
-    registry = BackendRegistry()
-    genie_runner = GenieRunner()
-    genie_runner._mode = "stub"
-    genie_runner.load = lambda: "stub"  # type: ignore[method-assign]
-    registry.register(
-        GenieRolloutBackend(
-            temporal_store,
-            output_root=tmp_path / "genie",
-            runner=genie_runner,
-        )
-    )
     app = create_app(
         config,
         sample_store=SampleManifestStore(tmp_path),
-        backend_registry=registry,
         temporal_store=temporal_store,
     )
 
@@ -80,17 +66,11 @@ async def test_reinforcement_learning_catalog_endpoints_expose_default_env_and_t
     assert envs_resp.status_code == 200
     envs = envs_resp.json()["environment_specs"]
     assert any(item["env_name"] == "toy-line-v0" for item in envs)
-    assert any(item["env_name"] == "genie-token-grid-v0" for item in envs)
 
     tasks_resp = await client.get("/v1/task-specs")
     assert tasks_resp.status_code == 200
     tasks = tasks_resp.json()["task_specs"]
-    assert {item["task_id"] for item in tasks} >= {
-        "toy-line-train",
-        "toy-line-eval",
-        "genie-token-train",
-        "genie-token-eval",
-    }
+    assert {item["task_id"] for item in tasks} >= {"toy-line-train", "toy-line-eval"}
 
 
 @pytest.mark.asyncio
@@ -175,30 +155,3 @@ async def test_stateless_predict_many_batches_explicit_state_handles(client):
     assert payload["runtime"]["max_chunk_size"] >= 2
     assert all(item["step_idx"] == 1 for item in payload["results"])
     assert all(item["checkpoint_id"] is not None for item in payload["results"])
-
-
-@pytest.mark.asyncio
-async def test_genie_transition_initialize_and_predict_smoke(client):
-    init_resp = await client.post(
-        "/v1/transitions/initialize",
-        json={"env_name": "genie-token-grid-v0", "task_id": "genie-token-eval", "seed": 17},
-    )
-    assert init_resp.status_code == 200
-    initialized = init_resp.json()
-    assert initialized["env_name"] == "genie-token-grid-v0"
-    assert initialized["info"]["goal_token_grid"] is not None
-
-    step_resp = await client.post(
-        "/v1/transitions/predict",
-        json={
-            "state_handle_id": initialized["state_handle_id"],
-            "trajectory_id": initialized["trajectory_id"],
-            "action": [0.0, 1.0, 0.0, 0.0, 0.0],
-            "policy_version": "pi-genie",
-        },
-    )
-    assert step_resp.status_code == 200
-    stepped = step_resp.json()
-    assert stepped["step_idx"] == 1
-    assert stepped["terminated"] in (True, False)
-    assert "token_l1" in stepped["info"]

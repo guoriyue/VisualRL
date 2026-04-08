@@ -470,36 +470,6 @@ def benchmark_gate_report(
     return gate
 
 
-def genie_cleanup_gate_report(
-    *,
-    default_baseline: dict[str, Any],
-    default_batched: dict[str, Any],
-    heavy_off: dict[str, Any],
-    heavy_on: dict[str, Any],
-) -> dict[str, Any]:
-    """Evaluate the benchmark-backed cleanup gate for Genie ECS."""
-
-    default_gate = benchmark_gate_report(
-        default_batched,
-        default_baseline,
-        max_terminal_mean_ratio=1.05,
-        max_terminal_p95_ratio=1.10,
-        required_success_rate=1.0,
-    )
-    heavy_gate = benchmark_gate_report(
-        heavy_on,
-        heavy_off,
-        max_terminal_mean_ratio=1.05,
-        max_terminal_p95_ratio=1.10,
-        required_success_rate=1.0,
-    )
-    return {
-        "default": default_gate,
-        "heavy": heavy_gate,
-        "overall_pass": default_gate["pass"] and heavy_gate["pass"],
-    }
-
-
 def run_summary_from_samples(samples: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(samples)
     succeeded = sum(1 for item in samples if item.get("status") == "succeeded")

@@ -17,6 +17,8 @@ from typing import Any, Generic, Optional, TypeVar
 
 from pydantic import BaseModel, Field, ValidationError
 
+from wm_infra.controlplane.schemas import WorldModelKind
+
 
 class TemporalStatus(str, Enum):
     PENDING = "pending"
@@ -224,6 +226,7 @@ class CheckpointCreate(BaseModel):
 class EnvironmentSpec(BaseModel):
     env_name: str
     backend: str
+    world_model_kind: Optional[WorldModelKind] = None
     observation_mode: str
     action_space: dict[str, Any] = Field(default_factory=dict)
     reward_schema: dict[str, Any] = Field(default_factory=dict)

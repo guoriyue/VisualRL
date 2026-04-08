@@ -27,9 +27,10 @@ from wm_infra.controlplane import (
     TemporalRefs,
     TemporalStore,
     WanTaskConfig,
+    WorldModelKind,
     estimate_wan_request,
 )
-from wm_infra.runtime.env.state import split_state_handle_refs
+from wm_infra.env_runtime.state import split_state_handle_refs
 
 
 def test_produce_sample_request_defaults():
@@ -50,11 +51,13 @@ def test_produce_sample_request_accepts_typed_rollout_task_config():
         task_type=TaskType.TEMPORAL_ROLLOUT,
         backend="rollout-engine",
         model="latent_dynamics",
+        world_model_kind=WorldModelKind.DYNAMICS,
         sample_spec=SampleSpec(prompt="roll forward"),
         task_config=RolloutTaskConfig(num_steps=3, frame_count=9, width=832, height=480),
     )
 
     assert req.task_config is not None
+    assert req.world_model_kind == WorldModelKind.DYNAMICS
     assert req.task_config.num_steps == 3
     assert req.task_config.frame_count == 9
     assert req.task_config.width == 832
@@ -88,6 +91,7 @@ def test_sample_record_can_capture_lineage_evaluation_and_resource_estimate():
         task_type=TaskType.IMAGE_TO_VIDEO,
         backend="diffusers-runtime",
         model="wan2.2-live2d",
+        world_model_kind=WorldModelKind.GENERATION,
         status=SampleStatus.ACCEPTED,
         experiment=ExperimentRef(experiment_id="exp_live2d", run_id="run_01"),
         sample_spec=SampleSpec(
@@ -110,6 +114,7 @@ def test_sample_record_can_capture_lineage_evaluation_and_resource_estimate():
     )
 
     assert record.status == SampleStatus.ACCEPTED
+    assert record.world_model_kind == WorldModelKind.GENERATION
     assert record.experiment is not None
     assert record.experiment.experiment_id == "exp_live2d"
     assert record.evaluations[0].failure_tags == [FailureTag.LOW_MOTION_QUALITY]
@@ -185,8 +190,8 @@ def test_wan_request_does_not_hydrate_metadata_into_wan_config():
 def test_produce_sample_request_can_capture_temporal_refs():
     req = ProduceSampleRequest(
         task_type=TaskType.TEMPORAL_ROLLOUT,
-        backend="genie-rollout",
-        model="genie-local",
+        backend="matrix-game",
+        model="matrix-game3-preview",
         sample_spec=SampleSpec(prompt="temporal step"),
         temporal=TemporalRefs(
             episode_id="ep_1",
@@ -214,10 +219,10 @@ def test_produce_sample_request_rejects_legacy_rollout_task_types():
 
     with pytest.raises(ValidationError):
         ProduceSampleRequest(
-            task_type="genie_rollout",
-            backend="genie-rollout",
-            model="genie-local",
-            sample_spec=SampleSpec(prompt="legacy genie"),
+            task_type="matrix_rollout",
+            backend="matrix-game",
+            model="matrix-game3-preview",
+            sample_spec=SampleSpec(prompt="legacy matrix"),
             temporal=TemporalRefs(episode_id="ep_1"),
         )
 
@@ -230,8 +235,8 @@ def test_temporal_store_round_trip(tmp_path):
         RolloutCreate(
             episode_id=episode.episode_id,
             branch_id=branch.branch_id,
-            backend="genie-rollout",
-            model="genie-local",
+            backend="matrix-game",
+            model="matrix-game3-preview",
             step_count=4,
         )
     )

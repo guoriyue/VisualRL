@@ -16,7 +16,7 @@ from typing import Any
 import torch
 
 from benchmarks.benchmarking import capture_runtime_context, utc_timestamp, write_json
-from wm_infra.core.state import LatentStateManager
+from wm_infra.rollout_engine.state import LatentStateManager
 
 
 def parse_args() -> argparse.Namespace:
