@@ -10,8 +10,6 @@ from fastapi import Request
 from wm_infra.backends import BackendRegistry, SampleJobQueue
 from wm_infra.config import EngineConfig
 from wm_infra.controlplane import SampleManifestStore, TemporalStore
-from wm_infra.engine.engine import AsyncWorldModelEngine
-from wm_infra.workloads.reinforcement_learning.runtime import ReinforcementLearningEnvManager
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -25,8 +23,6 @@ class GatewayRuntime:
     sample_store: SampleManifestStore
     temporal_store: TemporalStore
     backend_registry: BackendRegistry
-    temporal_env_manager: ReinforcementLearningEnvManager
-    engine: AsyncWorldModelEngine | None = None
     wan_job_queue: SampleJobQueue | None = None
     cosmos_job_queue: SampleJobQueue | None = None
 

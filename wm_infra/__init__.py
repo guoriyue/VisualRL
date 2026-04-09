@@ -1,6 +1,9 @@
 """wm-infra: temporal model serving and control-plane infrastructure.
 
-The runtime layer handles execution for concrete temporal backends such as Wan 2.2 and Genie.
+The runtime layer provides multi-stage video generation paths used by Wan,
+Cosmos, and action-conditioned interactive video generators such as
+Matrix-Game-3.
+
 The control-plane layer handles samples, artifacts, lineage, evaluation hooks, and exports.
 """
 

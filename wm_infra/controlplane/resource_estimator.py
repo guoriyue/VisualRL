@@ -2,19 +2,21 @@
 
 The estimator is intentionally simple and scheduler-friendly.
 It uses the current first-class task configs instead of guessing from loose
-metadata, and it can score both rollout-style and Wan 2.2-style video requests.
+metadata, and it can score both Wan 2.2-style and Cosmos-style video requests.
 """
 
 from __future__ import annotations
 
 from wm_infra.controlplane.schemas import CosmosTaskConfig, ResourceEstimate, RolloutTaskConfig, VideoMemoryProfile, WanTaskConfig
-from wm_infra.engine.types import DEFAULT_RESOURCE_UNITS_PER_GB, RolloutRequest
 
 _BASELINE_FRAMES = 9
 _BASELINE_WIDTH = 832
 _BASELINE_HEIGHT = 480
 _BASELINE_STEPS = 4
 _BASELINE_VRAM_GB = 28.0
+
+_LOW_VRAM_MEMORY_MULTIPLIER = 0.65
+_HIGH_QUALITY_MEMORY_MULTIPLIER = 1.25
 
 
 def _memory_multiplier(memory_profile: VideoMemoryProfile | None) -> float:
@@ -35,10 +37,33 @@ def _estimate_vram_gb(frame_count: int, width: int, height: int, num_steps: int,
     return round(max(base_gb * step_factor * _memory_multiplier(memory_profile), 0.1), 2)
 
 
+def _estimate_resource_units(
+    frame_count: int,
+    width: int,
+    height: int,
+    num_steps: int,
+    memory_profile: VideoMemoryProfile | None,
+) -> float:
+    """Compute relative resource score from task dimensions."""
+    megapixels = (width * height) / 1_000_000
+    frame_pressure = max(frame_count, 1) * max(num_steps, 1)
+    multiplier = 1.0
+    if memory_profile == VideoMemoryProfile.LOW_VRAM:
+        multiplier = _LOW_VRAM_MEMORY_MULTIPLIER
+    elif memory_profile == VideoMemoryProfile.HIGH_QUALITY:
+        multiplier = _HIGH_QUALITY_MEMORY_MULTIPLIER
+    return max(frame_pressure * max(megapixels, 0.1) * multiplier, 0.1)
+
+
 def estimate_rollout_request(task_config: RolloutTaskConfig | None) -> ResourceEstimate:
     task_config = task_config or RolloutTaskConfig()
-    scheduling_request = RolloutRequest.from_task_config("estimate", task_config)
-    estimated_units = scheduling_request.estimate_resource_units()
+    estimated_units = _estimate_resource_units(
+        frame_count=task_config.frame_count or 1,
+        width=task_config.width or 256,
+        height=task_config.height or 256,
+        num_steps=task_config.num_steps,
+        memory_profile=task_config.memory_profile,
+    )
     estimated_vram_gb = _estimate_vram_gb(
         frame_count=task_config.frame_count or 1,
         width=task_config.width or 256,
@@ -51,7 +76,7 @@ def estimate_rollout_request(task_config: RolloutTaskConfig | None) -> ResourceE
         estimated_vram_gb=estimated_vram_gb,
         bottleneck="frame_pressure",
         notes=[
-            "Estimated from frame_count × num_steps × megapixels.",
+            "Estimated from frame_count * num_steps * megapixels.",
             "Low-VRAM profiles reduce the relative score; high-quality profiles increase it.",
         ],
     )

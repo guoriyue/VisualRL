@@ -40,20 +40,6 @@ class TokenizerConfig:
 
 
 @dataclass
-class DynamicsConfig:
-    """Latent dynamics model configuration."""
-
-    hidden_dim: int = 768
-    num_heads: int = 12
-    num_layers: int = 12
-    action_dim: int = 64
-    latent_token_dim: int = 16
-    max_rollout_steps: int = 128
-    dropout: float = 0.0
-    use_triton_attention: bool = True
-
-
-@dataclass
 class MoEConfig:
     """Configuration for Mixture-of-Experts feed-forward layers."""
 
@@ -167,6 +153,7 @@ class ControlPlaneConfig:
 
     manifest_store_root: Optional[str] = None
     wan_output_root: Optional[str] = None
+    # Legacy external-execution settings. Gateway startup now rejects them.
     wan_shell_runner: Optional[str] = None
     wan_shell_runner_timeout_s: Optional[int] = None
     wan_repo_dir: Optional[str] = None
@@ -183,7 +170,7 @@ class ControlPlaneConfig:
     wan_prewarm_common_signatures: bool = False
     wan_admission_max_units: Optional[float] = None
     wan_admission_max_vram_gb: Optional[float] = 32.0
-    # Cosmos backend
+    # Legacy Cosmos external-execution settings. Gateway startup now rejects them.
     cosmos_output_root: Optional[str] = None
     cosmos_base_url: Optional[str] = None
     cosmos_api_key: Optional[str] = None
@@ -200,7 +187,6 @@ class EngineConfig:
     device: DeviceType = DeviceType.CUDA
     dtype: str = "float16"
     tokenizer: TokenizerConfig = field(default_factory=TokenizerConfig)
-    dynamics: DynamicsConfig = field(default_factory=DynamicsConfig)
     state_cache: StateCacheConfig = field(default_factory=StateCacheConfig)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
@@ -246,8 +232,8 @@ def _env_overrides() -> dict:
         WM_MAX_BATCH_SIZE=16           → {"scheduler": {"max_batch_size": 16}}
         WM_MANIFEST_STORE_ROOT=/data   → {"controlplane": {"manifest_store_root": "/data"}}
         WM_WAN_OUTPUT_ROOT=/data/wan   → {"controlplane": {"wan_output_root": "/data/wan"}}
-        WM_WAN_SHELL_RUNNER=...        → {"controlplane": {"wan_shell_runner": "..."}}
-        WM_WAN_SHELL_RUNNER_TIMEOUT_S=600 → {"controlplane": {"wan_shell_runner_timeout_s": 600}}
+        WM_WAN_SHELL_RUNNER=...        → {"controlplane": {"wan_shell_runner": "..."}} (legacy, rejected at startup)
+        WM_WAN_SHELL_RUNNER_TIMEOUT_S=600 → {"controlplane": {"wan_shell_runner_timeout_s": 600}} (legacy, only relevant with shell runner)
         WM_WAN_REPO_DIR=/path/to/Wan2.2 → {"controlplane": {"wan_repo_dir": "/path/to/Wan2.2"}}
         WM_WAN_CONDA_ENV=kosen         → {"controlplane": {"wan_conda_env": "kosen"}}
         WM_WAN_CKPT_DIR=/path/to/ckpt  → {"controlplane": {"wan_ckpt_dir": "/path/to/ckpt"}}
@@ -262,6 +248,9 @@ def _env_overrides() -> dict:
         WM_WAN_PREWARM_COMMON_SIGNATURES=true → {"controlplane": {"wan_prewarm_common_signatures": True}}
         WM_WAN_ADMISSION_MAX_UNITS=16  → {"controlplane": {"wan_admission_max_units": 16.0}}
         WM_WAN_ADMISSION_MAX_VRAM_GB=32 → {"controlplane": {"wan_admission_max_vram_gb": 32.0}}
+        WM_COSMOS_BASE_URL=http://...  → {"controlplane": {"cosmos_base_url": "http://..."}} (legacy, rejected at startup)
+        WM_COSMOS_API_KEY=secret       → {"controlplane": {"cosmos_api_key": "secret"}} (legacy, rejected with base URL)
+        WM_COSMOS_SHELL_RUNNER=...     → {"controlplane": {"cosmos_shell_runner": "..."}} (legacy, rejected at startup)
         WM_SEED=123                    → {"seed": 123}
     """
     overrides: dict[str, Any] = {}
@@ -322,7 +311,7 @@ def _dict_to_config(d: dict) -> EngineConfig:
         d["device"] = DeviceType(d["device"])
 
     tok_d = d.pop("tokenizer", {})
-    dyn_d = d.pop("dynamics", {})
+    d.pop("dynamics", None)  # Legacy field, ignored
     sc_d = d.pop("state_cache", {})
     sched_d = d.pop("scheduler", {})
     serv_d = d.pop("server", {})
@@ -333,7 +322,6 @@ def _dict_to_config(d: dict) -> EngineConfig:
 
     return EngineConfig(
         tokenizer=TokenizerConfig(**tok_d) if tok_d else TokenizerConfig(),
-        dynamics=DynamicsConfig(**dyn_d) if dyn_d else DynamicsConfig(),
         state_cache=StateCacheConfig(**sc_d) if sc_d else StateCacheConfig(),
         scheduler=SchedulerConfig(**sched_d) if sched_d else SchedulerConfig(),
         server=ServerConfig(**serv_d) if serv_d else ServerConfig(),

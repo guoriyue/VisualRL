@@ -4,20 +4,16 @@ Consolidates all shared data types from:
 - engine._types (Phase, EngineRunConfig, EntityRequest, SchedulerOutput, etc.)
 - engine.execution.types (BatchSignature, ExecutionChunk, ExecutionStats, etc.)
 - engine.execution.profiling (ExecutionRuntimeTrace, ExecutionStageRecord)
-- engine.rollout (RolloutState, RolloutRequest, RolloutJob, RolloutResult, etc.)
 """
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from statistics import mean
-from typing import Any, Callable, Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
-
-import torch
 
 
 # ---------------------------------------------------------------------------
@@ -329,129 +325,3 @@ class ExecutionRuntimeTrace:
         if self.include_estimated_transfer_bytes:
             summary["estimated_transfer_bytes"] = transfer_bytes
         return summary
-
-
-# ---------------------------------------------------------------------------
-# Rollout types (from rollout.py)
-# ---------------------------------------------------------------------------
-
-LOW_VRAM_MEMORY_MULTIPLIER = 0.65
-HIGH_QUALITY_MEMORY_MULTIPLIER = 1.25
-DEFAULT_FRAME_COUNT = 1
-DEFAULT_WIDTH = 256
-DEFAULT_HEIGHT = 256
-DEFAULT_RESOURCE_UNITS_PER_GB = 3.0
-
-
-@dataclass(slots=True)
-class RolloutState:
-    """State for a single active rollout."""
-
-    rollout_id: str
-    latent_states: list[torch.Tensor] = field(default_factory=list)  # [N, D] per step
-    actions: list[torch.Tensor] = field(default_factory=list)  # [A] per step
-    current_step: int = 0
-    max_steps: int = 0
-    created_at: float = 0.0
-    last_accessed: float = 0.0
-
-    @property
-    def is_complete(self) -> bool:
-        return self.current_step >= self.max_steps
-
-    @property
-    def num_latent_tokens(self) -> int:
-        if not self.latent_states:
-            return 0
-        return self.latent_states[0].shape[0]
-
-    @property
-    def memory_bytes(self) -> int:
-        total = 0
-        for s in self.latent_states:
-            total += s.element_size() * s.nelement()
-        for a in self.actions:
-            total += a.element_size() * a.nelement()
-        return total
-
-
-@dataclass(slots=True)
-class RolloutRequest:
-    """A pending rollout request."""
-
-    request_id: str
-    num_steps: int
-    priority: float = 0.0
-    created_at: float = field(default_factory=time.monotonic)
-    deadline: Optional[float] = None
-    frame_count: int = DEFAULT_FRAME_COUNT
-    width: int = DEFAULT_WIDTH
-    height: int = DEFAULT_HEIGHT
-    memory_profile: Optional[str] = None
-    estimated_resource_units: Optional[float] = None
-
-    def estimate_resource_units(self) -> float:
-        if self.estimated_resource_units is not None:
-            return self.estimated_resource_units
-        megapixels = (self.width * self.height) / 1_000_000
-        frame_pressure = max(self.frame_count, 1) * max(self.num_steps, 1)
-        multiplier = 1.0
-        if self.memory_profile == VideoMemoryProfile.LOW_VRAM.value:
-            multiplier = LOW_VRAM_MEMORY_MULTIPLIER
-        elif self.memory_profile == VideoMemoryProfile.HIGH_QUALITY.value:
-            multiplier = HIGH_QUALITY_MEMORY_MULTIPLIER
-        return max(frame_pressure * max(megapixels, 0.1) * multiplier, 0.1)
-
-    @classmethod
-    def from_task_config(cls, request_id: str, task_config: Optional[RolloutTaskConfig], *, priority: float = 0.0, deadline: Optional[float] = None) -> "RolloutRequest":
-        task_config = task_config or RolloutTaskConfig()
-        memory_profile = task_config.memory_profile.value if task_config.memory_profile else None
-        return cls(
-            request_id=request_id,
-            num_steps=task_config.num_steps,
-            priority=priority,
-            deadline=deadline,
-            frame_count=task_config.frame_count or DEFAULT_FRAME_COUNT,
-            width=task_config.width or DEFAULT_WIDTH,
-            height=task_config.height or DEFAULT_HEIGHT,
-            memory_profile=memory_profile,
-        )
-
-
-@dataclass(slots=True)
-class ScheduledBatch:
-    request_ids: list[str]
-    step_indices: list[int]
-    actions: list
-
-    @property
-    def size(self) -> int:
-        return len(self.request_ids)
-
-
-@dataclass(slots=True)
-class RolloutJob:
-    """A user-facing rollout job."""
-
-    job_id: str
-    initial_observation: Optional[torch.Tensor] = None  # [C, H, W] or [T, C, H, W]
-    initial_latent: Optional[torch.Tensor] = None  # [N, D] pre-encoded
-    actions: Optional[torch.Tensor] = None  # [T, A]
-    num_steps: int = 1
-    return_frames: bool = True
-    return_latents: bool = False
-    stream: bool = False
-    created_at: float = field(default_factory=time.monotonic)
-    # Optional per-step callback for streaming: fn(job_id, step_idx, latent_state)
-    step_callback: Optional[Callable[[str, int, torch.Tensor], None]] = None
-
-
-@dataclass(slots=True)
-class RolloutResult:
-    """Result of a completed rollout."""
-
-    job_id: str
-    predicted_frames: Optional[torch.Tensor] = None  # [T, C, H, W]
-    predicted_latents: Optional[torch.Tensor] = None  # [T, N, D]
-    elapsed_ms: float = 0.0
-    steps_completed: int = 0

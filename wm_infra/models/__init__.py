@@ -1,1 +1,1 @@
-"""World model definitions."""
+"""Unified model definitions for staged temporal generation."""

@@ -20,20 +20,22 @@ from wm_infra.engine.types import RolloutTaskConfig, VideoMemoryProfile  # noqa:
 class TaskType(str, Enum):
     """Product-level task semantics for persisted sample requests.
 
-    Backend identifiers such as ``matrix-game`` belong in the separate
+    Backend identifiers such as ``wan-video`` belong in the separate
     ``backend`` field, not in this enum.
     """
 
-    TEMPORAL_ROLLOUT = "temporal_rollout"
     TEXT_TO_VIDEO = "text_to_video"
     IMAGE_TO_VIDEO = "image_to_video"
     VIDEO_TO_VIDEO = "video_to_video"
 
 
 class WorldModelKind(str, Enum):
-    """Internal world-model family classification for runtime and control-plane routing."""
+    """Internal world-model family classification for runtime and control-plane routing.
 
-    DYNAMICS = "dynamics"
+    Currently only ``GENERATION`` is used. The enum is retained for forward
+    compatibility with future model families.
+    """
+
     GENERATION = "generation"
 
 
@@ -220,11 +222,7 @@ class ProduceSampleRequest(BaseModel):
     model: str = Field(..., description="Logical model identifier")
     world_model_kind: Optional[WorldModelKind] = Field(
         default=None,
-        description=(
-            "Optional client-declared world-model family. "
-            "`dynamics` is for state/action-conditioned rollout systems such as Matrix/Genie-style models; "
-            "`generation` is for world/video generation systems such as Cosmos-style models."
-        ),
+        description="Optional client-declared world-model family for routing validation.",
     )
     model_revision: Optional[str] = None
     experiment: Optional[ExperimentRef] = None
@@ -240,7 +238,7 @@ class ProduceSampleRequest(BaseModel):
     task_config: Optional[RolloutTaskConfig] = Field(
         default=None,
         description=(
-            "Task-specific execution config for dynamics backends such as rollout-engine or matrix-game. "
+            "Task-specific execution config. "
             "Video-relevant execution knobs such as num_steps, frame_count, width, height, and memory/offload mode belong here."
         ),
     )
@@ -248,14 +246,14 @@ class ProduceSampleRequest(BaseModel):
         default=None,
         description=(
             "Wan 2.2 video generation config. Used when backend is the wan-video runtime "
-            "(text_to_video, image_to_video). Ignored for rollout-engine jobs."
+            "(text_to_video, image_to_video)."
         ),
     )
     cosmos_config: Optional[CosmosTaskConfig] = Field(
         default=None,
         description=(
             "Cosmos-family world generation config. Used when backend is cosmos-predict. "
-            "Controls the Cosmos variant, FPS, guidance, and runner-specific options."
+            "Controls the Cosmos variant, FPS, and guidance for staged world/video generation."
         ),
     )
     return_artifacts: list[ArtifactKind] = Field(default_factory=lambda: [ArtifactKind.VIDEO])

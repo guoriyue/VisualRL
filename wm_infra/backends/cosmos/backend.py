@@ -10,7 +10,15 @@ from pathlib import Path
 from typing import Any
 
 from wm_infra.backends.base import ProduceSampleBackend
-from wm_infra.backends.cosmos.runner import CosmosRunResult, CosmosRunner
+
+from wm_infra.backends._pipeline import (
+    ComposedGenerationPipeline,
+    GenerationRuntimeConfig,
+    GenerationRuntimeBackend,
+    build_video_generation_stages,
+)
+from wm_infra.models.cosmos_adapter import CosmosGenerationModel
+from wm_infra.models.video_generation import VideoGenerationRequest
 from wm_infra.backends.cosmos.runtime import (
     CosmosExecutionEntity,
     CosmosRuntimeTrace,
@@ -19,7 +27,6 @@ from wm_infra.backends.cosmos.runtime import (
     prompt_reference_key,
     queue_lane_for_request,
 )
-from wm_infra.operators import CosmosGenerationOperator
 from wm_infra.backends.cosmos.scheduler import CosmosChunkScheduler
 from wm_infra.controlplane import (
     ArtifactKind,
@@ -36,7 +43,7 @@ from wm_infra.controlplane import (
 
 
 class CosmosPredictBackend(ProduceSampleBackend):
-    """Queue-friendly Cosmos backend using NIM, shell, or stub execution."""
+    """Queue-friendly Cosmos backend backed by an in-process generation model."""
 
     world_model_kind = WorldModelKind.GENERATION
     capability_flags = frozenset({"continuation", "multistage_pipeline", "video_artifact"})
@@ -46,26 +53,138 @@ class CosmosPredictBackend(ProduceSampleBackend):
         output_root: str | Path,
         *,
         backend_name: str = "cosmos-predict",
-        runner: CosmosRunner | None = None,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        shell_runner: str | None = None,
+        timeout_s: int = 600,
+        model: CosmosGenerationModel | None = None,
         max_chunk_size: int = 4,
     ) -> None:
         self.backend_name = backend_name
         self.output_root = Path(output_root)
         self.output_root.mkdir(parents=True, exist_ok=True)
-        self.runner = runner or CosmosRunner()
-        self._operator = CosmosGenerationOperator(self.runner)
-        self._job_queue = None
+        if base_url is not None or api_key is not None or shell_runner is not None:
+            raise ValueError(
+                "CosmosPredictBackend only supports in-process execution; remove cosmos_base_url, cosmos_api_key, and cosmos_shell_runner"
+            )
+        self._model = model or CosmosGenerationModel(
+            model_name=model_name,
+            timeout_s=timeout_s,
+        )
+        if self._model.mode in {"nim", "shell"}:
+            raise ValueError(
+                f"CosmosPredictBackend requires an in-process model, got runner mode {self._model.mode!r}"
+            )
+        self._runtime_config = GenerationRuntimeConfig(
+            model_path=self._model.model_name,
+            local_scheduler=True,
+            backend=GenerationRuntimeBackend.NATIVE,
+        )
         self._scheduler = CosmosChunkScheduler(max_chunk_size=max_chunk_size)
         self._input_cache = CosmosInputCache()
 
     @property
     def runner_mode(self) -> str:
-        return self._operator.mode
+        return self._model.mode
+
+    def _operator_describe(self) -> dict[str, Any]:
+        return {
+            "name": "cosmos-model",
+            "family": "generation",
+            "runtime": self._runtime_config.describe(),
+            "runner_mode": self.runner_mode,
+            "model": self._model.describe(),
+        }
+
+    @staticmethod
+    def _to_video_generation_request(
+        request: ProduceSampleRequest,
+        task_config: Any,
+        cosmos_config: Any,
+    ) -> VideoGenerationRequest:
+        """Convert controlplane request → model-level VideoGenerationRequest."""
+        return VideoGenerationRequest(
+            prompt=request.sample_spec.prompt or "",
+            negative_prompt=cosmos_config.negative_prompt or request.sample_spec.negative_prompt or "",
+            references=list(request.sample_spec.references or []),
+            task_type=request.task_type.value,
+            width=task_config.width or 1024,
+            height=task_config.height or 640,
+            frame_count=task_config.frame_count or 16,
+            num_steps=task_config.num_steps,
+            guidance_scale=cosmos_config.guidance_scale or 5.0,
+            seed=cosmos_config.seed if hasattr(cosmos_config, "seed") and cosmos_config.seed is not None else request.sample_spec.seed,
+            model_name=request.model,
+            model_size=cosmos_config.model_size,
+            fps=cosmos_config.frames_per_second,
+            extra={"variant": cosmos_config.variant.value},
+        )
+
+    async def _generate_pipeline(
+        self,
+        *,
+        output_dir: str | Path,
+        request: ProduceSampleRequest,
+        task_config: Any,
+        cosmos_config: Any,
+    ) -> Any:
+        model = self._model
+        vg_request = self._to_video_generation_request(request, task_config, cosmos_config)
+
+        context = {
+            "output_dir": output_dir,
+            "vg_request": vg_request,
+        }
+        pipeline = ComposedGenerationPipeline(
+            pipeline_name="cosmos-generation",
+            execution_backend="model_stage_pipeline",
+            stages=build_video_generation_stages(
+                model=model,
+                request_key="vg_request",
+                component_prefix="cosmos-model",
+                device_map={
+                    "encode_text": "cpu",
+                    "encode_conditioning": "cpu",
+                    "denoise": "cpu",
+                    "decode_vae": "cpu",
+                    "postprocess": "cpu",
+                },
+                worker_map={
+                    "encode_text": "model",
+                    "encode_conditioning": "model",
+                    "denoise": "model",
+                    "decode_vae": "model",
+                    "postprocess": "model",
+                },
+            ),
+            runtime_config=self._runtime_config,
+            initial_log_lines=[
+                "Cosmos generation pipeline started.",
+                f"Model mode={self.runner_mode}.",
+            ],
+            build_metadata=lambda stage_records, _runtime_state: {
+                "runner_mode": self.runner_mode,
+                "supports_cross_request_batching": False,
+                "stage_family": "generation",
+            },
+        )
+        return await pipeline.run(context)
 
     def _sample_dir(self, sample_id: str) -> Path:
         path = self.output_root / sample_id
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    @staticmethod
+    def _persist_video_frames(path: Path, frames: Any, fps: int) -> None:
+        import imageio.v2 as imageio
+        import numpy as np
+
+        video_frames = np.asarray(frames)
+        if video_frames.dtype != np.uint8:
+            video_frames = np.clip(video_frames * 255.0, 0.0, 255.0).astype(np.uint8)
+        imageio.mimsave(str(path), video_frames, fps=fps)
 
     @staticmethod
     def _file_details(path: Path) -> tuple[int | None, str | None]:
@@ -140,7 +259,7 @@ class CosmosPredictBackend(ProduceSampleBackend):
             backend=self.backend_name,
             model=request.model,
             stage="infer",
-            runner_mode=self._operator.load(),
+            runner_mode=self.runner_mode,
             variant=cosmos_config.variant.value,
             width=task_config.width or 0,
             height=task_config.height or 0,
@@ -220,16 +339,28 @@ class CosmosPredictBackend(ProduceSampleBackend):
         )
 
         run_started = time.perf_counter()
-        pipeline_run = await self._operator.generate_pipeline(
+        pipeline_run = await self._generate_pipeline(
             output_dir=sample_dir,
             request=request,
             task_config=task_config,
             cosmos_config=cosmos_config,
         )
-        result = pipeline_run.output
-        if not isinstance(result, CosmosRunResult):
-            raise RuntimeError("Cosmos generation operator did not return a CosmosRunResult")
-        infer_stage = next((stage for stage in pipeline_run.stage_records if stage["name"] == "infer"), None)
+        result_state = pipeline_run.execution_state
+        runner_mode = result_state.get("runner_mode", self.runner_mode)
+        output_path = sample_dir / "sample.mp4"
+        video_frames = result_state.get("video_frames")
+        output_fps = int(result_state.get("output_fps") or cosmos_config.frames_per_second or 16)
+        elapsed_s = result_state.get("elapsed_s", 0.0)
+        error = result_state.get("error")
+        if error is None and video_frames is None:
+            error = "Cosmos model did not produce video_frames for backend persistence"
+
+        persist_started = time.perf_counter()
+        if error is None:
+            self._persist_video_frames(output_path, video_frames, output_fps)
+        persist_elapsed_ms = round((time.perf_counter() - persist_started) * 1000.0, 3)
+
+        denoise_stage = next((stage for stage in pipeline_run.stage_records if stage["name"] == "denoise"), None)
         trace.record(
             CosmosStageRecord(
                 stage="infer",
@@ -240,8 +371,8 @@ class CosmosPredictBackend(ProduceSampleBackend):
                 chunk_size=scheduler_decision.chunk.size,
                 expected_occupancy=scheduler_decision.chunk.expected_occupancy,
                 metadata={
-                    "runner_mode": result.mode,
-                    "pipeline_stage_elapsed_ms": None if infer_stage is None else infer_stage["elapsed_ms"],
+                    "runner_mode": runner_mode,
+                    "pipeline_stage_elapsed_ms": None if denoise_stage is None else denoise_stage["elapsed_ms"],
                 },
             )
         )
@@ -249,11 +380,11 @@ class CosmosPredictBackend(ProduceSampleBackend):
         self._input_cache.put(cache_key)
 
         log_payload = {
-            "runner_mode": result.mode,
-            "command": result.command,
-            "error": result.error,
-            "extra": result.extra,
-            "response_payload": result.response_payload,
+            "runner_mode": runner_mode,
+            "error": error,
+            "frame_count": None if video_frames is None else int(video_frames.shape[0]),
+            "output_fps": output_fps,
+            "pipeline_stage_sequence": pipeline_run.pipeline_metadata.get("stage_sequence", []),
         }
         log_path.write_text(json.dumps(log_payload, indent=2, sort_keys=True))
         trace.record(
@@ -261,13 +392,13 @@ class CosmosPredictBackend(ProduceSampleBackend):
                 stage="artifact_persist",
                 entity_id=entity.entity_id,
                 queue_lane=entity.queue_lane.value,
-                elapsed_ms=0.0,
+                elapsed_ms=persist_elapsed_ms,
             )
         )
 
         runtime_payload = {
-            "runner_mode": result.mode,
-            "model_name": result.model_name,
+            "runner_mode": runner_mode,
+            "model_name": self._model.model_name,
             "scheduler": {
                 **scheduler_decision.scheduler_inputs,
                 "prompt_or_reference_hot": reuse_hit,
@@ -276,15 +407,22 @@ class CosmosPredictBackend(ProduceSampleBackend):
             "cache": self._input_cache.snapshot(),
             "reference_reuse_hit": reuse_hit,
             "stage_timings_ms": trace.stage_timings_ms(),
-            "stage_graph": ["admission", "input_materialize", "infer", "artifact_persist", "controlplane_commit"],
+            "stage_graph": [
+                "admission",
+                "input_materialize",
+                *pipeline_run.pipeline_metadata.get("stage_sequence", []),
+                "artifact_persist",
+                "controlplane_commit",
+            ],
             "pipeline": pipeline_run.pipeline_metadata,
             "stages": pipeline_run.stage_records,
-            "output_path": result.output_path,
-            "error": result.error,
-            "operator": self._operator.describe(),
+            "output_path": str(output_path),
+            "output_fps": output_fps,
+            "error": error,
+            "operator": self._operator_describe(),
         }
 
-        status = SampleStatus.SUCCEEDED if result.error is None else SampleStatus.FAILED
+        status = SampleStatus.SUCCEEDED if error is None else SampleStatus.FAILED
         runtime_path.write_text(json.dumps(runtime_payload, indent=2, sort_keys=True))
         record = SampleRecord(
             sample_id=sample_id,
@@ -304,11 +442,11 @@ class CosmosPredictBackend(ProduceSampleBackend):
                 "evaluation_policy": request.evaluation_policy,
                 "priority": request.priority,
                 "labels": request.labels,
-                "runner_mode": result.mode,
+                "runner_mode": runner_mode,
                 "stage_timings_ms": runtime_payload["stage_timings_ms"],
             },
             metrics={
-                "elapsed_ms": round(result.elapsed_s * 1000.0, 3),
+                "elapsed_ms": round(elapsed_s * 1000.0, 3),
                 "scheduler_expected_occupancy": round(scheduler_decision.chunk.expected_occupancy, 3),
             },
         )
@@ -317,9 +455,13 @@ class CosmosPredictBackend(ProduceSampleBackend):
                 self._artifact_record(
                     artifact_id=f"{sample_id}:video",
                     kind=ArtifactKind.VIDEO,
-                    path=Path(result.output_path),
+                    path=output_path,
                     mime_type="video/mp4",
-                    metadata={"runner_mode": result.mode, "variant": cosmos_config.variant.value},
+                    metadata={
+                        "runner_mode": runner_mode,
+                        "variant": cosmos_config.variant.value,
+                        "output_fps": output_fps,
+                    },
                 ),
                 self._artifact_record(
                     artifact_id=f"{sample_id}:log",
@@ -341,10 +483,7 @@ class CosmosPredictBackend(ProduceSampleBackend):
         sample_id = str(uuid.uuid4())
         return await self.execute_job(request, sample_id)
 
-    def submit_async(self, request: ProduceSampleRequest) -> SampleRecord:
-        if self._job_queue is None:
-            raise RuntimeError("Cosmos backend async queue is not configured")
-
+    def submit_async(self, request: ProduceSampleRequest, *, queue) -> SampleRecord:
         self.validate_world_model_kind(request)
         task_config = self._effective_task_config(request)
         cosmos_config = self._effective_cosmos_config(request, task_config)
@@ -352,7 +491,7 @@ class CosmosPredictBackend(ProduceSampleBackend):
         estimate = estimate_cosmos_request(task_config, cosmos_config)
 
         sample_id = str(uuid.uuid4())
-        entry = self._job_queue.submit(sample_id, request)
+        entry = queue.submit(sample_id, request)
         return SampleRecord(
             sample_id=sample_id,
             task_type=request.task_type,
@@ -369,9 +508,9 @@ class CosmosPredictBackend(ProduceSampleBackend):
             runtime={
                 "queue": {
                     "queue_name": "cosmos",
-                    "pending": self._job_queue.pending_count,
-                    "running": self._job_queue.running_count,
-                    "position": self._job_queue.position(sample_id),
+                    "pending": queue.pending_count,
+                    "running": queue.running_count,
+                    "position": queue.position(sample_id),
                     "submitted_at": entry.submitted_at,
                 }
             },
@@ -379,7 +518,7 @@ class CosmosPredictBackend(ProduceSampleBackend):
                 "evaluation_policy": request.evaluation_policy,
                 "priority": request.priority,
                 "labels": request.labels,
-                "runner_mode": self.runner.load(),
-                "operator": self._operator.describe(),
+                "runner_mode": self.runner_mode,
+                "operator": self._operator_describe(),
             },
         )

@@ -1,7 +1,6 @@
 """Cosmos backend package."""
 
 from .backend import CosmosPredictBackend
-from .runner import CosmosRunResult, CosmosRunner
 from .runtime import (
     CachedCosmosInput,
     CosmosBatchSignature,
@@ -26,8 +25,6 @@ __all__ = [
     "CosmosInputCache",
     "CosmosPredictBackend",
     "CosmosQueueLane",
-    "CosmosRunResult",
-    "CosmosRunner",
     "CosmosRuntimeTrace",
     "CosmosSchedulerDecision",
     "CosmosStageRecord",

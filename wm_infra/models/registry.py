@@ -1,29 +1,28 @@
-"""Model registry for world models.
+"""Unified model registry for staged temporal generation models.
 
-Allows registering and loading different world model implementations
-(e.g., COSMOS, Genie, custom) by name.
+All models — Wan, Cosmos, action-conditioned interactive video generators
+(Matrix-Game-3), and future temporal models — implement the
+``VideoGenerationModel`` contract and register here.
 """
 
 from __future__ import annotations
 
 from typing import Callable, Type
 
-import torch.nn as nn
+from wm_infra.models.video_generation import VideoGenerationModel
 
-from wm_infra.models.base import WorldModel
-
-_REGISTRY: dict[str, Callable[..., nn.Module]] = {}
+_REGISTRY: dict[str, Type[VideoGenerationModel]] = {}
 
 
 def register_model(name: str) -> Callable:
-    """Decorator to register a world model class."""
-    def wrapper(cls: Type[nn.Module]) -> Type[nn.Module]:
+    """Decorator to register a model class implementing VideoGenerationModel."""
+    def wrapper(cls: Type[VideoGenerationModel]) -> Type[VideoGenerationModel]:
         _REGISTRY[name] = cls
         return cls
     return wrapper
 
 
-def get_model(name: str) -> Callable[..., nn.Module]:
+def get_model(name: str) -> Type[VideoGenerationModel]:
     """Get a registered model class by name."""
     if name not in _REGISTRY:
         available = ", ".join(sorted(_REGISTRY.keys())) or "(none)"
@@ -37,5 +36,10 @@ def list_models() -> list[str]:
 
 
 # Register built-in models
-from wm_infra.models.dynamics import LatentDynamicsModel  # noqa: E402
-register_model("latent_dynamics")(LatentDynamicsModel)
+from wm_infra.models.cosmos_adapter import CosmosGenerationModel  # noqa: E402
+from wm_infra.models.wan_official import OfficialWanModel  # noqa: E402
+from wm_infra.models.wan_diffusers_i2v import DiffusersWanI2VModel  # noqa: E402
+
+register_model("cosmos")(CosmosGenerationModel)
+register_model("wan-official")(OfficialWanModel)
+register_model("wan-diffusers-i2v")(DiffusersWanI2VModel)

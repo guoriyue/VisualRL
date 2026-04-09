@@ -7,27 +7,18 @@ entities when the block budget is exceeded.
 
 Design modelled on vLLM's ``Scheduler`` but adapted for world-model
 latent states rather than KV caches.
-
-Also includes RolloutScheduler for higher-level rollout batching.
 """
 
 from __future__ import annotations
 
-import time
-from collections import OrderedDict, deque
-from dataclasses import dataclass, field
-from typing import Deque, Optional, Sequence
+from collections import OrderedDict
+from dataclasses import dataclass
+from typing import Sequence
 
-from wm_infra.config import SchedulerConfig, SchedulerPolicy
 from wm_infra.engine.types import (
-    DEFAULT_FRAME_COUNT,
-    DEFAULT_HEIGHT,
-    DEFAULT_WIDTH,
     EngineRunConfig,
     EntityRequest,
     Phase,
-    RolloutRequest,
-    ScheduledBatch,
     SchedulerOutput,
 )
 from wm_infra.engine.mem_cache.paged_pool import PagedLatentPool
@@ -267,97 +258,3 @@ class ContinuousBatchingScheduler:
                     output.preempt_ids.append(rid)
                 except (KeyError, RuntimeError):
                     pass
-
-
-# ---------------------------------------------------------------------------
-# RolloutScheduler (from rollout.py)
-# ---------------------------------------------------------------------------
-
-
-class RolloutScheduler:
-    """Schedules world model rollout steps across concurrent requests."""
-
-    def __init__(self, config: SchedulerConfig):
-        self.config = config
-        self._pending: Deque[RolloutRequest] = deque()
-        self._active: dict[str, RolloutRequest] = {}
-        self._step_counts: dict[str, int] = {}
-        self._waiting_since: dict[str, float] = {}
-
-    @property
-    def num_pending(self) -> int:
-        return len(self._pending)
-
-    @property
-    def num_active(self) -> int:
-        return len(self._active)
-
-    def submit(self, request: RolloutRequest) -> None:
-        self._pending.append(request)
-        self._waiting_since[request.request_id] = time.monotonic()
-
-    def admit(self) -> list[str]:
-        admitted = []
-        while self._pending and self.num_active < self.config.max_concurrent_rollouts:
-            req = self._pending.popleft()
-            self._active[req.request_id] = req
-            self._step_counts[req.request_id] = 0
-            admitted.append(req.request_id)
-        return admitted
-
-    def schedule_batch(self) -> ScheduledBatch:
-        self.admit()
-        if not self._active:
-            return ScheduledBatch(request_ids=[], step_indices=[], actions=[])
-
-        candidates = list(self._active.values())
-        if self.config.policy == SchedulerPolicy.SJF:
-            candidates.sort(key=lambda r: r.num_steps - self._step_counts.get(r.request_id, 0))
-        elif self.config.policy == SchedulerPolicy.DEADLINE:
-            candidates.sort(key=lambda r: r.deadline or float("inf"))
-        elif self.config.policy == SchedulerPolicy.MEMORY_AWARE:
-            candidates.sort(key=lambda r: (r.estimate_resource_units(), -r.priority))
-
-        now = time.monotonic()
-        urgent = [r for r in candidates if (now - self._waiting_since.get(r.request_id, now)) * 1000 > self.config.max_waiting_time_ms]
-        if urgent:
-            candidates = urgent + [c for c in candidates if c not in urgent]
-
-        selected = []
-        consumed_units = 0.0
-        for candidate in candidates:
-            if len(selected) >= self.config.max_batch_size:
-                break
-            units = candidate.estimate_resource_units()
-            if self.config.max_batch_resource_units is not None and selected and consumed_units + units > self.config.max_batch_resource_units:
-                continue
-            selected.append(candidate)
-            consumed_units += units
-
-        if not selected:
-            selected = candidates[:1]
-
-        return ScheduledBatch(
-            request_ids=[r.request_id for r in selected],
-            step_indices=[self._step_counts.get(r.request_id, 0) for r in selected],
-            actions=[],
-        )
-
-    def step_completed(self, request_id: str) -> bool:
-        self._step_counts[request_id] = self._step_counts.get(request_id, 0) + 1
-        req = self._active.get(request_id)
-        return bool(req and self._step_counts[request_id] >= req.num_steps)
-
-    def complete(self, request_id: str) -> None:
-        self._active.pop(request_id, None)
-        self._step_counts.pop(request_id, None)
-        self._waiting_since.pop(request_id, None)
-
-    def cancel(self, request_id: str) -> None:
-        self._active.pop(request_id, None)
-        self._step_counts.pop(request_id, None)
-        self._waiting_since.pop(request_id, None)
-        self._pending = deque(r for r in self._pending if r.request_id != request_id)
-
-    def has_work(self) -> bool:
-        return bool(self._pending or self._active)
