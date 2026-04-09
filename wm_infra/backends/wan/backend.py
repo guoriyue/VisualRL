@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from wm_infra.backends.base import ProduceSampleBackend
-from wm_infra.api.metrics import SERVING_COMPILED_PROFILE_EVENTS, SERVING_TRANSFER_BYTES
+from wm_infra.engine.metrics import SERVING_COMPILED_PROFILE_EVENTS, SERVING_TRANSFER_BYTES
 from wm_infra.controlplane.resource_estimator import estimate_wan_request
 from wm_infra.controlplane.schemas import (
     ArtifactKind,

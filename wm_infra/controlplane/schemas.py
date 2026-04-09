@@ -12,6 +12,10 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+# VideoMemoryProfile and RolloutTaskConfig are owned by the engine layer
+# and re-exported here for backward compatibility.
+from wm_infra.engine._types import RolloutTaskConfig, VideoMemoryProfile  # noqa: F401
+
 
 class TaskType(str, Enum):
     """Product-level task semantics for persisted sample requests.
@@ -82,13 +86,6 @@ class FailureTag(str, Enum):
     UNKNOWN = "unknown"
 
 
-class VideoMemoryProfile(str, Enum):
-    DEFAULT = "default"
-    BALANCED = "balanced"
-    LOW_VRAM = "low_vram"
-    HIGH_QUALITY = "high_quality"
-
-
 class ExperimentRef(BaseModel):
     experiment_id: str = Field(..., description="Stable experiment identifier")
     run_id: Optional[str] = Field(default=None, description="Specific run within experiment")
@@ -125,17 +122,6 @@ class TokenInputSpec(BaseModel):
     token_count: Optional[int] = Field(default=None, ge=0)
     tokenizer_name: Optional[str] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class RolloutTaskConfig(BaseModel):
-    num_steps: int = Field(default=1, ge=1, description="Number of rollout or denoising steps to execute")
-    frame_count: Optional[int] = Field(default=None, ge=1, description="Target frame count for video-like tasks")
-    width: Optional[int] = Field(default=None, ge=1, description="Requested output width")
-    height: Optional[int] = Field(default=None, ge=1, description="Requested output height")
-    offload_model: Optional[bool] = Field(default=None, description="Whether model weights should be CPU/offload backed")
-    convert_model_dtype: Optional[bool] = Field(default=None, description="Whether to enable reduced-precision model conversion")
-    t5_cpu: Optional[bool] = Field(default=None, description="Whether text encoder work should stay on CPU")
-    memory_profile: Optional[VideoMemoryProfile] = Field(default=None, description="Coarse memory/quality mode for schedulers and backends")
 
 
 class WanTaskConfig(BaseModel):

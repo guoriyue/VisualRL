@@ -326,7 +326,7 @@ from collections import deque
 from typing import Deque
 
 from wm_infra.config import SchedulerConfig, SchedulerPolicy
-from wm_infra.controlplane.schemas import RolloutTaskConfig, VideoMemoryProfile
+from wm_infra.engine._types import RolloutTaskConfig, VideoMemoryProfile
 
 LOW_VRAM_MEMORY_MULTIPLIER = 0.65
 HIGH_QUALITY_MEMORY_MULTIPLIER = 1.25
@@ -600,7 +600,7 @@ class WorldModelEngine:
     @torch.inference_mode()
     def step(self) -> list[str]:
         """Run one engine step: schedule + execute one batch of predictions."""
-        from wm_infra.api.metrics import BATCH_SIZE, STEP_DURATION
+        from wm_infra.engine.metrics import BATCH_SIZE, STEP_DURATION
 
         # 1. Admit pending jobs and encode initial states
         admitted = self.scheduler.admit()
@@ -755,7 +755,7 @@ class WorldModelEngine:
         return chunks
 
     def _record_transition_chunk(self, size: int, logical_batch_size: int) -> None:
-        from wm_infra.api.metrics import BATCH_FILL_RATIO, EXECUTION_CHUNK_SIZE, EXECUTION_CHUNK_TOTAL
+        from wm_infra.engine.metrics import BATCH_FILL_RATIO, EXECUTION_CHUNK_SIZE, EXECUTION_CHUNK_TOTAL
 
         EXECUTION_CHUNK_TOTAL.labels(stage="transition", mode=self.execution_mode).inc()
         EXECUTION_CHUNK_SIZE.labels(stage="transition", mode=self.execution_mode).observe(size)
@@ -923,7 +923,7 @@ class AsyncWorldModelEngine:
 
     async def _engine_loop(self) -> None:
         """Background loop: drain queue, step engine, resolve futures."""
-        from wm_infra.api.metrics import QUEUE_DEPTH, ACTIVE_ROLLOUTS, VRAM_USED_BYTES
+        from wm_infra.engine.metrics import QUEUE_DEPTH, ACTIVE_ROLLOUTS, VRAM_USED_BYTES
 
         logger.info("Engine loop running")
         try:

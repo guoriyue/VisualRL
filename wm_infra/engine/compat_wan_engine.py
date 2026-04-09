@@ -27,10 +27,13 @@ from urllib.parse import unquote, urlparse
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from wm_infra.api.metrics import SERVING_COMPILED_PROFILE_EVENTS
-from wm_infra.controlplane.schemas import ProduceSampleRequest, WanTaskConfig
+from wm_infra.engine.metrics import SERVING_COMPILED_PROFILE_EVENTS
+
+if TYPE_CHECKING:
+    from wm_infra.controlplane.schemas import ProduceSampleRequest, WanTaskConfig
+
 from wm_infra.runtime import (
     CallableGenerationStage,
     ComposedGenerationPipeline,

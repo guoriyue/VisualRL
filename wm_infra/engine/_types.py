@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field
 
 
 class Phase(IntEnum):
@@ -80,8 +82,33 @@ class StepResult:
 
 @dataclass(frozen=True, slots=True)
 class SwapHandle:
-    """Opaque handle tracking a GPU ↔ CPU swap for one entity's blocks."""
+    """Opaque handle tracking a GPU <-> CPU swap for one entity's blocks."""
 
     request_id: str
     block_ids: tuple[int, ...]
     direction: str  # "out" or "in"
+
+
+# ---------------------------------------------------------------------------
+# Schemas that the engine owns but the control-plane re-exports
+# ---------------------------------------------------------------------------
+
+from enum import Enum  # noqa: E402
+
+
+class VideoMemoryProfile(str, Enum):
+    DEFAULT = "default"
+    BALANCED = "balanced"
+    LOW_VRAM = "low_vram"
+    HIGH_QUALITY = "high_quality"
+
+
+class RolloutTaskConfig(BaseModel):
+    num_steps: int = Field(default=1, ge=1, description="Number of rollout or denoising steps to execute")
+    frame_count: Optional[int] = Field(default=None, ge=1, description="Target frame count for video-like tasks")
+    width: Optional[int] = Field(default=None, ge=1, description="Requested output width")
+    height: Optional[int] = Field(default=None, ge=1, description="Requested output height")
+    offload_model: Optional[bool] = Field(default=None, description="Whether model weights should be CPU/offload backed")
+    convert_model_dtype: Optional[bool] = Field(default=None, description="Whether to enable reduced-precision model conversion")
+    t5_cpu: Optional[bool] = Field(default=None, description="Whether text encoder work should stay on CPU")
+    memory_profile: Optional[VideoMemoryProfile] = Field(default=None, description="Coarse memory/quality mode for schedulers and backends")
