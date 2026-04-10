@@ -72,15 +72,6 @@ class StageResult:
     status: str = "succeeded"
 
 
-@dataclass(slots=True)
-class VideoGenerationOutput:
-    """Final result container for a full generation run."""
-
-    stage_results: list[StageResult] = field(default_factory=list)
-    output: Any = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-
 class VideoGenerationModel(ABC):
     """Unified abstract base class for all temporal generation models.
 

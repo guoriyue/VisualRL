@@ -11,7 +11,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import signal
 
 import zmq
 import zmq.asyncio
@@ -19,7 +18,7 @@ import zmq.asyncio
 from wm_infra.engine.ipc.artifacts import ArtifactStore
 from wm_infra.engine.ipc.protocol import ArtifactRef, MsgType, decode_msg, encode_msg
 from wm_infra.engine.managers.engine_loop import EngineLoop
-from wm_infra.engine.types import EntityRequest, StepResult
+from wm_infra.engine.types import RequestOutput, SchedulerStatus
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +41,8 @@ class EngineIPCServer:
         self._sock: zmq.asyncio.Socket | None = None
         self._recv_task: asyncio.Task[None] | None = None
 
-        # Track pending futures so we can write artifacts on completion
-        self._pending: dict[str, asyncio.Future[list[StepResult]]] = {}
+        # Track pending futures so we can write artifacts on completion.
+        self._pending: dict[str, asyncio.Future[RequestOutput]] = {}
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -120,26 +119,19 @@ class EngineIPCServer:
     async def _handle_submit(self, payload: dict) -> dict:
         """Submit a rollout. Non-blocking — returns ack immediately."""
         request_id: str = payload["request_id"]
-        num_steps: int = payload["num_steps"]
-
-        request = EntityRequest(
-            request_id=request_id,
-            num_steps=num_steps,
-            action_sequence=payload.get("action_sequence", []),
-            metadata=payload.get("metadata", {}),
-            priority=payload.get("priority", 0.0),
-            prefix_hash=payload.get("prefix_hash"),
-        )
+        request_data = {
+            key: value for key, value in payload.items() if key != "request_id"
+        }
 
         try:
-            future = self.engine.submit_nowait(request)
+            future = self.engine.add_request_nowait(request_id, request_data)
             self._pending[request_id] = future
             future.add_done_callback(
                 lambda f, rid=request_id: asyncio.ensure_future(
                     self._on_request_done(rid, f)
                 )
             )
-            queue_pos = self.engine.num_pending() + self.engine.num_waiting()
+            queue_pos = self.engine.num_pending()
             return {"request_id": request_id, "accepted": True, "queue_position": queue_pos}
         except Exception as exc:
             return {"request_id": request_id, "accepted": False, "error": str(exc)}
@@ -147,30 +139,35 @@ class EngineIPCServer:
     def _handle_cancel(self, payload: dict) -> dict:
         """Cancel a rollout request."""
         request_id: str = payload["request_id"]
-        cancelled = self.engine.scheduler.abort_request(request_id)
+        cancelled = self.engine.abort_request(request_id)
         self._pending.pop(request_id, None)
         return {"request_id": request_id, "cancelled": cancelled}
 
     def _handle_status(self, payload: dict) -> dict:
         """Return phase + step progress for a request."""
         request_id: str = payload["request_id"]
-        state = self.engine.scheduler.get_state(request_id)
-        if state is None:
+        request = self.engine.scheduler.get_request(request_id)
+        if request is None:
             # Might be already completed and drained — check artifact store
             meta = self.store.read_meta(request_id)
             if meta is not None:
                 return {
                     "request_id": request_id,
                     "phase": "done",
-                    "step_index": len(meta),
-                    "num_steps": len(meta),
+                    "step_index": meta.get("num_steps", 0),
+                    "num_steps": meta.get("num_steps", 0),
                 }
             return {"request_id": request_id, "phase": "unknown", "step_index": 0, "num_steps": 0}
+        payload_data = request.data if isinstance(request.data, dict) else {}
+        num_steps = int(payload_data.get("num_steps", 0) or 0)
+        phase = request.status.value
+        if request.status == SchedulerStatus.FINISHED and self.store.read_meta(request_id) is not None:
+            phase = "done"
         return {
             "request_id": request_id,
-            "phase": state.phase.name.lower(),
-            "step_index": state.step_index,
-            "num_steps": state.request.num_steps,
+            "phase": phase,
+            "step_index": num_steps if phase == "done" else 0,
+            "num_steps": num_steps,
         }
 
     def _handle_result(self, payload: dict) -> dict:
@@ -178,22 +175,23 @@ class EngineIPCServer:
         request_id: str = payload["request_id"]
         meta = self.store.read_meta(request_id)
         if meta is not None:
-            latent_path = self.store.read_latent_path(request_id)
+            result_path = self.store.read_result_path(request_id)
             artifact = ArtifactRef(
                 path=str(self.store.root / request_id),
-                size_bytes=latent_path.stat().st_size if latent_path else 0,
+                content_type="application/x-npy" if result_path else "application/json",
+                size_bytes=result_path.stat().st_size if result_path else 0,
             )
-            if latent_path:
+            if result_path:
                 import numpy as np
 
-                arr = np.load(str(latent_path))
+                arr = np.load(str(result_path), mmap_mode="r")
                 artifact.shape = arr.shape
                 artifact.dtype = str(arr.dtype)
             return {
                 "request_id": request_id,
                 "done": True,
                 "artifact": artifact.to_dict(),
-                "step_metas": meta,
+                "meta": meta,
             }
         return {"request_id": request_id, "done": False}
 
@@ -201,9 +199,8 @@ class EngineIPCServer:
         """Return engine stats."""
         return {
             "num_pending": self.engine.num_pending(),
-            "num_active": self.engine.num_active(),
+            "num_active": self.engine.num_running(),
             "num_waiting": self.engine.num_waiting(),
-            "num_free_blocks": self.engine.pool.num_free_blocks,
         }
 
     # ------------------------------------------------------------------
@@ -211,7 +208,7 @@ class EngineIPCServer:
     # ------------------------------------------------------------------
 
     async def _on_request_done(
-        self, request_id: str, future: asyncio.Future[list[StepResult]]
+        self, request_id: str, future: asyncio.Future[RequestOutput]
     ) -> None:
         """Write artifacts to tmpfs when an engine future resolves."""
         self._pending.pop(request_id, None)
@@ -221,66 +218,8 @@ class EngineIPCServer:
         if exc is not None:
             logger.error("Request %s failed: %s", request_id, exc)
             return
-        results = future.result()
+        result = future.result()
         try:
-            self.store.write_results(request_id, results)
+            self.store.write_result(request_id, result)
         except Exception:
             logger.exception("Failed to write artifacts for %s", request_id)
-
-
-# ------------------------------------------------------------------
-# Entry point
-# ------------------------------------------------------------------
-
-
-def main() -> None:
-    """Run the engine IPC server standalone."""
-    from wm_infra.config import load_config
-    from wm_infra.engine.model_executor.worker import DynamicsStage, EncodeStage
-    from wm_infra.engine.types import EngineRunConfig
-
-    config = load_config()
-    run_config = EngineRunConfig(
-        max_num_blocks=config.state_cache.max_batch_size * 4,
-        block_size=1,
-        latent_tokens=config.state_cache.num_latent_tokens,
-        latent_dim=config.state_cache.latent_dim,
-        max_batch_size=config.scheduler.max_batch_size,
-        max_steps_per_entity=config.state_cache.max_rollout_steps,
-        device=config.device.value if hasattr(config.device, "value") else str(config.device),
-    )
-
-    engine = EngineLoop(run_config)
-    engine.register_stage(EncodeStage())
-    engine.register_stage(DynamicsStage())
-
-    server = EngineIPCServer(
-        engine,
-        ipc_path=config.ipc.socket_path,
-        artifact_root=config.ipc.artifact_root,
-    )
-
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    async def run() -> None:
-        await server.start()
-        stop_event = asyncio.Event()
-
-        def _signal_handler() -> None:
-            stop_event.set()
-
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, _signal_handler)
-
-        logger.info("Engine IPC server running. Press Ctrl+C to stop.")
-        await stop_event.wait()
-        logger.info("Shutting down engine IPC server...")
-        await server.stop()
-
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
-    loop.run_until_complete(run())
-
-
-if __name__ == "__main__":
-    main()

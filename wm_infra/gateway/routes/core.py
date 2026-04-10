@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from wm_infra.gateway.state import get_gateway_runtime
 
@@ -19,8 +19,8 @@ class RolloutSubmitRequest(BaseModel):
     request_id: str | None = None
     num_steps: int
     priority: float = 0.0
-    action_sequence: list[float | int] = []
-    metadata: dict[str, Any] = {}
+    action_sequence: list[float | int] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     prefix_hash: str | None = None
 
 
@@ -82,7 +82,7 @@ def register_routes(app: FastAPI) -> None:
         status = await runtime.engine_client.get_status(request_id)
         phase = status.get("phase", "unknown")
 
-        if phase == "done":
+        if phase in {"done", "finished"}:
             result = await runtime.engine_client.get_result(request_id)
             return {
                 "request_id": request_id,
@@ -91,7 +91,7 @@ def register_routes(app: FastAPI) -> None:
                 "step_index": status.get("step_index", 0),
                 "num_steps": status.get("num_steps", 0),
                 "artifact": result.get("artifact"),
-                "step_metas": result.get("step_metas"),
+                "meta": result.get("meta"),
             }
 
         return {

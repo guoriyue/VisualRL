@@ -24,14 +24,6 @@ def register_model(name: str) -> Callable:
     return wrapper
 
 
-def get_model(name: str) -> type[VideoGenerationModel]:
-    """Get a registered model class by name."""
-    if name not in _REGISTRY:
-        available = ", ".join(sorted(_REGISTRY.keys())) or "(none)"
-        raise KeyError(f"Model '{name}' not found. Available: {available}")
-    return _REGISTRY[name]
-
-
 def list_models() -> list[str]:
     """List all registered model names."""
     return sorted(_REGISTRY.keys())

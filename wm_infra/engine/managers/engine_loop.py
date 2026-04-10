@@ -1,8 +1,8 @@
-"""Engine loop — persistent async loop that drives drain -> schedule -> execute -> output.
+"""Generic async engine loop following sglang-omni's OmniEngine pattern.
 
-The ``EngineLoop`` is the top-level orchestrator. It owns a scheduler and
-a worker, pulls requests from a queue, runs the scheduling/execution cycle
-in a loop, and resolves per-request futures when entities complete.
+The ``EngineLoop`` is the top-level orchestrator.  It owns a ``Scheduler``
+and a ``ModelRunner``, accepts requests via ``add_request()``, and runs a
+persistent ``schedule() -> execute() -> update()`` loop.
 """
 
 from __future__ import annotations
@@ -10,65 +10,56 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from concurrent.futures import Executor
 from typing import Any
 
-from wm_infra.engine.managers.scheduler import ContinuousBatchingScheduler
-from wm_infra.engine.mem_cache.paged_pool import PagedLatentPool
-from wm_infra.engine.mem_cache.radix_cache import RadixStateCache
-from wm_infra.engine.model_executor.worker import RequestQueue, Worker
-from wm_infra.engine.types import (
-    EngineRunConfig,
-    EntityRequest,
-    StepResult,
+from wm_infra.engine.interfaces import (
+    BatchPlanner,
+    IterationController,
+    ResourceManager,
 )
+from wm_infra.engine.managers.scheduler import Scheduler
+from wm_infra.engine.model_executor.model_runner import ModelFn, ModelRunner
+from wm_infra.engine.types import RequestOutput
 
 logger = logging.getLogger(__name__)
 
 
 class EngineLoop:
-    """Persistent async loop for continuous-batching engine execution.
-
-    Usage::
-
-        loop = EngineLoop(config)
-        loop.register_stage(encode_stage)
-        loop.register_stage(dynamics_stage)
-        await loop.start()
-        result = await loop.submit(request)
-        await loop.stop()
+    """Persistent async engine loop: schedule -> execute -> update.
 
     Parameters
     ----------
-    config : EngineRunConfig
-        Engine configuration.
-    cache : RadixStateCache | None
-        Optional prefix cache for cache-aware scheduling.
+    model_fn : ModelFn
+        Async callable that processes a single ``SchedulerRequest``.
+    batch_planner : BatchPlanner | None
+        Optional custom batch planner for the scheduler.
+    resource_manager : ResourceManager | None
+        Optional custom resource manager for the scheduler.
+    iteration_controller : IterationController | None
+        Optional custom iteration controller for the scheduler.
+    executor : Executor | None
+        Optional thread pool executor for GPU-bound work.
     """
 
     def __init__(
         self,
-        config: EngineRunConfig,
-        cache: RadixStateCache | None = None,
+        model_fn: ModelFn,
+        *,
+        batch_planner: BatchPlanner | None = None,
+        resource_manager: ResourceManager | None = None,
+        iteration_controller: IterationController | None = None,
+        executor: Executor | None = None,
     ) -> None:
-        self.config = config
-        self.pool = PagedLatentPool(
-            num_blocks=config.max_num_blocks,
-            block_size=config.block_size,
-            latent_tokens=config.latent_tokens,
-            latent_dim=config.latent_dim,
-            device=config.device,
+        self.scheduler = Scheduler(
+            batch_planner=batch_planner,
+            resource_manager=resource_manager,
+            iteration_controller=iteration_controller,
         )
-        self.cache = cache
-        self.scheduler = ContinuousBatchingScheduler(
-            config=config,
-            pool=self.pool,
-            cache=cache,
-        )
-        self.worker = Worker(pool=self.pool, device=config.device)
+        self.model_runner = ModelRunner(model_fn)
+        self._executor = executor
 
-        self._request_queue = RequestQueue()
-        self._futures: dict[str, asyncio.Future[list[StepResult]]] = {}
-        self._results: dict[str, list[StepResult]] = {}
+        self._futures: dict[str, asyncio.Future[RequestOutput]] = {}
         self._task: asyncio.Task[None] | None = None
         self._running = False
         self._has_work = asyncio.Event()
@@ -87,60 +78,63 @@ class EngineLoop:
     async def stop(self) -> None:
         """Stop the engine loop gracefully."""
         self._running = False
-        self._has_work.set()  # wake the loop so it can exit
+        self._has_work.set()
         if self._task is not None:
             self._task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
             self._task = None
-        # Cancel any unresolved futures so callers don't hang
-        for _rid, future in self._futures.items():
+        for future in self._futures.values():
             if not future.done():
                 future.cancel()
         self._futures.clear()
-        self._results.clear()
 
     @property
     def is_running(self) -> bool:
         return self._running
 
-    def register_stage(self, stage: Any) -> None:
-        """Register a stage with the worker."""
-        self.worker.register_stage(stage)
-
     # ------------------------------------------------------------------
-    # Request submission
+    # Request API
     # ------------------------------------------------------------------
 
-    async def submit(self, request: EntityRequest) -> list[StepResult]:
-        """Submit a request and await its completion.
-
-        Returns the list of ``StepResult``s collected across all steps.
-        """
+    async def add_request(self, request_id: str, data: Any) -> RequestOutput:
+        """Submit a request and await its completion."""
         loop = asyncio.get_running_loop()
-        future: asyncio.Future[list[StepResult]] = loop.create_future()
-        self._futures[request.request_id] = future
-        self._results[request.request_id] = []
-        self._request_queue.put_nowait(request)
+        future: asyncio.Future[RequestOutput] = loop.create_future()
+        self._futures[request_id] = future
+        self.scheduler.add_request(request_id, data)
         self._has_work.set()
         return await future
 
-    def submit_nowait(self, request: EntityRequest) -> asyncio.Future[list[StepResult]]:
+    def add_request_nowait(self, request_id: str, data: Any) -> asyncio.Future[RequestOutput]:
         """Submit a request without awaiting. Returns the future."""
         loop = asyncio.get_running_loop()
-        future: asyncio.Future[list[StepResult]] = loop.create_future()
-        self._futures[request.request_id] = future
-        self._results[request.request_id] = []
-        self._request_queue.put_nowait(request)
+        future: asyncio.Future[RequestOutput] = loop.create_future()
+        self._futures[request_id] = future
+        self.scheduler.add_request(request_id, data)
         self._has_work.set()
         return future
+
+    async def get_result(self, request_id: str) -> RequestOutput | None:
+        """Retrieve the result for a completed request."""
+        return self.scheduler.get_result(request_id)
+
+    def abort_request(self, request_id: str) -> bool:
+        """Abort a request and resolve its future."""
+        success = self.scheduler.abort_request(request_id)
+        if success:
+            result = self.scheduler.pop_result(request_id)
+            future = self._futures.pop(request_id, None)
+            if future is not None and not future.done() and result is not None:
+                future.set_result(result)
+        return success
 
     # ------------------------------------------------------------------
     # Main loop
     # ------------------------------------------------------------------
 
     async def _run(self) -> None:
-        """Persistent loop: drain -> schedule -> execute -> output."""
+        """Persistent loop: schedule -> execute -> update."""
         while self._running:
             try:
                 has_active = await self._iteration()
@@ -151,77 +145,40 @@ class EngineLoop:
                 has_active = False
 
             if has_active:
-                # Active entities — yield but iterate again immediately
                 await asyncio.sleep(0)
             else:
-                # Idle — wait for new work instead of busy-spinning
                 self._has_work.clear()
                 await self._has_work.wait()
 
     async def _iteration(self) -> bool:
-        """One iteration of the engine loop. Returns True if there's active work."""
-
-        # (1) Drain: pull new requests from the queue
-        new_requests = self._request_queue.drain()
-        for req in new_requests:
-            self.scheduler.add_request(req)
-
-        # (2) Schedule
+        """One iteration of the engine loop."""
+        # (1) Schedule: select requests for execution
         sched_output = self.scheduler.schedule()
 
-        # (3) Execute encode stage
-        if sched_output.encode_ids:
-            encode_stage = self.worker.get_stage("encode")
-            if encode_stage is not None:
-                self.worker.execute_step(sched_output.encode_ids, "encode")
-            self.scheduler.on_encode_complete(sched_output.encode_ids)
+        if not sched_output.requests:
+            return self.scheduler.has_work()
 
-        # (4) Execute dynamics step
-        if sched_output.step_ids:
-            dynamics_stage = self.worker.get_stage("dynamics")
-            if dynamics_stage is not None:
-                step_indices = []
-                for rid in sched_output.step_ids:
-                    state = self.scheduler.get_state(rid)
-                    step_indices.append(state.step_index if state else 0)
+        # (2) Execute: run model on the batch
+        runner_output = await self.model_runner.execute(sched_output)
 
-                results = self.worker.execute_step(
-                    sched_output.step_ids,
-                    "dynamics",
-                    step_indices=step_indices,
-                )
-                for result in results:
-                    if result.request_id in self._results:
-                        self._results[result.request_id].append(result)
-
-            self.scheduler.on_step_complete(sched_output.step_ids)
-
-        # (5) Output: resolve futures for done entities
-        done_states = self.scheduler.drain_done()
-        for entity_state in done_states:
-            rid = entity_state.request.request_id
-            future = self._futures.pop(rid, None)
-            results = self._results.pop(rid, [])
-            self.pool.free(rid)
+        # (3) Update: transition completed requests and resolve futures
+        completed = self.scheduler.update(runner_output)
+        for output in completed:
+            future = self._futures.pop(output.request_id, None)
             if future is not None and not future.done():
-                future.set_result(results)
+                future.set_result(output)
 
-        # Return whether there's still active work
-        return bool(
-            self.scheduler.num_running()
-            or self.scheduler.num_waiting()
-            or not self._request_queue.empty()
-        )
+        return self.scheduler.has_work()
 
     # ------------------------------------------------------------------
     # Introspection
     # ------------------------------------------------------------------
 
-    def num_pending(self) -> int:
-        return self._request_queue.qsize()
+    def num_waiting(self) -> int:
+        return self.scheduler.num_waiting()
 
-    def num_active(self) -> int:
+    def num_running(self) -> int:
         return self.scheduler.num_running()
 
-    def num_waiting(self) -> int:
+    def num_pending(self) -> int:
         return self.scheduler.num_waiting()

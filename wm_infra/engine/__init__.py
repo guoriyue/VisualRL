@@ -1,55 +1,56 @@
-"""Unified runtime engine for world-model inference.
+"""Model-agnostic runtime engine for video generation inference.
 
 Public API re-exports for the engine module.
 """
 
-from wm_infra.engine.managers.engine_loop import EngineLoop
-from wm_infra.engine.managers.scheduler import ContinuousBatchingScheduler, EntityState
-from wm_infra.engine.mem_cache.paged_pool import PagedLatentPool, PageTable
-from wm_infra.engine.mem_cache.radix_cache import RadixNode, RadixStateCache
-from wm_infra.engine.model_executor.task_graph import TaskEdge, TaskGraph, TaskNode
-from wm_infra.engine.model_executor.worker import (
-    AsyncQueue,
-    DynamicsStage,
-    EncodeStage,
-    RequestQueue,
-    ResultQueue,
-    StageRunner,
-    StageSpec,
-    Worker,
+from wm_infra.engine.interfaces import (
+    BatchPlanner,
+    FIFOBatchPlanner,
+    IterationController,
+    ResourceManager,
+    SimpleResourceManager,
+    SinglePassIterationController,
 )
+from wm_infra.engine.managers.engine_loop import EngineLoop
+from wm_infra.engine.managers.scheduler import Scheduler
+from wm_infra.engine.model_executor.config import PipelineConfig
+from wm_infra.engine.model_executor.model_runner import ModelRunner
+from wm_infra.engine.model_executor.pipeline import ComposedPipeline
+from wm_infra.engine.model_executor.stages import (
+    PassthroughDecodeStage,
+    PipelineStage,
+    Uint8PostprocessStage,
+)
+from wm_infra.engine.model_executor.task_graph import TaskEdge, TaskGraph, TaskNode
 from wm_infra.engine.types import (
-    EngineRunConfig,
-    EntityRequest,
-    Phase,
+    ModelRunnerOutput,
+    RequestOutput,
     SchedulerOutput,
-    StepResult,
-    SwapHandle,
+    SchedulerRequest,
+    SchedulerStatus,
 )
 
 __all__ = [
-    "AsyncQueue",
-    "ContinuousBatchingScheduler",
-    "DynamicsStage",
-    "EncodeStage",
+    "BatchPlanner",
+    "ComposedPipeline",
     "EngineLoop",
-    "EngineRunConfig",
-    "EntityRequest",
-    "EntityState",
-    "PageTable",
-    "PagedLatentPool",
-    "Phase",
-    "RadixNode",
-    "RadixStateCache",
-    "RequestQueue",
-    "ResultQueue",
+    "FIFOBatchPlanner",
+    "IterationController",
+    "ModelRunner",
+    "ModelRunnerOutput",
+    "PassthroughDecodeStage",
+    "PipelineConfig",
+    "PipelineStage",
+    "RequestOutput",
+    "ResourceManager",
+    "Scheduler",
     "SchedulerOutput",
-    "StageRunner",
-    "StageSpec",
-    "StepResult",
-    "SwapHandle",
+    "SchedulerRequest",
+    "SchedulerStatus",
+    "SimpleResourceManager",
+    "SinglePassIterationController",
     "TaskEdge",
     "TaskGraph",
     "TaskNode",
-    "Worker",
+    "Uint8PostprocessStage",
 ]

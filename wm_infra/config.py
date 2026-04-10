@@ -27,31 +27,6 @@ class SchedulerPolicy(str, Enum):
 
 
 @dataclass
-class TokenizerConfig:
-    """Video tokenizer configuration (COSMOS-style)."""
-
-    spatial_downsample: int = 8
-    temporal_downsample: int = 4
-    latent_channels: int = 16
-    codebook_size: int = 64  # FSQ levels per dimension
-    fsq_levels: list[int] = field(default_factory=lambda: [8, 8, 8, 5, 5, 5])
-    causal_temporal: bool = True
-    input_channels: int = 3  # RGB
-
-
-@dataclass
-class StateCacheConfig:
-    """Latent state cache configuration."""
-
-    max_batch_size: int = 64
-    max_rollout_steps: int = 128
-    latent_dim: int = 16
-    num_latent_tokens: int = 256  # tokens per frame after spatial tokenization
-    pool_size_gb: float = 4.0  # GPU memory pool for state cache
-    eviction_policy: str = "lru"
-
-
-@dataclass
 class SchedulerConfig:
     """Rollout scheduler configuration."""
 
@@ -89,8 +64,6 @@ class EngineConfig:
 
     device: DeviceType = DeviceType.CUDA
     dtype: str = "float16"
-    tokenizer: TokenizerConfig = field(default_factory=TokenizerConfig)
-    state_cache: StateCacheConfig = field(default_factory=StateCacheConfig)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     ipc: IPCConfig = field(default_factory=IPCConfig)
@@ -177,10 +150,10 @@ def _dict_to_config(d: dict) -> EngineConfig:
     if "device" in d and isinstance(d["device"], str):
         d["device"] = DeviceType(d["device"])
 
-    tok_d = d.pop("tokenizer", {})
+    d.pop("tokenizer", None)  # Legacy field, ignored
     d.pop("dynamics", None)  # Legacy field, ignored
     d.pop("controlplane", None)  # Legacy field, ignored
-    sc_d = d.pop("state_cache", {})
+    d.pop("state_cache", None)  # Legacy field, ignored
     sched_d = d.pop("scheduler", {})
     serv_d = d.pop("server", {})
     ipc_d = d.pop("ipc", {})
@@ -189,8 +162,6 @@ def _dict_to_config(d: dict) -> EngineConfig:
         sched_d["policy"] = SchedulerPolicy(sched_d["policy"])
 
     return EngineConfig(
-        tokenizer=TokenizerConfig(**tok_d) if tok_d else TokenizerConfig(),
-        state_cache=StateCacheConfig(**sc_d) if sc_d else StateCacheConfig(),
         scheduler=SchedulerConfig(**sched_d) if sched_d else SchedulerConfig(),
         server=ServerConfig(**serv_d) if serv_d else ServerConfig(),
         ipc=IPCConfig(**ipc_d) if ipc_d else IPCConfig(),

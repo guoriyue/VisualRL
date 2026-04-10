@@ -43,7 +43,6 @@ bench = [
 
 [project.scripts]
 wm-serve = "wm_infra.gateway:main"
-wm-engine = "wm_infra.engine.ipc.server:main"
 
 [tool.setuptools.packages.find]
 include = ["wm_infra*"]
