@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from wm_infra.models.base import VideoGenerationModel
-from wm_infra.models.families.wan.shared import _stable_hash, resolve_wan_reference_path
+from wm_infra.models.families.wan.shared import resolve_wan_reference_path, stable_hash
 from wm_infra.schemas.video_generation import StageResult, VideoGenerationRequest
 
 
@@ -114,7 +114,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
         self._load_modules()
         model_dir = self._resolve_model_dir(request)
         pipeline = self._get_pipeline(model_dir)
-        prompt_hash = _stable_hash(
+        prompt_hash = stable_hash(
             f"{request.model_name}|{request.prompt}|{request.negative_prompt}"
         )
         cache_key = (
@@ -251,7 +251,6 @@ class DiffusersWanI2VModel(VideoGenerationModel):
             state_updates={
                 "video_frames": frames,
                 "output_fps": request.fps or 16,
-                "_pipeline_output": frames,
             },
             runtime_state_updates={
                 "frame_count": len(frames),

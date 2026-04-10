@@ -10,7 +10,8 @@ import asyncio
 import logging
 import time
 from collections import deque
-from typing import TYPE_CHECKING, Any, AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable
+from typing import TYPE_CHECKING, Any
 
 from wm_infra.engine.types import (
     ModelRunnerOutput,

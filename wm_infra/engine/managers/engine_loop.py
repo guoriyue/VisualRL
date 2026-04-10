@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -30,7 +31,7 @@ from wm_infra.engine.types import (
 )
 
 if TYPE_CHECKING:
-    from wm_infra.engine.interfaces import CacheManager
+    from wm_infra.engine.interfaces import CacheManager, FeedbackMailbox
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class EngineLoop:
     scheduler : Scheduler
         Owns request lifecycle.
     model_runner
-        Stateless model executor (``ModelRunner`` or ``CallableModelRunner``).
+        Stateless model executor (``ModelRunner`` or ``PipelineModelRunner``).
     cache_manager : CacheManager | None
         Optional output cache.
     enable_overlap : bool
@@ -66,7 +67,7 @@ class EngineLoop:
         model_runner: Any,
         cache_manager: CacheManager | None = None,
         enable_overlap: bool = False,
-        feedback_mailbox: Any | None = None,
+        feedback_mailbox: FeedbackMailbox | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.model_runner = model_runner
@@ -160,10 +161,8 @@ class EngineLoop:
         self._running = False
         if self._loop_task:
             self._loop_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._loop_task
-            except asyncio.CancelledError:
-                pass
             self._loop_task = None
         self._drain_pending_results()
         logger.info("EngineLoop stopped")
@@ -370,12 +369,7 @@ class EngineLoop:
     async def _execute_async(
         self, scheduler_output: SchedulerOutput
     ) -> ModelRunnerOutput:
-        """Execute model forward pass, choosing sync+thread or async."""
-        # CallableModelRunner exposes execute_async for pipeline-style.
-        execute_async = getattr(self.model_runner, "execute_async", None)
-        if execute_async is not None and not self._should_execute_in_thread():
-            return await execute_async(scheduler_output)
-
+        """Execute model forward pass, choosing sync+thread or direct."""
         if self._should_execute_in_thread():
             loop = asyncio.get_running_loop()
             return await loop.run_in_executor(
@@ -397,10 +391,8 @@ class EngineLoop:
         self, scheduler_output: SchedulerOutput, error: Exception
     ) -> None:
         for request in scheduler_output.requests:
-            try:
+            with suppress(Exception):
                 self.scheduler.fail_request(request.request_id, error)
-            except Exception:
-                pass
 
     async def _filter_cached(
         self, scheduler_output: SchedulerOutput
@@ -454,36 +446,33 @@ class EngineLoop:
         """Check feedback mailbox and resume WAITING_FEEDBACK requests."""
         if self._feedback_mailbox is None:
             return
+        mailbox = self._feedback_mailbox
         for req_id, request in list(self.scheduler.requests.items()):
             if request.status != SchedulerStatus.WAITING_FEEDBACK:
                 continue
-            if not hasattr(self._feedback_mailbox, "has"):
+            if not mailbox.has(req_id):
                 continue
-            if not self._feedback_mailbox.has(req_id):
+            item = mailbox.pop(req_id)
+            if item is None:
                 continue
-            queue = getattr(self._feedback_mailbox, "_queues", {}).get(req_id)
-            if queue is not None and not queue.empty():
-                try:
-                    item = queue.get_nowait()
-                    if isinstance(item, BaseException):
-                        err = item if isinstance(item, Exception) else RuntimeError(str(item))
-                        self.scheduler.fail_request(req_id, err)
-                        continue
-                    # Apply feedback via iteration controller if supported.
-                    iter_ctrl = self.scheduler.iteration_controller
-                    if hasattr(iter_ctrl, "apply_feedback"):
-                        data = getattr(item, "data", item)
-                        iter_ctrl.apply_feedback(request, data)
-                    self.scheduler.resume_request(req_id)
-                except Exception as e:
-                    logger.error("Feedback handling failed for %s: %s", req_id, e)
-                    try:
-                        self.scheduler.fail_request(
-                            req_id,
-                            e if isinstance(e, Exception) else RuntimeError(str(e)),
-                        )
-                    except Exception:
-                        pass
+            try:
+                if isinstance(item, BaseException):
+                    err = item if isinstance(item, Exception) else RuntimeError(str(item))
+                    self.scheduler.fail_request(req_id, err)
+                    continue
+                # Apply feedback via iteration controller if supported.
+                iter_ctrl = self.scheduler.iteration_controller
+                if hasattr(iter_ctrl, "apply_feedback"):
+                    data = getattr(item, "data", item)
+                    iter_ctrl.apply_feedback(request, data)
+                self.scheduler.resume_request(req_id)
+            except Exception as e:
+                logger.error("Feedback handling failed for %s: %s", req_id, e)
+                with suppress(Exception):
+                    self.scheduler.fail_request(
+                        req_id,
+                        e if isinstance(e, Exception) else RuntimeError(str(e)),
+                    )
 
     # -----------------------------------------------------------------
     # Introspection

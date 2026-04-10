@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from wm_infra.models.base import VideoGenerationModel
-from wm_infra.models.families.wan.shared import _stable_hash, resolve_wan_reference_path
+from wm_infra.models.families.wan.shared import resolve_wan_reference_path, stable_hash
 from wm_infra.schemas.video_generation import StageResult, VideoGenerationRequest
 
 
@@ -213,6 +213,27 @@ class OfficialWanModel(VideoGenerationModel):
             ]
         )
 
+    def _model_for_timestep(self, pipeline: Any, timestep: Any, boundary: float) -> Any:
+        """Select the active Wan expert without reaching into upstream private helpers.
+
+        The official Wan repo exposes the active experts as public
+        ``high_noise_model`` and ``low_noise_model`` attributes. We mirror the
+        documented selection and optional offload policy locally so this
+        adapter does not depend on the upstream private
+        ``_prepare_model_for_timestep`` method.
+        """
+        active_is_high_noise = timestep.item() >= boundary
+        active_model = pipeline.high_noise_model if active_is_high_noise else pipeline.low_noise_model
+        inactive_model = (
+            pipeline.low_noise_model if active_is_high_noise else pipeline.high_noise_model
+        )
+
+        if next(inactive_model.parameters()).device.type == "cuda":
+            inactive_model.to("cpu")
+        if next(active_model.parameters()).device.type == "cpu":
+            active_model.to(pipeline.device)
+        return active_model
+
     def _get_pipeline(self, request: VideoGenerationRequest) -> tuple[Any, str, Path]:
         self._load_modules()
         task_key = self._task_key(request.task_type, request.model_size)
@@ -258,7 +279,7 @@ class OfficialWanModel(VideoGenerationModel):
         pipeline, task_key, checkpoint_dir = self._get_pipeline(request)
         torch = self._torch
         n_prompt = request.negative_prompt or pipeline.sample_neg_prompt
-        prompt_hash = _stable_hash(
+        prompt_hash = stable_hash(
             f"{request.model_name}|{request.prompt}|{request.negative_prompt}"
         )
         cache_key = f"{task_key}|{checkpoint_dir}|{prompt_hash}"
@@ -312,7 +333,7 @@ class OfficialWanModel(VideoGenerationModel):
                 notes=["Conditioning stage skipped because the request is text-to-video."]
             )
         reference_path = resolve_wan_reference_path(request.references[0])
-        conditioning_hash = _stable_hash(
+        conditioning_hash = stable_hash(
             f"{request.task_type}|"
             f"{'|'.join(request.references)}|"
             f"{request.width}x{request.height}|"
@@ -515,7 +536,14 @@ class OfficialWanModel(VideoGenerationModel):
 
             for t in timesteps:
                 timestep = torch.stack([t]).to(pipeline.device)
-                model = pipeline._prepare_model_for_timestep(t, boundary, request.offload_model)
+                if request.offload_model:
+                    model = self._model_for_timestep(pipeline, t, boundary)
+                else:
+                    model = (
+                        pipeline.high_noise_model
+                        if t.item() >= boundary
+                        else pipeline.low_noise_model
+                    )
                 sample_guide_scale = (
                     high_noise_guidance_scale if t.item() >= boundary else low_noise_guidance_scale
                 )
@@ -607,7 +635,7 @@ class OfficialWanModel(VideoGenerationModel):
         return StageResult(
             state_updates={
                 "output_fps": int(state["fps"]),
-                "_pipeline_output": video,
+                "video_tensor": video,
             },
             runtime_state_updates={"output_fps": int(state["fps"])},
             outputs={

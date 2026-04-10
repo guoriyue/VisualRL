@@ -5,7 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tests.e2e.helpers import build_engine, require_cuda, require_real_model_opt_in, resolve_hf_snapshot
+from tests.e2e.helpers import (
+    build_engine,
+    require_cuda,
+    require_real_model_opt_in,
+    resolve_hf_snapshot,
+)
 from wm_infra.models.families.wan.diffusers_i2v import DiffusersWanI2VModel
 from wm_infra.schemas.video_generation import VideoGenerationRequest
 
@@ -56,7 +61,7 @@ async def test_wan_diffusers_i2v_real_engine_e2e():
 
     frames = result[-1].state_updates.get("video_frames")
     if frames is None:
-        frames = result[-1].state_updates.get("_pipeline_output")
+        frames = result[-1].state_updates.get("video_tensor")
     assert frames is not None
 
     arr = np.asarray(frames)

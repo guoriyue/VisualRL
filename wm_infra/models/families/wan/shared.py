@@ -6,7 +6,8 @@ import hashlib
 from urllib.parse import unquote, urlparse
 
 
-def _stable_hash(value: str) -> str:
+def stable_hash(value: str) -> str:
+    """Return a short stable hash for cache keys shared across Wan modules."""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
 
 

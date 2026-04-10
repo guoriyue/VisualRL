@@ -19,6 +19,8 @@ from wm_infra.engine.types import RequestOutput
 
 logger = logging.getLogger(__name__)
 
+RESULT_ARRAY_FIELDS = ("video_frames", "video_tensor", "output", "frames")
+
 
 class ArtifactStore:
     """Manages request artifacts on tmpfs (``/dev/shm`` by default)."""
@@ -126,7 +128,7 @@ def _extract_array_payload(payload):
     if hasattr(payload, "detach") and hasattr(payload, "cpu") and hasattr(payload, "numpy"):
         return payload
     if isinstance(payload, dict):
-        for key in ("_pipeline_output", "output", "video_frames", "frames"):
+        for key in RESULT_ARRAY_FIELDS:
             value = payload.get(key)
             if value is None:
                 continue

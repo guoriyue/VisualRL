@@ -1,10 +1,7 @@
-"""Diffusers-based Cosmos Predict1 executor (Text2World + Video2World).
+"""Diffusers-based Cosmos Predict2 executor (Video2World + Text2Image).
 
-Owns the model forward logic for Cosmos Predict1 variants using HuggingFace
-diffusers ``CosmosTextToWorldPipeline`` and ``CosmosVideoToWorldPipeline``.
-
-Predict2 is explicitly deferred — constructing with a Predict2 variant raises
-``NotImplementedError``.
+Owns the model forward logic for Cosmos Predict2 variants using HuggingFace
+diffusers ``Cosmos2VideoToWorldPipeline`` and ``Cosmos2TextToImagePipeline``.
 """
 
 from __future__ import annotations
@@ -19,47 +16,43 @@ from typing import Any
 from wm_infra.models.families.cosmos.variants import CosmosLocalExecutor, CosmosVariant
 from wm_infra.schemas.video_generation import StageResult, VideoGenerationRequest
 
-# Cosmos Predict1 HuggingFace model ID map
+# Cosmos Predict2 HuggingFace model ID map
 _MODEL_ID_MAP: dict[tuple[str, str], str] = {
-    ("text2world", "7B"): "nvidia/Cosmos-1.0-Diffusion-7B-Text2World",
-    ("text2world", "14B"): "nvidia/Cosmos-1.0-Diffusion-14B-Text2World",
-    ("video2world", "7B"): "nvidia/Cosmos-1.0-Diffusion-7B-Video2World",
-    ("video2world", "14B"): "nvidia/Cosmos-1.0-Diffusion-14B-Video2World",
+    ("video2world", "2B"): "nvidia/Cosmos-Predict2-2B-Video2World",
+    ("video2world", "14B"): "nvidia/Cosmos-Predict2-14B-Video2World",
+    ("text2image", "0.6B"): "nvidia/Cosmos-Predict2-0.6B-Text2Image",
+    ("text2image", "2B"): "nvidia/Cosmos-Predict2-2B-Text2Image",
+    ("text2image", "14B"): "nvidia/Cosmos-Predict2-14B-Text2Image",
 }
 
-# Variants that use the Text2World pipeline
-_T2W_VARIANTS = frozenset({CosmosVariant.PREDICT1_TEXT2WORLD})
+# Variants that use the Text2Image pipeline
+_T2I_VARIANTS = frozenset({CosmosVariant.PREDICT2_TEXT2IMAGE})
 
 
 def _stable_hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
 
 
-class DiffusersCosmosPredict1Executor(CosmosLocalExecutor):
-    """Diffusers-based in-process executor for Cosmos Predict1 variants.
+class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
+    """Diffusers-based in-process executor for Cosmos Predict2 variants.
 
-    Supports both Text2World and Video2World through a single class — the
+    Supports both Video2World and Text2Image through a single class — the
     ``variant`` determines which diffusers pipeline class is loaded.
     """
 
-    execution_mode = "diffusers_cosmos_predict1"
+    execution_mode = "diffusers_cosmos_predict2"
 
     def __init__(
         self,
         *,
         variant: CosmosVariant,
-        model_size: str = "7B",
+        model_size: str = "2B",
         model_id_or_path: str | None = None,
         device_id: int = 0,
         dtype: str = "bfloat16",
         enable_cpu_offload: bool = True,
         enable_vae_tiling: bool = True,
     ) -> None:
-        if variant == CosmosVariant.PREDICT2_VIDEO2WORLD:
-            raise NotImplementedError(
-                "Cosmos Predict2 is not yet implemented. "
-                "Use a Predict1 variant (predict1_text2world or predict1_video2world)."
-            )
         self.variant = variant
         self.model_size = model_size
         self.model_id_or_path = model_id_or_path
@@ -73,8 +66,8 @@ class DiffusersCosmosPredict1Executor(CosmosLocalExecutor):
         self._torch: Any = None
         self._np: Any = None
         self._pil_image: Any = None
-        self._t2w_pipeline_cls: Any = None
         self._v2w_pipeline_cls: Any = None
+        self._t2i_pipeline_cls: Any = None
 
         # Cached state
         self._pipeline: Any = None
@@ -87,25 +80,25 @@ class DiffusersCosmosPredict1Executor(CosmosLocalExecutor):
             return
         import numpy as np
         import torch
-        from diffusers import CosmosTextToWorldPipeline, CosmosVideoToWorldPipeline
+        from diffusers import Cosmos2TextToImagePipeline, Cosmos2VideoToWorldPipeline
         from PIL import Image
 
         self._torch = torch
         self._np = np
         self._pil_image = Image
-        self._t2w_pipeline_cls = CosmosTextToWorldPipeline
-        self._v2w_pipeline_cls = CosmosVideoToWorldPipeline
+        self._v2w_pipeline_cls = Cosmos2VideoToWorldPipeline
+        self._t2i_pipeline_cls = Cosmos2TextToImagePipeline
         self._modules_loaded = True
 
     def _resolve_model_id(self) -> str:
         """Return the HuggingFace model ID for the current variant/size."""
         if self.model_id_or_path is not None:
             return self.model_id_or_path
-        variant_key = self.variant.value.replace("predict1_", "")
+        variant_key = self.variant.value.replace("predict2_", "")
         key = (variant_key, self.model_size)
         if key not in _MODEL_ID_MAP:
             raise ValueError(
-                f"Unknown Cosmos Predict1 model: variant={self.variant.value}, "
+                f"Unknown Cosmos Predict2 model: variant={self.variant.value}, "
                 f"model_size={self.model_size}. "
                 f"Valid combinations: {sorted(_MODEL_ID_MAP.keys())}"
             )
@@ -120,8 +113,8 @@ class DiffusersCosmosPredict1Executor(CosmosLocalExecutor):
         model_id = self._resolve_model_id()
         dtype = getattr(torch, self.dtype)
         pipeline_cls = (
-            self._t2w_pipeline_cls
-            if self.variant in _T2W_VARIANTS
+            self._t2i_pipeline_cls
+            if self.variant in _T2I_VARIANTS
             else self._v2w_pipeline_cls
         )
         pipeline = pipeline_cls.from_pretrained(model_id, torch_dtype=dtype)
@@ -193,7 +186,7 @@ class DiffusersCosmosPredict1Executor(CosmosLocalExecutor):
                 "prompt_cache_hit": cache_hit,
             },
             notes=[
-                f"Cosmos Predict1 encode_text completed for {self.variant.value}.",
+                f"Cosmos Predict2 encode_text completed for {self.variant.value}.",
                 f"Prompt cache {'hit' if cache_hit else 'miss'} (key={cache_key}).",
             ],
             cache_hit=cache_hit,
@@ -206,12 +199,12 @@ class DiffusersCosmosPredict1Executor(CosmosLocalExecutor):
         request: VideoGenerationRequest,
         state: dict[str, Any],
     ) -> StageResult:
-        if self.variant in _T2W_VARIANTS:
-            # Text2World has no reference conditioning
+        if self.variant in _T2I_VARIANTS:
+            # Text2Image has no reference conditioning
             return StageResult(
                 state_updates={"has_reference": False},
                 outputs={"reference_count": 0},
-                notes=["Text2World variant — no reference conditioning needed."],
+                notes=["Text2Image variant — no reference conditioning needed."],
             )
 
         # Video2World — load reference image/video
@@ -302,7 +295,7 @@ class DiffusersCosmosPredict1Executor(CosmosLocalExecutor):
                 "elapsed_s": elapsed_s,
             },
             notes=[
-                f"Cosmos Predict1 denoise completed in {elapsed_s}s "
+                f"Cosmos Predict2 denoise completed in {elapsed_s}s "
                 f"(steps={request.num_steps}, seed={seed}, policy={seed_policy}).",
             ],
         )

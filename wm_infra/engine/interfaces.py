@@ -77,6 +77,14 @@ class CacheManager(Protocol):
     def clear(self) -> None: ...
 
 
+@runtime_checkable
+class FeedbackMailbox(Protocol):
+    """Non-blocking feedback mailbox keyed by request id."""
+
+    def has(self, request_id: str) -> bool: ...
+    def pop(self, request_id: str) -> Any | None: ...
+
+
 # ---------------------------------------------------------------------------
 # Default implementations
 # ---------------------------------------------------------------------------

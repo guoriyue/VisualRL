@@ -33,7 +33,6 @@ class Uint8PostprocessStage(PipelineStage):
             state_updates={
                 "video_frames": frames,
                 "output_fps": fps,
-                "_pipeline_output": frames,
             },
             runtime_state_updates={
                 "frame_count": int(frames.shape[0]),

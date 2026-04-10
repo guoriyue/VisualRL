@@ -7,7 +7,6 @@ InputPreparer -> model forward -> OutputProcessor.
 from __future__ import annotations
 
 import logging
-from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from wm_infra.engine.types import (
@@ -19,6 +18,7 @@ from wm_infra.engine.types import (
 
 if TYPE_CHECKING:
     from wm_infra.engine.interfaces import InputPreparer, OutputProcessor
+    from wm_infra.engine.model_executor.pipeline import ComposedPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +61,8 @@ class ModelRunner:
 
         model_inputs = self.input_preparer.prepare(scheduler_output, self.device)
 
-        if isinstance(model_inputs, dict) and model_inputs.get("_skip_all"):
-            model_output = {}
-        else:
-            with torch.inference_mode():
-                model_output = self.model(**model_inputs)
+        with torch.inference_mode():
+            model_output = self.model(**model_inputs)
 
         outputs: dict[str, RequestOutput] = self.output_processor.process(
             model_output, scheduler_output
@@ -82,40 +79,29 @@ class ModelRunner:
 
 
 # ---------------------------------------------------------------------------
-# Compat layer: async callable model runner for pipeline-style execution
+# Pipeline model runner: sync wrapper around async ComposedPipeline
 # ---------------------------------------------------------------------------
 
-ModelFn = Callable[[SchedulerRequest], Awaitable[Any]]
 
+class PipelineModelRunner:
+    """Sync model runner bridging async ComposedPipeline.
 
-class CallableModelRunner:
-    """Wraps an async per-request callable into the ModelRunner interface.
-
-    Used when the model is a ``ComposedPipeline.run`` or similar async
-    callable that processes one request at a time.  The engine calls
-    ``execute_async()`` directly (no ``run_in_executor``).
+    ``execute()`` is synchronous and runs in a worker thread via
+    ``run_in_executor``.  Inside the thread it spins up a private
+    event loop (``asyncio.run``) to drive the async pipeline stages.
     """
 
-    # Tells the engine to call execute_async() instead of run_in_executor.
-    execute_in_thread: bool = False
+    execute_in_thread: bool = True  # engine dispatches via run_in_executor
 
-    def __init__(self, model_fn: ModelFn) -> None:
-        self.model_fn = model_fn
+    def __init__(self, pipeline: ComposedPipeline) -> None:
+        self.pipeline = pipeline
 
     def execute(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
-        """Sync execute — not supported, use execute_async()."""
-        raise NotImplementedError(
-            "CallableModelRunner is async-only. "
-            "Use execute_async() or set execute_in_thread=False."
-        )
-
-    async def execute_async(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
-        """Run the callable for each request in the batch."""
         outputs: dict[str, RequestOutput] = {}
 
         for request in scheduler_output.requests:
             try:
-                result = await self._run_one(request)
+                result = self._run_one(request)
                 outputs[request.request_id] = RequestOutput(
                     request_id=request.request_id,
                     data=result,
@@ -140,12 +126,14 @@ class CallableModelRunner:
             req_id_to_index=req_id_to_index,
         )
 
-    async def _run_one(self, request: SchedulerRequest) -> Any:
-        """Run the model function for a single request."""
+    def _run_one(self, request: SchedulerRequest) -> Any:
+        """Run pipeline for a single request, bridging async->sync."""
+        import asyncio
+
         try:
             import torch
 
             with torch.inference_mode():
-                return await self.model_fn(request)
+                return asyncio.run(self.pipeline.run(request.data, {}))
         except ImportError:
-            return await self.model_fn(request)
+            return asyncio.run(self.pipeline.run(request.data, {}))

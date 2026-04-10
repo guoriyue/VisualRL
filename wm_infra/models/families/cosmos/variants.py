@@ -15,6 +15,7 @@ class CosmosVariant(str, Enum):
     PREDICT1_TEXT2WORLD = "predict1_text2world"
     PREDICT1_VIDEO2WORLD = "predict1_video2world"
     PREDICT2_VIDEO2WORLD = "predict2_video2world"
+    PREDICT2_TEXT2IMAGE = "predict2_text2image"
 
 
 class CosmosLocalExecutor(ABC):

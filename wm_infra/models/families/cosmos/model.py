@@ -44,16 +44,33 @@ class CosmosGenerationModel(VideoGenerationModel):
         if executor is not None:
             self._executor = executor
         elif variant is not None:
-            from wm_infra.models.families.cosmos.predict1 import DiffusersCosmosPredict1Executor
+            cosmos_variant = CosmosVariant(variant)
+            if cosmos_variant.value.startswith("predict2"):
+                from wm_infra.models.families.cosmos.predict2 import (
+                    DiffusersCosmosPredict2Executor,
+                )
 
-            self._executor = DiffusersCosmosPredict1Executor(
-                variant=CosmosVariant(variant),
-                model_size=model_size,
-                model_id_or_path=model_id_or_path,
-                device_id=device_id,
-                dtype=dtype,
-                enable_cpu_offload=enable_cpu_offload,
-            )
+                self._executor = DiffusersCosmosPredict2Executor(
+                    variant=cosmos_variant,
+                    model_size=model_size,
+                    model_id_or_path=model_id_or_path,
+                    device_id=device_id,
+                    dtype=dtype,
+                    enable_cpu_offload=enable_cpu_offload,
+                )
+            else:
+                from wm_infra.models.families.cosmos.predict1 import (
+                    DiffusersCosmosPredict1Executor,
+                )
+
+                self._executor = DiffusersCosmosPredict1Executor(
+                    variant=cosmos_variant,
+                    model_size=model_size,
+                    model_id_or_path=model_id_or_path,
+                    device_id=device_id,
+                    dtype=dtype,
+                    enable_cpu_offload=enable_cpu_offload,
+                )
         else:
             raise ValueError(
                 "CosmosGenerationModel requires a real executor configuration. "
