@@ -5,8 +5,11 @@ Public API re-exports for the engine module.
 
 from wm_infra.engine.interfaces import (
     BatchPlanner,
+    CacheManager,
     FIFOBatchPlanner,
+    InputPreparer,
     IterationController,
+    OutputProcessor,
     ResourceManager,
     SimpleResourceManager,
     SinglePassIterationController,
@@ -14,7 +17,7 @@ from wm_infra.engine.interfaces import (
 from wm_infra.engine.managers.engine_loop import EngineLoop
 from wm_infra.engine.managers.scheduler import Scheduler
 from wm_infra.engine.model_executor.config import PipelineConfig
-from wm_infra.engine.model_executor.model_runner import ModelRunner
+from wm_infra.engine.model_executor.model_runner import CallableModelRunner, ModelRunner
 from wm_infra.engine.model_executor.pipeline import ComposedPipeline
 from wm_infra.engine.model_executor.stages import (
     PassthroughDecodeStage,
@@ -32,12 +35,16 @@ from wm_infra.engine.types import (
 
 __all__ = [
     "BatchPlanner",
+    "CacheManager",
+    "CallableModelRunner",
     "ComposedPipeline",
     "EngineLoop",
     "FIFOBatchPlanner",
+    "InputPreparer",
     "IterationController",
     "ModelRunner",
     "ModelRunnerOutput",
+    "OutputProcessor",
     "PassthroughDecodeStage",
     "PipelineConfig",
     "PipelineStage",

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from wm_infra.engine.types import RequestOutput, SchedulerRequest
+from wm_infra.engine.types import RequestOutput, SchedulerOutput, SchedulerRequest
 
 # ---------------------------------------------------------------------------
 # Protocols
@@ -50,6 +50,31 @@ class IterationController(Protocol):
 
     def update_request(self, request: SchedulerRequest, output: RequestOutput) -> None: ...
     def is_finished(self, request: SchedulerRequest, output: RequestOutput) -> bool: ...
+
+
+@runtime_checkable
+class InputPreparer(Protocol):
+    """Converts SchedulerOutput into model input tensors."""
+
+    def prepare(self, scheduler_output: SchedulerOutput, device: Any) -> dict[str, Any]: ...
+
+
+@runtime_checkable
+class OutputProcessor(Protocol):
+    """Converts raw model output into per-request RequestOutputs."""
+
+    def process(
+        self, model_output: Any, scheduler_output: SchedulerOutput
+    ) -> dict[str, RequestOutput]: ...
+
+
+@runtime_checkable
+class CacheManager(Protocol):
+    """Output cache for skipping redundant model execution."""
+
+    def get(self, request: SchedulerRequest) -> RequestOutput | None: ...
+    def put(self, request: SchedulerRequest, output: RequestOutput) -> None: ...
+    def clear(self) -> None: ...
 
 
 # ---------------------------------------------------------------------------

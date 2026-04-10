@@ -1,15 +1,14 @@
-"""Stateless model runner following sglang-omni's ModelRunner pattern.
+"""ModelRunner — stateless model executor.
 
-The ``ModelRunner`` wraps an arbitrary callable (e.g. ``ComposedPipeline.run``)
-and executes it under ``torch.inference_mode()`` for the batch of requests
-selected by the scheduler.
+Aligned with sglang-omni: batched sync execution via
+InputPreparer -> model forward -> OutputProcessor.
 """
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from wm_infra.engine.types import (
     ModelRunnerOutput,
@@ -18,30 +17,100 @@ from wm_infra.engine.types import (
     SchedulerRequest,
 )
 
+if TYPE_CHECKING:
+    from wm_infra.engine.interfaces import InputPreparer, OutputProcessor
+
 logger = logging.getLogger(__name__)
+
+
+class ModelRunner:
+    """Batched stateless model executor.
+
+    Uses InputPreparer to convert SchedulerOutput into model input
+    tensors, runs a single batched forward pass, then uses
+    OutputProcessor to split results back into per-request outputs.
+
+    ``execute()`` is synchronous — the engine calls it via
+    ``run_in_executor()`` so the event loop stays responsive.
+    """
+
+    def __init__(
+        self,
+        model: Any,
+        input_preparer: InputPreparer,
+        output_processor: OutputProcessor,
+        *,
+        device: Any = "cuda",
+    ) -> None:
+        import torch
+
+        if isinstance(device, str):
+            device = torch.device(device)
+        self.device = device
+        self.input_preparer = input_preparer
+        self.output_processor = output_processor
+        self.model = model.to(device)
+        self.model.eval()
+
+    def execute(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
+        """Run one batched forward pass (sync)."""
+        import torch
+
+        if not scheduler_output.requests:
+            return ModelRunnerOutput(outputs={}, req_ids=[], req_id_to_index={})
+
+        model_inputs = self.input_preparer.prepare(scheduler_output, self.device)
+
+        if isinstance(model_inputs, dict) and model_inputs.get("_skip_all"):
+            model_output = {}
+        else:
+            with torch.inference_mode():
+                model_output = self.model(**model_inputs)
+
+        outputs: dict[str, RequestOutput] = self.output_processor.process(
+            model_output, scheduler_output
+        )
+
+        req_ids = [r.request_id for r in scheduler_output.requests]
+        req_id_to_index = {rid: idx for idx, rid in enumerate(req_ids)}
+
+        return ModelRunnerOutput(
+            outputs=outputs,
+            req_ids=req_ids,
+            req_id_to_index=req_id_to_index,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Compat layer: async callable model runner for pipeline-style execution
+# ---------------------------------------------------------------------------
 
 ModelFn = Callable[[SchedulerRequest], Awaitable[Any]]
 
 
-class ModelRunner:
-    """Stateless executor that runs a model function on scheduled requests.
+class CallableModelRunner:
+    """Wraps an async per-request callable into the ModelRunner interface.
 
-    Parameters
-    ----------
-    model_fn : ModelFn
-        Async callable that takes a ``SchedulerRequest`` and returns
-        an opaque result.  For pipeline-based models this is typically
-        ``ComposedPipeline.run(request.data, state)``.
+    Used when the model is a ``ComposedPipeline.run`` or similar async
+    callable that processes one request at a time.  The engine calls
+    ``execute_async()`` directly (no ``run_in_executor``).
     """
+
+    # Tells the engine to call execute_async() instead of run_in_executor.
+    execute_in_thread: bool = False
 
     def __init__(self, model_fn: ModelFn) -> None:
         self.model_fn = model_fn
 
-    async def execute(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
-        """Execute the model function for every request in the batch.
+    def execute(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
+        """Sync execute — not supported, use execute_async()."""
+        raise NotImplementedError(
+            "CallableModelRunner is async-only. "
+            "Use execute_async() or set execute_in_thread=False."
+        )
 
-        Uses ``torch.inference_mode()`` when torch is available.
-        """
+    async def execute_async(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
+        """Run the callable for each request in the batch."""
         outputs: dict[str, RequestOutput] = {}
 
         for request in scheduler_output.requests:
@@ -63,7 +132,13 @@ class ModelRunner:
                 )
                 request.error = exc
 
-        return ModelRunnerOutput(outputs=outputs)
+        req_ids = [r.request_id for r in scheduler_output.requests]
+        req_id_to_index = {rid: idx for idx, rid in enumerate(req_ids)}
+        return ModelRunnerOutput(
+            outputs=outputs,
+            req_ids=req_ids,
+            req_id_to_index=req_id_to_index,
+        )
 
     async def _run_one(self, request: SchedulerRequest) -> Any:
         """Run the model function for a single request."""

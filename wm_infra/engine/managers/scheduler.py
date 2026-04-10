@@ -1,8 +1,7 @@
-"""Model-agnostic request scheduler following sglang-omni's Scheduler pattern.
+"""Generic Scheduler — model-agnostic request lifecycle management.
 
-Manages request lifecycle: WAITING -> RUNNING -> FINISHED / ABORTED.
-Delegates policy decisions to pluggable BatchPlanner, ResourceManager,
-and IterationController interfaces.
+Aligned with sglang-omni's Scheduler contract: overlap-safe update,
+WAITING_FEEDBACK / resume, real streaming, completed retention.
 """
 
 from __future__ import annotations
@@ -10,17 +9,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections import OrderedDict
-from typing import Any
+from collections import deque
+from typing import TYPE_CHECKING, Any, AsyncIterator, Callable
 
-from wm_infra.engine.interfaces import (
-    BatchPlanner,
-    FIFOBatchPlanner,
-    IterationController,
-    ResourceManager,
-    SimpleResourceManager,
-    SinglePassIterationController,
-)
 from wm_infra.engine.types import (
     ModelRunnerOutput,
     RequestOutput,
@@ -29,178 +20,351 @@ from wm_infra.engine.types import (
     SchedulerStatus,
 )
 
+if TYPE_CHECKING:
+    from wm_infra.engine.interfaces import (
+        BatchPlanner,
+        IterationController,
+        ResourceManager,
+    )
+
 logger = logging.getLogger(__name__)
 
 
 class Scheduler:
-    """Model-agnostic request-level scheduler.
+    """Generic request scheduler.
 
-    Parameters
-    ----------
-    batch_planner : BatchPlanner | None
-        Controls which requests to admit and how to build batches.
-        Defaults to ``FIFOBatchPlanner()``.
-    resource_manager : ResourceManager | None
-        Tracks system capacity.  Defaults to ``SimpleResourceManager()``.
-    iteration_controller : IterationController | None
-        Decides per-request completion.  Defaults to ``SinglePassIterationController()``.
+    Responsibilities:
+    - Manage request lifecycle (WAITING -> RUNNING -> FINISHED/ABORTED)
+    - Delegate selection to BatchPlanner and allocation to ResourceManager
+    - Delegate per-request updates to IterationController
+    - Produce SchedulerOutput for ModelRunner
+
+    Does NOT know about:
+    - Input formats (tokens, latents, etc.)
+    - Model-specific batching logic
+    - Resource details (KV cache, etc.)
     """
+
+    _COMPLETED_RETENTION_SOFT_LIMIT = 10000
+    _COMPLETED_RETENTION_HARD_LIMIT = 5000
 
     def __init__(
         self,
-        batch_planner: BatchPlanner | None = None,
-        resource_manager: ResourceManager | None = None,
-        iteration_controller: IterationController | None = None,
-    ) -> None:
-        self.batch_planner = batch_planner or FIFOBatchPlanner()
-        self.resource_manager = resource_manager or SimpleResourceManager()
-        self.iteration_controller = iteration_controller or SinglePassIterationController()
+        batch_planner: BatchPlanner,
+        resource_manager: ResourceManager,
+        iteration_controller: IterationController,
+        stream_adapter: Callable[[SchedulerRequest, RequestOutput], Any] | None = None,
+    ):
+        self.batch_planner = batch_planner
+        self.resource_manager = resource_manager
+        self.iteration_controller = iteration_controller
+        self._stream_adapter = stream_adapter
 
-        self._waiting: OrderedDict[str, SchedulerRequest] = OrderedDict()
-        self._running: OrderedDict[str, SchedulerRequest] = OrderedDict()
-        self._finished: OrderedDict[str, SchedulerRequest] = OrderedDict()
+        # All active requests (id -> request).
+        self.requests: dict[str, SchedulerRequest] = {}
+        # Queue membership tracked by id only.
+        self.waiting: deque[str] = deque()
+        self.running: list[str] = []
 
-        self._results: dict[str, RequestOutput] = {}
-        self._step_counter: int = 0
+        # Result futures (created lazily in get_result).
+        self._futures: dict[str, asyncio.Future[SchedulerRequest]] = {}
+        self._step_id = 0
 
-    # ------------------------------------------------------------------
-    # Request submission
-    # ------------------------------------------------------------------
+        # Bounded retention of terminal requests so late callers of
+        # get_result() still resolve immediately.
+        self._completed_requests: dict[str, SchedulerRequest] = {}
+        self._completed_order: deque[str] = deque()
 
-    def add_request(self, request_id: str, data: Any) -> SchedulerRequest:
-        """Enqueue a new request for scheduling."""
-        req = SchedulerRequest(
+        # Persistent abort tracking for overlap-safe update().
+        self._aborted_ids: set[str] = set()
+
+        # Streaming state.
+        self._stream_queues: dict[str, asyncio.Queue[Any]] = {}
+        self._completed_stream_queues: dict[str, asyncio.Queue[Any]] = {}
+        self._completed_stream_order: deque[str] = deque()
+        self._stream_done = object()
+
+    # -----------------------------------------------------------------
+    # Public API
+    # -----------------------------------------------------------------
+
+    def add_request(self, request_id: str, data: Any) -> None:
+        """Add a new request with model-specific data."""
+        request = SchedulerRequest(
             request_id=request_id,
             data=data,
-            status=SchedulerStatus.WAITING,
             arrival_time=time.monotonic(),
         )
-        self._waiting[request_id] = req
-        return req
+        self.requests[request_id] = request
+        self.waiting.append(request_id)
 
-    def abort_request(self, request_id: str) -> bool:
-        """Abort a request.  Returns True if the request was found."""
-        for queue in (self._waiting, self._running, self._finished):
-            if request_id in queue:
-                req = queue.pop(request_id)
-                if req.status == SchedulerStatus.RUNNING:
-                    self.resource_manager.free(req)
-                req.status = SchedulerStatus.ABORTED
-                req.finish_time = time.monotonic()
-                self._finished[request_id] = req
-                self._results[request_id] = RequestOutput(
-                    request_id=request_id,
-                    finished=True,
-                    finish_reason="aborted",
-                )
-                return True
-        return False
+    def abort_request(self, request_id: str) -> None:
+        """Abort a request."""
+        request = self.requests.get(request_id)
+        if request is None:
+            return
+        self._aborted_ids.add(request_id)
+        self._finish_request(request, status=SchedulerStatus.ABORTED)
 
-    # ------------------------------------------------------------------
-    # Core scheduling loop
-    # ------------------------------------------------------------------
+    def fail_request(self, request_id: str, error: Exception) -> None:
+        """Fail a request with an error, propagating it to any waiting caller."""
+        request = self.requests.get(request_id)
+        if request is None:
+            return
+        self._aborted_ids.add(request_id)
+        self._finish_request(request, status=SchedulerStatus.ABORTED, error=error)
 
-    def schedule(self) -> SchedulerOutput:
-        """Run one scheduling iteration.
+    def has_requests(self) -> bool:
+        """Check if there are any requests to process."""
+        return len(self.waiting) > 0 or len(self.running) > 0
 
-        Selects requests from the waiting queue, transitions them to
-        RUNNING, and returns a ``SchedulerOutput`` with the batch.
-        """
-        waiting_list = list(self._waiting.values())
-        running_list = list(self._running.values())
+    def resume_request(self, request_id: str) -> None:
+        """Resume a WAITING_FEEDBACK request back to RUNNING."""
+        request = self.requests.get(request_id)
+        if request is None:
+            return
+        if request.status == SchedulerStatus.WAITING_FEEDBACK:
+            request.status = SchedulerStatus.RUNNING
+
+    async def get_result(self, request_id: str) -> SchedulerRequest:
+        """Wait for a request to complete and return the finished request."""
+        request = self._get_request(request_id)
+        if request is None:
+            raise KeyError(f"Unknown request: {request_id}")
+
+        while True:
+            request = self._get_request(request_id)
+            if request is None:
+                raise KeyError(f"Unknown request: {request_id}")
+            if request.status in (SchedulerStatus.FINISHED, SchedulerStatus.ABORTED):
+                self._futures.pop(request_id, None)
+                if request.error is not None:
+                    raise request.error
+                return request
+
+            # Lazy future creation, recover from stale/cancelled futures.
+            loop = asyncio.get_running_loop()
+            future = self._futures.get(request_id)
+            if future is None or future.cancelled():
+                future = loop.create_future()
+                self._futures[request_id] = future
+
+            await asyncio.shield(future)
+
+    async def stream(self, request_id: str) -> AsyncIterator[Any]:
+        """Yield per-step stream data for a request."""
+        queue = self._subscribe_stream(request_id)
+        try:
+            while True:
+                item = await queue.get()
+                if item is self._stream_done:
+                    return
+                yield item
+        finally:
+            self._stream_queues.pop(request_id, None)
+            self._completed_stream_queues.pop(request_id, None)
+
+    def prepare_stream(self, request_id: str) -> None:
+        """Pre-register a stream queue before request submission."""
+        self._subscribe_stream(request_id)
+
+    def discard_stream(self, request_id: str) -> None:
+        """Drop a pre-registered stream queue for a failed submission."""
+        self._stream_queues.pop(request_id, None)
+        if request_id in self._completed_stream_queues:
+            self._completed_stream_queues.pop(request_id, None)
+            self._remove_completed_stream_order(request_id)
+
+    # -----------------------------------------------------------------
+    # Core scheduling
+    # -----------------------------------------------------------------
+
+    def schedule(self) -> SchedulerOutput | None:
+        """Schedule next batch. Returns None if no work."""
+        if not self.waiting and not self.running:
+            return None
+
+        self._step_id += 1
+
+        waiting_reqs = [self.requests[rid] for rid in self.waiting]
+        running_reqs = [
+            self.requests[rid]
+            for rid in self.running
+            if self.requests[rid].status != SchedulerStatus.WAITING_FEEDBACK
+        ]
 
         selected = self.batch_planner.select_requests(
-            waiting_list, running_list, self.resource_manager
+            waiting_reqs, running_reqs, self.resource_manager
         )
 
-        for req in selected:
-            self._waiting.pop(req.request_id, None)
-            req.status = SchedulerStatus.RUNNING
-            self.resource_manager.allocate(req)
-            self._running[req.request_id] = req
+        if not selected:
+            return None
 
-        all_running = list(self._running.values())
-        batch_data = self.batch_planner.build_batch(all_running) if all_running else None
+        for request in selected:
+            if request.request_id in self.waiting:
+                self.waiting.remove(request.request_id)
+                self.running.append(request.request_id)
+                request.status = SchedulerStatus.RUNNING
 
-        self._step_counter += 1
+        batch_data = self.batch_planner.build_batch(selected)
+
         return SchedulerOutput(
-            requests=list(all_running),
+            requests=selected,
             batch_data=batch_data,
-            step_id=self._step_counter,
+            step_id=self._step_id,
         )
 
-    def update(self, runner_output: ModelRunnerOutput) -> list[RequestOutput]:
-        """Update request states after model execution.
+    def update(
+        self,
+        scheduler_output: SchedulerOutput,
+        model_output: ModelRunnerOutput,
+    ) -> list[SchedulerRequest]:
+        """Update state from model output. Returns finished requests.
 
-        Returns a list of ``RequestOutput`` for requests that finished.
+        Overlap-safe: iterates over scheduler_output.requests (the batch
+        that was scheduled), not model_output keys. Guards against
+        requests that were aborted or finished between schedule() and
+        this update() call.
         """
-        completed: list[RequestOutput] = []
+        finished: list[SchedulerRequest] = []
 
-        for request_id, output in runner_output.outputs.items():
-            req = self._running.get(request_id)
-            if req is None:
+        for request in scheduler_output.requests:
+            if request.request_id in self._aborted_ids:
+                continue
+            if request.status != SchedulerStatus.RUNNING:
                 continue
 
-            self.iteration_controller.update_request(req, output)
+            output = model_output.outputs.get(request.request_id)
+            if output is None:
+                logger.warning("Missing output for request_id=%s", request.request_id)
+                continue
 
-            if self.iteration_controller.is_finished(req, output):
-                self._running.pop(request_id)
-                self.resource_manager.free(req)
-                req.status = SchedulerStatus.FINISHED
-                req.finish_time = time.monotonic()
-                self._finished[request_id] = req
-                self._results[request_id] = output
-                completed.append(output)
+            self.iteration_controller.update_request(request, output)
+            self._emit_stream(request, output)
 
-        return completed
+            if self.iteration_controller.is_finished(request, output):
+                self._finish_request(request)
+                finished.append(request)
 
-    # ------------------------------------------------------------------
-    # Result retrieval
-    # ------------------------------------------------------------------
+        return finished
 
-    def get_result(self, request_id: str) -> RequestOutput | None:
-        """Retrieve the result for a finished request (non-destructive)."""
-        return self._results.get(request_id)
-
-    def pop_result(self, request_id: str) -> RequestOutput | None:
-        """Retrieve and remove the result for a finished request."""
-        self._finished.pop(request_id, None)
-        return self._results.pop(request_id, None)
-
-    def stream(self, request_id: str) -> asyncio.Queue[RequestOutput]:
-        """Return an asyncio.Queue that receives incremental outputs.
-
-        For multi-step iteration controllers, each step's output is
-        pushed to the queue.  The final output has ``finished=True``.
-
-        NOTE: Streaming support is a placeholder for future multi-step
-        iteration controllers.  Single-pass controllers produce one item.
-        """
-        q: asyncio.Queue[RequestOutput] = asyncio.Queue()
-        # For single-pass, the result will be pushed by the engine loop
-        # after update() returns completed outputs.
-        return q
-
-    # ------------------------------------------------------------------
+    # -----------------------------------------------------------------
     # Introspection
-    # ------------------------------------------------------------------
+    # -----------------------------------------------------------------
 
     def num_waiting(self) -> int:
-        return len(self._waiting)
+        return len(self.waiting)
 
     def num_running(self) -> int:
-        return len(self._running)
-
-    def num_finished(self) -> int:
-        return len(self._finished)
-
-    def has_work(self) -> bool:
-        """Return True if there are waiting or running requests."""
-        return bool(self._waiting or self._running)
+        return len(self.running)
 
     def get_request(self, request_id: str) -> SchedulerRequest | None:
-        """Look up a request across all queues."""
-        for queue in (self._waiting, self._running, self._finished):
-            if request_id in queue:
-                return queue[request_id]
-        return None
+        """Look up a request across active and completed."""
+        return self._get_request(request_id)
+
+    # -----------------------------------------------------------------
+    # Internal helpers
+    # -----------------------------------------------------------------
+
+    def _emit_stream(self, request: SchedulerRequest, output: RequestOutput) -> None:
+        if self._stream_adapter is None:
+            return
+        queue = self._stream_queues.get(request.request_id)
+        if queue is None:
+            return
+        item = self._stream_adapter(request, output)
+        if item is None:
+            return
+        queue.put_nowait(item)
+
+    def _finish_request(
+        self,
+        request: SchedulerRequest,
+        status: SchedulerStatus = SchedulerStatus.FINISHED,
+        error: Exception | None = None,
+    ) -> None:
+        had_resources = request.status in (
+            SchedulerStatus.RUNNING,
+            SchedulerStatus.WAITING_FEEDBACK,
+        )
+        request.status = status
+        request.error = error
+        request.finish_time = time.monotonic()
+
+        if had_resources:
+            self.resource_manager.free(request)
+
+        # Remove from queues.
+        if request.request_id in self.running:
+            self.running.remove(request.request_id)
+        if request.request_id in self.waiting:
+            self.waiting.remove(request.request_id)
+
+        self._aborted_ids.discard(request.request_id)
+        self.requests.pop(request.request_id, None)
+        self._remember_completed(request)
+
+        # Resolve future.
+        future = self._futures.pop(request.request_id, None)
+        if future is not None and not future.done():
+            if error is not None:
+                future.set_exception(error)
+            else:
+                future.set_result(request)
+
+        # Close stream queue.
+        queue = self._stream_queues.pop(request.request_id, None)
+        if queue is not None:
+            queue.put_nowait(self._stream_done)
+            self._remember_completed_stream(request.request_id, queue)
+
+    def _get_request(self, request_id: str) -> SchedulerRequest | None:
+        request = self.requests.get(request_id)
+        if request is not None:
+            return request
+        return self._completed_requests.get(request_id)
+
+    def _subscribe_stream(self, request_id: str) -> asyncio.Queue[Any]:
+        queue = self._stream_queues.get(request_id)
+        if queue is None:
+            queue = self._completed_stream_queues.pop(request_id, None)
+            if queue is not None:
+                self._remove_completed_stream_order(request_id)
+        if queue is None:
+            queue = asyncio.Queue()
+        self._stream_queues[request_id] = queue
+        # If already terminal, send done immediately.
+        request = self._get_request(request_id)
+        if request is not None and request.status in (
+            SchedulerStatus.FINISHED,
+            SchedulerStatus.ABORTED,
+        ):
+            queue.put_nowait(self._stream_done)
+        return queue
+
+    def _remember_completed(self, request: SchedulerRequest) -> None:
+        rid = request.request_id
+        if rid not in self._completed_requests:
+            self._completed_order.append(rid)
+        self._completed_requests[rid] = request
+        if len(self._completed_order) <= self._COMPLETED_RETENTION_SOFT_LIMIT:
+            return
+        while len(self._completed_order) > self._COMPLETED_RETENTION_HARD_LIMIT:
+            stale = self._completed_order.popleft()
+            self._completed_requests.pop(stale, None)
+
+    def _remember_completed_stream(
+        self, request_id: str, queue: asyncio.Queue[Any]
+    ) -> None:
+        if request_id not in self._completed_stream_queues:
+            self._completed_stream_order.append(request_id)
+        self._completed_stream_queues[request_id] = queue
+        while len(self._completed_stream_order) > self._COMPLETED_RETENTION_HARD_LIMIT:
+            stale = self._completed_stream_order.popleft()
+            self._completed_stream_queues.pop(stale, None)
+
+    def _remove_completed_stream_order(self, request_id: str) -> None:
+        try:
+            self._completed_stream_order.remove(request_id)
+        except ValueError:
+            return

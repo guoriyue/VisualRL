@@ -22,6 +22,7 @@ class SchedulerStatus(Enum):
 
     WAITING = "waiting"
     RUNNING = "running"
+    WAITING_FEEDBACK = "waiting_feedback"
     FINISHED = "finished"
     ABORTED = "aborted"
 
@@ -61,6 +62,7 @@ class RequestOutput:
     data: Any = None
     finished: bool = False
     finish_reason: str | None = None
+    extra: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -68,3 +70,5 @@ class ModelRunnerOutput:
     """Aggregated results from one model execution pass."""
 
     outputs: dict[str, RequestOutput] = field(default_factory=dict)
+    req_ids: list[str] = field(default_factory=list)
+    req_id_to_index: dict[str, int] = field(default_factory=dict)
