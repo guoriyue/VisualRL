@@ -50,6 +50,7 @@ Thumbs.db
 .coverage
 htmlcov/
 .mypy_cache/
+.ruff_cache/
 
 # Jupyter
 .ipynb_checkpoints/
@@ -57,4 +58,5 @@ htmlcov/
 # Benchmark results (regenerable)
 benchmarks/results/
 
-external/*
+# Claude Code
+.claude/
