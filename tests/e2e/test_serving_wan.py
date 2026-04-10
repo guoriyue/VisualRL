@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tests.real_model_helpers import build_engine, require_cuda, require_real_model_opt_in, resolve_hf_snapshot
+from tests.e2e.helpers import build_engine, require_cuda, require_real_model_opt_in, resolve_hf_snapshot
 from wm_infra.models.families.wan.diffusers_i2v import DiffusersWanI2VModel
 from wm_infra.schemas.video_generation import VideoGenerationRequest
 
