@@ -12,12 +12,15 @@ from wm_infra.config import EngineConfig
 if TYPE_CHECKING:
     from fastapi import FastAPI
 
+    from wm_infra.engine.ipc.client import EngineIPCClient
+
 
 @dataclass(slots=True)
 class GatewayRuntime:
     """Owns Gateway-scoped runtime dependencies and lifecycle state."""
 
     config: EngineConfig
+    engine_client: EngineIPCClient | None = None
 
 
 def bind_gateway_runtime(app: FastAPI, runtime: GatewayRuntime) -> None:

@@ -19,6 +19,7 @@ dependencies = [
     "einops>=0.7.0",
     "prometheus-client>=0.20.0",
     "pyyaml>=6.0",
+    "pyzmq>=26.0.0",
 ]
 
 [project.optional-dependencies]
@@ -41,7 +42,8 @@ bench = [
 ]
 
 [project.scripts]
-wm-serve = "wm_infra.api.server:main"
+wm-serve = "wm_infra.gateway:main"
+wm-engine = "wm_infra.engine.ipc.server:main"
 
 [tool.setuptools.packages.find]
 include = ["wm_infra*"]

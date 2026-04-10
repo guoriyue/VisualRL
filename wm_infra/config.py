@@ -182,6 +182,16 @@ class ControlPlaneConfig:
 
 
 @dataclass
+class IPCConfig:
+    """ZMQ IPC configuration for gateway <-> engine communication."""
+
+    enabled: bool = False
+    socket_path: str = "/tmp/wm-engine.sock"
+    artifact_root: str = "/dev/shm/wm-engine"
+    artifact_ttl_s: float = 300.0
+
+
+@dataclass
 class EngineConfig:
     """Top-level engine configuration."""
 
@@ -192,6 +202,7 @@ class EngineConfig:
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
     controlplane: ControlPlaneConfig = field(default_factory=ControlPlaneConfig)
+    ipc: IPCConfig = field(default_factory=IPCConfig)
     model_path: str | None = None
     seed: int = 42
 
@@ -294,6 +305,13 @@ def _env_overrides() -> dict:
         "WM_COSMOS_TIMEOUT_S": (["controlplane", "cosmos_timeout_s"], int),
         "WM_COSMOS_MAX_QUEUE_SIZE": (["controlplane", "cosmos_max_queue_size"], int),
         "WM_COSMOS_MAX_CONCURRENT_JOBS": (["controlplane", "cosmos_max_concurrent_jobs"], int),
+        "WM_IPC_ENABLED": (
+            ["ipc", "enabled"],
+            lambda value: value.lower() in {"1", "true", "yes", "on"},
+        ),
+        "WM_IPC_SOCKET_PATH": (["ipc", "socket_path"], str),
+        "WM_IPC_ARTIFACT_ROOT": (["ipc", "artifact_root"], str),
+        "WM_IPC_ARTIFACT_TTL_S": (["ipc", "artifact_ttl_s"], float),
     }
 
     for env_key, (path, typ) in env_map.items():
@@ -320,6 +338,7 @@ def _dict_to_config(d: dict) -> EngineConfig:
     sched_d = d.pop("scheduler", {})
     serv_d = d.pop("server", {})
     ctrl_d = d.pop("controlplane", {})
+    ipc_d = d.pop("ipc", {})
 
     if "policy" in sched_d and isinstance(sched_d["policy"], str):
         sched_d["policy"] = SchedulerPolicy(sched_d["policy"])
@@ -330,6 +349,7 @@ def _dict_to_config(d: dict) -> EngineConfig:
         scheduler=SchedulerConfig(**sched_d) if sched_d else SchedulerConfig(),
         server=ServerConfig(**serv_d) if serv_d else ServerConfig(),
         controlplane=ControlPlaneConfig(**ctrl_d) if ctrl_d else ControlPlaneConfig(),
+        ipc=IPCConfig(**ipc_d) if ipc_d else IPCConfig(),
         **d,
     )
 
