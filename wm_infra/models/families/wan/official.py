@@ -605,7 +605,10 @@ class OfficialWanModel(VideoGenerationModel):
     ) -> StageResult:
         video = state["video_tensor"]
         return StageResult(
-            state_updates={"output_fps": int(state["fps"])},
+            state_updates={
+                "output_fps": int(state["fps"]),
+                "_pipeline_output": video,
+            },
             runtime_state_updates={"output_fps": int(state["fps"])},
             outputs={
                 "frame_count": int(video.shape[1]),

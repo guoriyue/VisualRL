@@ -8,7 +8,6 @@ from wm_infra.models.base import VideoGenerationModel
 from wm_infra.models.families.cosmos.variants import (
     CosmosLocalExecutor,
     CosmosVariant,
-    StubCosmosLocalExecutor,
 )
 from wm_infra.schemas.video_generation import StageResult, VideoGenerationRequest
 
@@ -56,7 +55,11 @@ class CosmosGenerationModel(VideoGenerationModel):
                 enable_cpu_offload=enable_cpu_offload,
             )
         else:
-            self._executor = StubCosmosLocalExecutor()
+            raise ValueError(
+                "CosmosGenerationModel requires a real executor configuration. "
+                "Pass executor=... or a supported variant=... "
+                "(for example, predict1_text2world or predict1_video2world)."
+            )
 
     @property
     def mode(self) -> str:

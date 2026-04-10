@@ -243,7 +243,12 @@ class Scheduler:
             self._emit_stream(request, output)
 
             if self.iteration_controller.is_finished(request, output):
-                self._finish_request(request)
+                if request.error is not None:
+                    self._finish_request(
+                        request, status=SchedulerStatus.ABORTED, error=request.error
+                    )
+                else:
+                    self._finish_request(request)
                 finished.append(request)
 
         return finished
@@ -288,7 +293,8 @@ class Scheduler:
             SchedulerStatus.WAITING_FEEDBACK,
         )
         request.status = status
-        request.error = error
+        if error is not None:
+            request.error = error
         request.finish_time = time.monotonic()
 
         if had_resources:

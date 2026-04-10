@@ -100,6 +100,7 @@ class FIFOBatchPlanner:
             if len(selected) >= budget:
                 break
             if resource_manager.can_allocate(req):
+                resource_manager.allocate(req)
                 selected.append(req)
         return selected
 
@@ -128,7 +129,7 @@ class SinglePassIterationController:
     """One execution pass = finished.  Suitable for diffusion pipelines."""
 
     def update_request(self, request: SchedulerRequest, output: RequestOutput) -> None:
-        pass
+        request.data = output.data
 
     def is_finished(self, request: SchedulerRequest, output: RequestOutput) -> bool:
         return True

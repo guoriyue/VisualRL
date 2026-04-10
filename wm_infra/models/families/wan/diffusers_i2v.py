@@ -251,6 +251,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
             state_updates={
                 "video_frames": frames,
                 "output_fps": request.fps or 16,
+                "_pipeline_output": frames,
             },
             runtime_state_updates={
                 "frame_count": len(frames),
