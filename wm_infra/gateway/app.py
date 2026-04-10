@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from wm_infra.api.metrics import API_AUTH_FAILURES
+from wm_infra.engine.metrics import API_AUTH_FAILURES
 from wm_infra.config import EngineConfig, load_config
 from wm_infra.controlplane import SampleManifestStore, TemporalStore
 from wm_infra.gateway.bootstrap import build_gateway_lifespan, create_gateway_runtime

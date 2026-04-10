@@ -227,6 +227,12 @@ class CosmosGenerationModel(VideoGenerationModel):
         shell_runner: str | None = None,
         timeout_s: int = 600,
         executor: CosmosLocalExecutor | None = None,
+        variant: str | None = None,
+        model_size: str = "7B",
+        model_id_or_path: str | None = None,
+        device_id: int = 0,
+        dtype: str = "bfloat16",
+        enable_cpu_offload: bool = True,
     ) -> None:
         if base_url is not None or api_key is not None or shell_runner is not None:
             raise ValueError(
@@ -235,7 +241,23 @@ class CosmosGenerationModel(VideoGenerationModel):
             )
         self.model_name = model_name or "cosmos-predict1-7b-video2world"
         self.timeout_s = timeout_s
-        self._executor = executor or StubCosmosLocalExecutor()
+
+        if executor is not None:
+            self._executor = executor
+        elif variant is not None:
+            from wm_infra.controlplane.schemas import CosmosVariant
+            from wm_infra.models.cosmos_predict1 import DiffusersCosmosPredict1Executor
+
+            self._executor = DiffusersCosmosPredict1Executor(
+                variant=CosmosVariant(variant),
+                model_size=model_size,
+                model_id_or_path=model_id_or_path,
+                device_id=device_id,
+                dtype=dtype,
+                enable_cpu_offload=enable_cpu_offload,
+            )
+        else:
+            self._executor = StubCosmosLocalExecutor()
 
     @property
     def mode(self) -> str:
