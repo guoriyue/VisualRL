@@ -6,6 +6,7 @@ import hashlib
 import math
 import time
 from abc import ABC, abstractmethod
+from enum import Enum
 from typing import Any
 
 from wm_infra.models.video_generation import (
@@ -13,6 +14,14 @@ from wm_infra.models.video_generation import (
     VideoGenerationModel,
     VideoGenerationRequest,
 )
+
+
+class CosmosVariant(str, Enum):
+    """Cosmos world-generation variant."""
+
+    PREDICT1_TEXT2WORLD = "predict1_text2world"
+    PREDICT1_VIDEO2WORLD = "predict1_video2world"
+    PREDICT2_VIDEO2WORLD = "predict2_video2world"
 
 
 class CosmosLocalExecutor(ABC):
@@ -245,7 +254,6 @@ class CosmosGenerationModel(VideoGenerationModel):
         if executor is not None:
             self._executor = executor
         elif variant is not None:
-            from wm_infra.controlplane.schemas import CosmosVariant
             from wm_infra.models.cosmos_predict1 import DiffusersCosmosPredict1Executor
 
             self._executor = DiffusersCosmosPredict1Executor(

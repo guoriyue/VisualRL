@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, cast
 from fastapi import Request
 
 from wm_infra.config import EngineConfig
-from wm_infra.controlplane import SampleManifestStore, TemporalStore
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -19,8 +18,6 @@ class GatewayRuntime:
     """Owns Gateway-scoped runtime dependencies and lifecycle state."""
 
     config: EngineConfig
-    sample_store: SampleManifestStore
-    temporal_store: TemporalStore
 
 
 def bind_gateway_runtime(app: FastAPI, runtime: GatewayRuntime) -> None:

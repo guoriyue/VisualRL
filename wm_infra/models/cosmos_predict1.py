@@ -16,8 +16,7 @@ import sys
 import time
 from typing import Any
 
-from wm_infra.controlplane.schemas import CosmosVariant
-from wm_infra.models.cosmos_adapter import CosmosLocalExecutor
+from wm_infra.models.cosmos_adapter import CosmosLocalExecutor, CosmosVariant
 from wm_infra.models.video_generation import (
     StageResult,
     VideoGenerationRequest,
