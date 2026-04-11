@@ -1,4 +1,4 @@
-"""VideoIterationRunner: one phase per execute(), grouped by (phase, resolution)."""
+"""PipelineRunner: full pipeline per execute(), grouped by workload signature."""
 
 from __future__ import annotations
 
@@ -7,16 +7,12 @@ import logging
 from collections import defaultdict
 from typing import Any
 
-from vrl.engine.model_executor.execution_state import (
-    PhaseGroupKey,
-    VideoExecutionState,
-)
+from vrl.engine.model_executor.execution_state import WorkloadSignature
 from vrl.engine.types import (
     ModelRunnerOutput,
     RequestOutput,
     SchedulerOutput,
     SchedulerRequest,
-    VideoExecutionPhase,
 )
 from vrl.models.base import VideoGenerationModel
 from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
@@ -24,8 +20,8 @@ from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
 logger = logging.getLogger(__name__)
 
 
-class VideoIterationRunner:
-    """Per-step model runner: one phase per execute(), batched by resolution."""
+class PipelineRunner:
+    """Whole-request pipeline runner: runs all stages in one execute() call."""
 
     execute_in_thread: bool = True
 
@@ -39,8 +35,6 @@ class VideoIterationRunner:
                 self.model.denoise_init
                 self.model.denoise_step
                 self.model.denoise_finalize
-                # Check that they aren't the default NotImplementedError stubs
-                # by verifying the method is overridden on the concrete class
                 base_init = VideoGenerationModel.denoise_init
                 self._supports_per_step = type(self.model).denoise_init is not base_init
             except AttributeError:
@@ -50,14 +44,16 @@ class VideoIterationRunner:
     def execute(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
         outputs: dict[str, RequestOutput] = {}
 
-        # Phase 1: ensure state for all requests; isolate failures
-        ready: list[tuple[SchedulerRequest, VideoExecutionState]] = []
+        # Validate requests; isolate failures early
+        ready: list[tuple[SchedulerRequest, VideoGenerationRequest]] = []
         for request in scheduler_output.requests:
             try:
-                state = self._ensure_state(request)
-                ready.append((request, state))
+                vgr = self._extract_request(request)
+                ready.append((request, vgr))
             except Exception as exc:
-                logger.error("Request %s failed during init: %s", request.request_id, exc)
+                logger.error(
+                    "Request %s failed during init: %s", request.request_id, exc
+                )
                 outputs[request.request_id] = RequestOutput(
                     request_id=request.request_id,
                     data=None,
@@ -66,32 +62,25 @@ class VideoIterationRunner:
                 )
                 request.error = exc
 
-        # Phase 2: group by (phase, height, width, frame_count)
-        groups = self._group_by_phase(ready)
+        # Group by workload signature
+        groups = self._group_by_workload(ready)
 
-        # Phase 3: dispatch each group as a batch
-        for key, members in groups.items():
+        # Run full pipeline per group
+        for _sig, members in groups.items():
             try:
-                results = self._advance_batch(key, members)
-                for (request, state), result in zip(members, results):
-                    finished = state.phase == VideoExecutionPhase.DONE
-                    outputs[request.request_id] = RequestOutput(
-                        request_id=request.request_id,
-                        data=result,
-                        finished=finished,
-                        finish_reason="completed" if finished else None,
-                    )
+                group_outputs = self._run_pipeline(members)
+                for (sched_req, _vgr), output in zip(members, group_outputs):
+                    outputs[sched_req.request_id] = output
             except Exception as exc:
-                # Entire group fails atomically
-                logger.error("Batch %s failed: %s", key, exc)
-                for request, _state in members:
-                    outputs[request.request_id] = RequestOutput(
-                        request_id=request.request_id,
+                logger.error("Pipeline group failed: %s", exc)
+                for sched_req, _vgr in members:
+                    outputs[sched_req.request_id] = RequestOutput(
+                        request_id=sched_req.request_id,
                         data=None,
                         finished=True,
                         finish_reason="error",
                     )
-                    request.error = exc
+                    sched_req.error = exc
 
         req_ids = [r.request_id for r in scheduler_output.requests]
         req_id_to_index = {rid: idx for idx, rid in enumerate(req_ids)}
@@ -101,117 +90,98 @@ class VideoIterationRunner:
             req_id_to_index=req_id_to_index,
         )
 
-    def _ensure_state(self, request: SchedulerRequest) -> VideoExecutionState:
-        if isinstance(request.data, VideoExecutionState):
+    def _extract_request(self, request: SchedulerRequest) -> VideoGenerationRequest:
+        if isinstance(request.data, VideoGenerationRequest):
             return request.data
-        if not isinstance(request.data, VideoGenerationRequest):
-            raise TypeError(
-                f"Expected VideoGenerationRequest or VideoExecutionState, "
-                f"got {type(request.data).__name__}"
-            )
-        state = VideoExecutionState(
-            request=request.data,
-            supports_per_step_denoise=self._check_per_step_support(),
+        raise TypeError(
+            f"Expected VideoGenerationRequest, got {type(request.data).__name__}"
         )
-        request.data = state
-        return state
 
     @staticmethod
-    def _group_by_phase(
-        ready: list[tuple[SchedulerRequest, VideoExecutionState]],
-    ) -> dict[PhaseGroupKey, list[tuple[SchedulerRequest, VideoExecutionState]]]:
-        groups: dict[PhaseGroupKey, list[tuple[SchedulerRequest, VideoExecutionState]]] = defaultdict(list)
-        for request, state in ready:
-            req: VideoGenerationRequest = state.request
-            key = PhaseGroupKey(
-                phase=state.phase,
-                height=req.height,
-                width=req.width,
-                frame_count=req.frame_count,
+    def _group_by_workload(
+        ready: list[tuple[SchedulerRequest, VideoGenerationRequest]],
+    ) -> dict[WorkloadSignature, list[tuple[SchedulerRequest, VideoGenerationRequest]]]:
+        groups: dict[
+            WorkloadSignature,
+            list[tuple[SchedulerRequest, VideoGenerationRequest]],
+        ] = defaultdict(list)
+        for sched_req, vgr in ready:
+            sig = WorkloadSignature(
+                model_name=vgr.model_name,
+                task_type=vgr.task_type,
+                height=vgr.height,
+                width=vgr.width,
+                frame_count=vgr.frame_count,
+                num_steps=vgr.num_steps,
             )
-            groups[key].append((request, state))
+            groups[sig].append((sched_req, vgr))
         return dict(groups)
 
-    def _advance_batch(
+    def _run_pipeline(
         self,
-        key: PhaseGroupKey,
-        members: list[tuple[SchedulerRequest, VideoExecutionState]],
-    ) -> list[StageResult]:
-        phase = key.phase
-        requests = [s.request for _, s in members]
-        states_list = [s.pipeline_state for _, s in members]
-        exec_states = [s for _, s in members]
+        members: list[tuple[SchedulerRequest, VideoGenerationRequest]],
+    ) -> list[RequestOutput]:
+        requests = [vgr for _, vgr in members]
+        states: list[dict[str, Any]] = [{} for _ in members]
+        all_stage_results: list[list[StageResult]] = [[] for _ in members]
 
-        if phase == VideoExecutionPhase.ENCODE_TEXT:
-            results = asyncio.run(self.model.batch_encode_text(requests, states_list))
-            for state, result in zip(exec_states, results):
-                state.pipeline_state.update(result.state_updates)
-                state.stage_results.append(result)
-                state.phase = VideoExecutionPhase.ENCODE_CONDITIONING
+        # 1. encode_text
+        results = asyncio.run(self.model.batch_encode_text(requests, states))
+        for i, result in enumerate(results):
+            states[i].update(result.state_updates)
+            all_stage_results[i].append(result)
 
-        elif phase == VideoExecutionPhase.ENCODE_CONDITIONING:
-            results = asyncio.run(self.model.batch_encode_conditioning(requests, states_list))
-            for state, result in zip(exec_states, results):
-                state.pipeline_state.update(result.state_updates)
-                state.stage_results.append(result)
-                if state.supports_per_step_denoise:
-                    state.phase = VideoExecutionPhase.DENOISE_INIT
-                else:
-                    state.phase = VideoExecutionPhase.DENOISE_INIT
+        # 2. encode_conditioning
+        results = asyncio.run(self.model.batch_encode_conditioning(requests, states))
+        for i, result in enumerate(results):
+            states[i].update(result.state_updates)
+            all_stage_results[i].append(result)
 
-        elif phase == VideoExecutionPhase.DENOISE_INIT:
-            per_step = exec_states[0].supports_per_step_denoise
-            if per_step:
-                denoise_states = asyncio.run(self.model.batch_denoise_init(requests, states_list))
-                results = []
-                for state, ds in zip(exec_states, denoise_states):
-                    state.denoise_state = ds
-                    state.phase = VideoExecutionPhase.DENOISE_STEP
-                    results.append(StageResult(notes=["Denoise loop initialized."]))
-            else:
-                # Black-box: run full denoise() in one shot
-                results = asyncio.run(self.model.batch_denoise(requests, states_list))
-                for state, result in zip(exec_states, results):
-                    state.pipeline_state.update(result.state_updates)
-                    state.stage_results.append(result)
-                    state.phase = VideoExecutionPhase.DECODE_VAE
-
-        elif phase == VideoExecutionPhase.DENOISE_STEP:
-            denoise_states = [s.denoise_state for s in exec_states]
-            results = asyncio.run(
-                self.model.batch_denoise_step(requests, states_list, denoise_states)
+        # 3. denoise
+        if self._check_per_step_support():
+            denoise_states = asyncio.run(
+                self.model.batch_denoise_init(requests, states)
             )
-            for state in exec_states:
-                ds = state.denoise_state
-                if ds.current_step >= ds.total_steps:
-                    state.phase = VideoExecutionPhase.DENOISE_FINALIZE
-
-        elif phase == VideoExecutionPhase.DENOISE_FINALIZE:
-            denoise_states = [s.denoise_state for s in exec_states]
+            while any(
+                d.current_step < d.total_steps for d in denoise_states
+            ):
+                asyncio.run(
+                    self.model.batch_denoise_step(
+                        requests, states, denoise_states
+                    )
+                )
             results = asyncio.run(
-                self.model.batch_denoise_finalize(requests, states_list, denoise_states)
+                self.model.batch_denoise_finalize(
+                    requests, states, denoise_states
+                )
             )
-            for state, result in zip(exec_states, results):
-                state.pipeline_state.update(result.state_updates)
-                state.stage_results.append(result)
-                state.denoise_state = None
-                state.phase = VideoExecutionPhase.DECODE_VAE
-
-        elif phase == VideoExecutionPhase.DECODE_VAE:
-            results = asyncio.run(self.model.batch_decode_vae(requests, states_list))
-            for state, result in zip(exec_states, results):
-                state.pipeline_state.update(result.state_updates)
-                state.stage_results.append(result)
-                state.phase = VideoExecutionPhase.POSTPROCESS
-
-        elif phase == VideoExecutionPhase.POSTPROCESS:
-            results = asyncio.run(self.model.batch_postprocess(requests, states_list))
-            for state, result in zip(exec_states, results):
-                state.pipeline_state.update(result.state_updates)
-                state.stage_results.append(result)
-                state.phase = VideoExecutionPhase.DONE
-
         else:
-            raise RuntimeError(f"Unexpected phase: {phase}")
+            results = asyncio.run(self.model.batch_denoise(requests, states))
+        for i, result in enumerate(results):
+            states[i].update(result.state_updates)
+            all_stage_results[i].append(result)
 
-        return results
+        # 4. decode_vae
+        results = asyncio.run(self.model.batch_decode_vae(requests, states))
+        for i, result in enumerate(results):
+            states[i].update(result.state_updates)
+            all_stage_results[i].append(result)
+
+        # 5. postprocess
+        results = asyncio.run(self.model.batch_postprocess(requests, states))
+        for i, result in enumerate(results):
+            states[i].update(result.state_updates)
+            all_stage_results[i].append(result)
+
+        # Package outputs — always finished
+        pipeline_outputs: list[RequestOutput] = []
+        for (sched_req, _vgr), stage_results in zip(members, all_stage_results):
+            pipeline_outputs.append(
+                RequestOutput(
+                    request_id=sched_req.request_id,
+                    data=stage_results,
+                    finished=True,
+                    finish_reason="completed",
+                )
+            )
+        return pipeline_outputs

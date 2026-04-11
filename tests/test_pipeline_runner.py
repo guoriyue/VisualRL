@@ -1,22 +1,19 @@
-"""Tests for per-phase batching in VideoIterationRunner."""
+"""Tests for PipelineRunner: full-pipeline execution in one call."""
 
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
 from vrl.engine.model_executor.execution_state import (
     DenoiseLoopState,
-    PhaseGroupKey,
-    VideoExecutionState,
+    WorkloadSignature,
 )
-from vrl.engine.model_executor.iteration_runner import VideoIterationRunner
+from vrl.engine.model_executor.iteration_runner import PipelineRunner
 from vrl.engine.types import (
     SchedulerOutput,
     SchedulerRequest,
-    VideoExecutionPhase,
 )
 from vrl.models.base import VideoGenerationModel
 from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
@@ -113,21 +110,16 @@ def _make_request(
     height: int = 640,
     width: int = 1024,
     frame_count: int = 16,
-    phase: VideoExecutionPhase | None = None,
+    num_steps: int = 35,
 ) -> SchedulerRequest:
     vgr = VideoGenerationRequest(
         prompt="test",
         height=height,
         width=width,
         frame_count=frame_count,
+        num_steps=num_steps,
     )
-    if phase is not None:
-        state = VideoExecutionState(request=vgr)
-        state.phase = phase
-        data = state
-    else:
-        data = vgr
-    return SchedulerRequest(request_id=request_id, data=data)
+    return SchedulerRequest(request_id=request_id, data=vgr)
 
 
 def _make_scheduler_output(*requests: SchedulerRequest) -> SchedulerOutput:
@@ -139,89 +131,61 @@ def _make_scheduler_output(*requests: SchedulerRequest) -> SchedulerOutput:
 # ---------------------------------------------------------------------------
 
 
-class TestGroupingLogic:
-    """Test 1: _group_by_phase correctly groups by (phase, h, w, frames)."""
+class TestFullPipeline:
+    """Test: single request runs all 5 stages and returns finished."""
 
-    def test_mixed_phases_and_resolutions(self):
-        r1 = _make_request("r1", phase=VideoExecutionPhase.ENCODE_TEXT)
-        r2 = _make_request("r2", phase=VideoExecutionPhase.DECODE_VAE)
-        r3 = _make_request("r3", phase=VideoExecutionPhase.ENCODE_TEXT)
-        r4 = _make_request("r4", height=320, width=512, phase=VideoExecutionPhase.ENCODE_TEXT)
-
-        ready = [(r, r.data) for r in [r1, r2, r3, r4]]
-        groups = VideoIterationRunner._group_by_phase(ready)
-
-        assert len(groups) == 3
-        # r1 and r3 share (ENCODE_TEXT, 640, 1024, 16)
-        encode_key = PhaseGroupKey(VideoExecutionPhase.ENCODE_TEXT, 640, 1024, 16)
-        assert len(groups[encode_key]) == 2
-        assert groups[encode_key][0][0].request_id == "r1"
-        assert groups[encode_key][1][0].request_id == "r3"
-
-
-class TestSingleRequestFallback:
-    """Test 2: A batch of 1 works identically to the old serial path."""
-
-    def test_single_request_advances(self):
+    def test_single_request_full_pipeline(self):
         model = MockVideoModel()
-        runner = VideoIterationRunner(model)
+        runner = PipelineRunner(model)
 
         r1 = _make_request("r1")
         output = runner.execute(_make_scheduler_output(r1))
 
-        assert output.outputs["r1"].finished is False
-        assert output.outputs["r1"].finish_reason is None
-        state = r1.data
-        assert isinstance(state, VideoExecutionState)
-        assert state.phase == VideoExecutionPhase.ENCODE_CONDITIONING
-        assert model.calls == [("batch_encode_text", 1)]
+        assert output.outputs["r1"].finished is True
+        assert output.outputs["r1"].finish_reason == "completed"
+        assert output.outputs["r1"].data is not None
+        # Should have 5 stage results
+        assert len(output.outputs["r1"].data) == 5
+        assert model.calls == [
+            ("batch_encode_text", 1),
+            ("batch_encode_conditioning", 1),
+            ("batch_denoise", 1),
+            ("batch_decode_vae", 1),
+            ("batch_postprocess", 1),
+        ]
 
 
-class TestMultiRequestSamePhase:
-    """Test 3: 3 requests at ENCODE_TEXT → 1 batch call with batch_size=3."""
+class TestBatchedPipeline:
+    """Test: 3 requests with same signature → batched through all stages."""
 
     def test_three_requests_batched(self):
         model = MockVideoModel()
-        runner = VideoIterationRunner(model)
+        runner = PipelineRunner(model)
 
         reqs = [_make_request(f"r{i}") for i in range(3)]
         output = runner.execute(_make_scheduler_output(*reqs))
 
-        assert model.calls == [("batch_encode_text", 3)]
-        for r in reqs:
-            assert r.data.phase == VideoExecutionPhase.ENCODE_CONDITIONING
+        # All should be finished
+        for i in range(3):
+            assert output.outputs[f"r{i}"].finished is True
+            assert output.outputs[f"r{i}"].finish_reason == "completed"
+
+        # All 5 stages should be called with batch_size=3
+        assert model.calls == [
+            ("batch_encode_text", 3),
+            ("batch_encode_conditioning", 3),
+            ("batch_denoise", 3),
+            ("batch_decode_vae", 3),
+            ("batch_postprocess", 3),
+        ]
 
 
-class TestMultiPhaseSplitting:
-    """Test 4: 2 at ENCODE_TEXT + 2 at DECODE_VAE → 2 batch calls."""
+class TestWorkloadSignatureGrouping:
+    """Test: different resolutions → different groups, different batch sizes."""
 
-    def test_two_groups(self):
+    def test_different_resolutions_separate_groups(self):
         model = MockVideoModel()
-        runner = VideoIterationRunner(model)
-
-        r1 = _make_request("r1", phase=VideoExecutionPhase.ENCODE_TEXT)
-        r2 = _make_request("r2", phase=VideoExecutionPhase.ENCODE_TEXT)
-        r3 = _make_request("r3", phase=VideoExecutionPhase.DECODE_VAE)
-        r4 = _make_request("r4", phase=VideoExecutionPhase.DECODE_VAE)
-
-        output = runner.execute(_make_scheduler_output(r1, r2, r3, r4))
-
-        method_names = {name for name, _ in model.calls}
-        assert "batch_encode_text" in method_names
-        assert "batch_decode_vae" in method_names
-        assert len(model.calls) == 2
-
-        # Check correct batch sizes
-        for name, size in model.calls:
-            assert size == 2
-
-
-class TestResolutionSplitting:
-    """Test 5: 2x1024x640 + 1x512x320 → 2 groups."""
-
-    def test_different_resolutions(self):
-        model = MockVideoModel()
-        runner = VideoIterationRunner(model)
+        runner = PipelineRunner(model)
 
         r1 = _make_request("r1", height=640, width=1024)
         r2 = _make_request("r2", height=640, width=1024)
@@ -229,56 +193,109 @@ class TestResolutionSplitting:
 
         output = runner.execute(_make_scheduler_output(r1, r2, r3))
 
-        assert len(model.calls) == 2
-        sizes = sorted(size for _, size in model.calls)
-        assert sizes == [1, 2]
+        # All should be finished
+        for rid in ("r1", "r2", "r3"):
+            assert output.outputs[rid].finished is True
+
+        # Should have 10 batch calls: 5 stages × 2 groups
+        assert len(model.calls) == 10
+
+        # Each stage should appear twice (once for each group)
+        stage_counts: dict[str, list[int]] = {}
+        for name, size in model.calls:
+            stage_counts.setdefault(name, []).append(size)
+
+        for stage_name in (
+            "batch_encode_text",
+            "batch_encode_conditioning",
+            "batch_denoise",
+            "batch_decode_vae",
+            "batch_postprocess",
+        ):
+            sizes = sorted(stage_counts[stage_name])
+            assert sizes == [1, 2]
 
 
 class TestErrorIsolation:
-    """Test 6: _ensure_state failure doesn't kill other requests."""
+    """Test: bad request doesn't block other requests."""
 
     def test_bad_request_doesnt_block_others(self):
         model = MockVideoModel()
-        runner = VideoIterationRunner(model)
+        runner = PipelineRunner(model)
 
-        # r1 is normal
         r1 = _make_request("r1")
-        # r2 has broken data that will cause _ensure_state to fail
-        r2 = SchedulerRequest(request_id="r2", data=None)
+        r2 = SchedulerRequest(request_id="r2", data=None)  # broken data
 
         output = runner.execute(_make_scheduler_output(r1, r2))
 
         # r2 should error
         assert output.outputs["r2"].finished is True
         assert output.outputs["r2"].finish_reason == "error"
-        # r1 should succeed normally
-        assert output.outputs["r1"].finished is False
-        assert r1.data.phase == VideoExecutionPhase.ENCODE_CONDITIONING
+        # r1 should succeed
+        assert output.outputs["r1"].finished is True
+        assert output.outputs["r1"].finish_reason == "completed"
 
 
-class TestDenoiseStepBatching:
-    """Test 7: Different current_step, same shape → one batch group."""
+class TestPerStepDenoise:
+    """Test: per-step denoise model runs init → step × N → finalize."""
 
-    def test_denoise_step_same_shape_batched(self):
+    def test_per_step_denoise_pipeline(self):
         model = MockVideoModelWithPerStepDenoise()
-        runner = VideoIterationRunner(model)
+        runner = PipelineRunner(model)
 
-        # Create two requests already at DENOISE_STEP with different current_step
-        r1 = _make_request("r1", phase=VideoExecutionPhase.DENOISE_STEP)
-        r1.data.supports_per_step_denoise = True
-        r1.data.denoise_state = DenoiseLoopState(total_steps=5, current_step=1)
+        r1 = _make_request("r1")
+        output = runner.execute(_make_scheduler_output(r1))
 
-        r2 = _make_request("r2", phase=VideoExecutionPhase.DENOISE_STEP)
-        r2.data.supports_per_step_denoise = True
-        r2.data.denoise_state = DenoiseLoopState(total_steps=5, current_step=3)
+        assert output.outputs["r1"].finished is True
+        assert output.outputs["r1"].finish_reason == "completed"
+
+        # Should have: encode_text, encode_conditioning, denoise_init, 3× denoise_step, denoise_finalize, decode_vae, postprocess
+        method_names = [name for name, _ in model.calls]
+        assert method_names == [
+            "batch_encode_text",
+            "batch_encode_conditioning",
+            "batch_denoise_init",
+            "batch_denoise_step",
+            "batch_denoise_step",
+            "batch_denoise_step",
+            "batch_denoise_finalize",
+            "batch_decode_vae",
+            "batch_postprocess",
+        ]
+
+
+class TestWorkloadSignatureFields:
+    """Test: WorkloadSignature captures the right fields."""
+
+    def test_signature_grouping_by_num_steps(self):
+        model = MockVideoModel()
+        runner = PipelineRunner(model)
+
+        r1 = _make_request("r1", num_steps=35)
+        r2 = _make_request("r2", num_steps=50)
 
         output = runner.execute(_make_scheduler_output(r1, r2))
 
-        # Should be one batch call
-        assert model.calls == [("batch_denoise_step", 2)]
-        # current_step should have advanced
-        assert r1.data.denoise_state.current_step == 2
-        assert r2.data.denoise_state.current_step == 4
-        # Neither is done yet
-        assert r1.data.phase == VideoExecutionPhase.DENOISE_STEP
-        assert r2.data.phase == VideoExecutionPhase.DENOISE_STEP
+        # Different num_steps → 2 groups → 10 batch calls
+        assert len(model.calls) == 10
+        for rid in ("r1", "r2"):
+            assert output.outputs[rid].finished is True
+
+
+class TestGroupByWorkloadStatic:
+    """Test the static _group_by_workload method directly."""
+
+    def test_grouping(self):
+        vgr1 = VideoGenerationRequest(prompt="a", height=640, width=1024, frame_count=16, num_steps=35)
+        vgr2 = VideoGenerationRequest(prompt="b", height=640, width=1024, frame_count=16, num_steps=35)
+        vgr3 = VideoGenerationRequest(prompt="c", height=320, width=512, frame_count=16, num_steps=35)
+
+        r1 = SchedulerRequest(request_id="r1", data=vgr1)
+        r2 = SchedulerRequest(request_id="r2", data=vgr2)
+        r3 = SchedulerRequest(request_id="r3", data=vgr3)
+
+        groups = PipelineRunner._group_by_workload([(r1, vgr1), (r2, vgr2), (r3, vgr3)])
+
+        assert len(groups) == 2
+        sizes = sorted(len(v) for v in groups.values())
+        assert sizes == [1, 2]

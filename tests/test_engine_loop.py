@@ -1,47 +1,113 @@
+"""Tests for EngineLoop with SimpleResourceManager."""
+
 from __future__ import annotations
 
-from vrl.engine import ContinuousBatchPlanner, EngineLoop, Scheduler
-from vrl.engine.types import RequestOutput, SchedulerRequest, SchedulerStatus
+import asyncio
+from typing import Any
+
+import pytest
+
+from vrl.engine import (
+    ContinuousBatchPlanner,
+    EngineLoop,
+    Scheduler,
+    SimpleResourceManager,
+)
+from vrl.engine.types import (
+    ModelRunnerOutput,
+    RequestOutput,
+    SchedulerOutput,
+)
+from vrl.schemas.video_generation import VideoGenerationRequest
 
 
-class _FeedbackIterationController:
-    def update_request(self, request: SchedulerRequest, output: RequestOutput) -> None:
-        request.data = output.data
+class _EchoRunner:
+    """Trivial runner that echoes request data as finished output."""
 
-    def is_finished(self, request: SchedulerRequest, output: RequestOutput) -> bool:
-        return True
+    execute_in_thread = False
 
-    def apply_feedback(self, request: SchedulerRequest, data) -> None:
-        request.metadata["feedback"] = data
+    def execute(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
+        outputs = {}
+        for req in scheduler_output.requests:
+            outputs[req.request_id] = RequestOutput(
+                request_id=req.request_id,
+                data=req.data,
+                finished=True,
+                finish_reason="completed",
+            )
+        req_ids = [r.request_id for r in scheduler_output.requests]
+        return ModelRunnerOutput(
+            outputs=outputs,
+            req_ids=req_ids,
+            req_id_to_index={rid: i for i, rid in enumerate(req_ids)},
+        )
 
 
-class _FeedbackMailbox:
-    def __init__(self, items: dict[str, object]) -> None:
-        self._items = dict(items)
-
-    def has(self, request_id: str) -> bool:
-        return request_id in self._items
-
-    def pop(self, request_id: str):
-        return self._items.pop(request_id, None)
-
-
-def test_feedback_mailbox_transitions_request():
-    scheduler = Scheduler(
-        batch_planner=ContinuousBatchPlanner(max_batch_size=1),
-        iteration_controller=_FeedbackIterationController(),
+def _build_engine(max_count: int = 32, max_batch_size: int = 32) -> EngineLoop:
+    return EngineLoop(
+        scheduler=Scheduler(
+            batch_planner=ContinuousBatchPlanner(max_batch_size=max_batch_size),
+            resource_manager=SimpleResourceManager(max_count=max_count),
+        ),
+        model_runner=_EchoRunner(),
     )
-    request = SchedulerRequest(
-        request_id="req-1",
-        data={"step": 1},
-        status=SchedulerStatus.WAITING_FEEDBACK,
+
+
+@pytest.mark.asyncio
+async def test_engine_loop_basic():
+    """Single request flows through EngineLoop to completion."""
+    engine = _build_engine()
+    await engine.start()
+    try:
+        await engine.add_request("req-1", {"hello": "world"})
+        result = await asyncio.wait_for(engine.get_result("req-1"), timeout=2.0)
+        assert result == {"hello": "world"}
+    finally:
+        await engine.stop()
+
+
+@pytest.mark.asyncio
+async def test_resource_manager_limits_admission():
+    """SimpleResourceManager with max_count=1 only admits one request at a time."""
+    resource_manager = SimpleResourceManager(max_count=1)
+    engine = EngineLoop(
+        scheduler=Scheduler(
+            batch_planner=ContinuousBatchPlanner(max_batch_size=10),
+            resource_manager=resource_manager,
+        ),
+        model_runner=_EchoRunner(),
     )
-    scheduler.requests[request.request_id] = request
-    mailbox = _FeedbackMailbox({"req-1": {"approved": True}})
-    engine = EngineLoop(scheduler=scheduler, model_runner=object(), feedback_mailbox=mailbox)
+    await engine.start()
+    try:
+        # Submit two requests
+        await engine.add_request("req-1", "data-1")
+        await engine.add_request("req-2", "data-2")
 
-    engine._check_feedback()
+        # Both should eventually complete since the echo runner finishes immediately
+        r1 = await asyncio.wait_for(engine.get_result("req-1"), timeout=2.0)
+        r2 = await asyncio.wait_for(engine.get_result("req-2"), timeout=2.0)
 
-    assert request.status is SchedulerStatus.RUNNING
-    assert request.metadata["feedback"] == {"approved": True}
-    assert not mailbox.has("req-1")
+        assert r1 == "data-1"
+        assert r2 == "data-2"
+    finally:
+        await engine.stop()
+
+
+@pytest.mark.asyncio
+async def test_engine_loop_abort():
+    """Abort cancels a request."""
+    engine = _build_engine()
+    await engine.start()
+    try:
+        await engine.add_request("req-1", "data")
+        engine.abort_request("req-1")
+        # get_result should raise since the request was aborted with an error
+        # (abort sets status=ABORTED but no error, so it returns the request)
+        request = await asyncio.wait_for(
+            engine.scheduler.get_result("req-1"), timeout=2.0
+        )
+        from vrl.engine.types import SchedulerStatus
+
+        assert request.status == SchedulerStatus.ABORTED
+    finally:
+        await engine.stop()

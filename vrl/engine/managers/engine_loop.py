@@ -16,7 +16,7 @@ from vrl.engine.types import (
 )
 
 if TYPE_CHECKING:
-    from vrl.engine.interfaces import CacheManager, FeedbackMailbox
+    from vrl.engine.interfaces import CacheManager
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +29,10 @@ class EngineLoop:
         scheduler: Scheduler,
         model_runner: Any,
         cache_manager: CacheManager | None = None,
-        feedback_mailbox: FeedbackMailbox | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.model_runner = model_runner
         self.cache_manager = cache_manager
-        self._feedback_mailbox = feedback_mailbox
 
         self._running = False
         self._loop_task: asyncio.Task[None] | None = None
@@ -126,8 +124,6 @@ class EngineLoop:
         scheduler_output = self.scheduler.schedule()
 
         if scheduler_output is None:
-            if self._feedback_mailbox is not None:
-                self._check_feedback()
             await asyncio.sleep(0.001)
             return False
 
@@ -154,11 +150,6 @@ class EngineLoop:
             )
             self._fail_requests(scheduler_output, e)
             return False
-
-        self._check_feedback_for_output(scheduler_output, model_output)
-
-        if self._feedback_mailbox is not None:
-            self._check_feedback()
 
         return True
 
@@ -232,53 +223,6 @@ class EngineLoop:
             batch_data=batch_data,
             step_id=scheduler_output.step_id,
         )
-
-    def _check_feedback_for_output(
-        self,
-        scheduler_output: SchedulerOutput,
-        model_output: ModelRunnerOutput,
-    ) -> None:
-        """Set WAITING_FEEDBACK on requests that need external input."""
-        iter_ctrl = self.scheduler.iteration_controller
-        if not hasattr(iter_ctrl, "needs_feedback"):
-            return
-        for request in scheduler_output.requests:
-            if request.status in (SchedulerStatus.FINISHED, SchedulerStatus.ABORTED):
-                continue
-            output = model_output.outputs.get(request.request_id)
-            if output is not None and iter_ctrl.needs_feedback(request, output):
-                request.status = SchedulerStatus.WAITING_FEEDBACK
-
-    def _check_feedback(self) -> None:
-        if self._feedback_mailbox is None:
-            return
-        mailbox = self._feedback_mailbox
-        for req_id, request in list(self.scheduler.requests.items()):
-            if request.status != SchedulerStatus.WAITING_FEEDBACK:
-                continue
-            if not mailbox.has(req_id):
-                continue
-            item = mailbox.pop(req_id)
-            if item is None:
-                continue
-            try:
-                if isinstance(item, BaseException):
-                    err = item if isinstance(item, Exception) else RuntimeError(str(item))
-                    self.scheduler.fail_request(req_id, err)
-                    continue
-                # Apply feedback via iteration controller if supported.
-                iter_ctrl = self.scheduler.iteration_controller
-                if hasattr(iter_ctrl, "apply_feedback"):
-                    data = getattr(item, "data", item)
-                    iter_ctrl.apply_feedback(request, data)
-                self.scheduler.resume_request(req_id)
-            except Exception as e:
-                logger.error("Feedback handling failed for %s: %s", req_id, e)
-                with suppress(Exception):
-                    self.scheduler.fail_request(
-                        req_id,
-                        e if isinstance(e, Exception) else RuntimeError(str(e)),
-                    )
 
     # -----------------------------------------------------------------
     # Introspection

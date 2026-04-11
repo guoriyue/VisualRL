@@ -4,17 +4,16 @@ from vrl.engine.interfaces import (
     BatchPlanner,
     CacheManager,
     ContinuousBatchPlanner,
-    FeedbackMailbox,
-    IterationController,
-    VideoDiffusionIterationController,
+    ResourceManager,
+    SimpleResourceManager,
 )
 from vrl.engine.managers.engine_loop import EngineLoop
 from vrl.engine.managers.scheduler import Scheduler
 from vrl.engine.model_executor.execution_state import (
     DenoiseLoopState,
-    VideoExecutionState,
+    WorkloadSignature,
 )
-from vrl.engine.model_executor.iteration_runner import VideoIterationRunner
+from vrl.engine.model_executor.iteration_runner import PipelineRunner
 from vrl.engine.types import (
     ModelRunnerOutput,
     RequestOutput,
@@ -30,16 +29,15 @@ __all__ = [
     "ContinuousBatchPlanner",
     "DenoiseLoopState",
     "EngineLoop",
-    "FeedbackMailbox",
-    "IterationController",
     "ModelRunnerOutput",
+    "PipelineRunner",
     "RequestOutput",
+    "ResourceManager",
     "Scheduler",
     "SchedulerOutput",
     "SchedulerRequest",
     "SchedulerStatus",
-    "VideoDiffusionIterationController",
+    "SimpleResourceManager",
     "VideoExecutionPhase",
-    "VideoExecutionState",
-    "VideoIterationRunner",
+    "WorkloadSignature",
 ]

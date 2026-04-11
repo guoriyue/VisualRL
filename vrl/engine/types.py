@@ -17,7 +17,6 @@ class SchedulerStatus(Enum):
 
     WAITING = "waiting"
     RUNNING = "running"
-    WAITING_FEEDBACK = "waiting_feedback"
     FINISHED = "finished"
     ABORTED = "aborted"
 

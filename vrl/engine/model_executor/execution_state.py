@@ -1,22 +1,21 @@
-"""Per-request execution state for iterative video generation."""
+"""Execution state types for the model executor."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
-
-from vrl.engine.types import VideoExecutionPhase
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
 
 
 @dataclass(frozen=True)
-class PhaseGroupKey:
-    """Batch grouping key: (phase, height, width, frame_count)."""
+class WorkloadSignature:
+    """Batch grouping key: requests with the same signature can be batched."""
 
-    phase: VideoExecutionPhase
+    model_name: str
+    task_type: str
     height: int
     width: int
     frame_count: int
+    num_steps: int
 
 
 @dataclass
@@ -24,7 +23,7 @@ class DenoiseLoopState:
     """Per-step denoising progress. Model-agnostic.
 
     The engine only reads ``current_step`` and ``total_steps`` to decide
-    when to transition from DENOISE_STEP to DENOISE_FINALIZE.
+    when denoising is complete.
 
     All model-specific state (latents, scheduler, guidance args, etc.)
     lives in ``model_state`` — an opaque object created by
@@ -35,15 +34,3 @@ class DenoiseLoopState:
     current_step: int = 0
     total_steps: int = 0
     model_state: Any = None
-
-
-@dataclass
-class VideoExecutionState:
-    """Per-request state wrapping VideoGenerationRequest with phase tracking."""
-
-    request: VideoGenerationRequest
-    phase: VideoExecutionPhase = VideoExecutionPhase.ENCODE_TEXT
-    pipeline_state: dict = field(default_factory=dict)
-    stage_results: list[StageResult] = field(default_factory=list)
-    denoise_state: DenoiseLoopState | None = None
-    supports_per_step_denoise: bool = False

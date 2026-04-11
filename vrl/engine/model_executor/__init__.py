@@ -1,15 +1,13 @@
-"""Model executor: iteration runner and execution state."""
+"""Model executor: pipeline runner and execution state."""
 
 from vrl.engine.model_executor.execution_state import (
     DenoiseLoopState,
-    PhaseGroupKey,
-    VideoExecutionState,
+    WorkloadSignature,
 )
-from vrl.engine.model_executor.iteration_runner import VideoIterationRunner
+from vrl.engine.model_executor.iteration_runner import PipelineRunner
 
 __all__ = [
     "DenoiseLoopState",
-    "PhaseGroupKey",
-    "VideoExecutionState",
-    "VideoIterationRunner",
+    "PipelineRunner",
+    "WorkloadSignature",
 ]

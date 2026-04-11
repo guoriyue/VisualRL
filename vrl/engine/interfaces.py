@@ -1,4 +1,4 @@
-"""Pluggable protocols: BatchPlanner, IterationController, CacheManager, FeedbackMailbox."""
+"""Pluggable protocols: BatchPlanner, ResourceManager, CacheManager."""
 
 from __future__ import annotations
 
@@ -12,6 +12,15 @@ from vrl.engine.types import RequestOutput, SchedulerRequest
 
 
 @runtime_checkable
+class ResourceManager(Protocol):
+    """Gate new-request admission based on available resources."""
+
+    def can_allocate(self, request: SchedulerRequest) -> bool: ...
+    def allocate(self, request: SchedulerRequest) -> None: ...
+    def free(self, request: SchedulerRequest) -> None: ...
+
+
+@runtime_checkable
 class BatchPlanner(Protocol):
     """Select requests and build batch payload."""
 
@@ -19,17 +28,10 @@ class BatchPlanner(Protocol):
         self,
         waiting: list[SchedulerRequest],
         running: list[SchedulerRequest],
+        resource_manager: ResourceManager,
     ) -> list[SchedulerRequest]: ...
 
     def build_batch(self, requests: list[SchedulerRequest]) -> Any: ...
-
-
-@runtime_checkable
-class IterationController(Protocol):
-    """Per-request completion logic after each pass."""
-
-    def update_request(self, request: SchedulerRequest, output: RequestOutput) -> None: ...
-    def is_finished(self, request: SchedulerRequest, output: RequestOutput) -> bool: ...
 
 
 @runtime_checkable
@@ -41,17 +43,26 @@ class CacheManager(Protocol):
     def clear(self) -> None: ...
 
 
-@runtime_checkable
-class FeedbackMailbox(Protocol):
-    """Non-blocking feedback mailbox keyed by request ID."""
-
-    def has(self, request_id: str) -> bool: ...
-    def pop(self, request_id: str) -> Any | None: ...
-
-
 # ---------------------------------------------------------------------------
 # Default implementations
 # ---------------------------------------------------------------------------
+
+
+class SimpleResourceManager:
+    """Count-based resource manager: admits up to max_count concurrent requests."""
+
+    def __init__(self, max_count: int = 32) -> None:
+        self.max_count = max_count
+        self._count = 0
+
+    def can_allocate(self, request: SchedulerRequest) -> bool:
+        return self._count < self.max_count
+
+    def allocate(self, request: SchedulerRequest) -> None:
+        self._count += 1
+
+    def free(self, request: SchedulerRequest) -> None:
+        self._count = max(0, self._count - 1)
 
 
 class ContinuousBatchPlanner:
@@ -64,33 +75,19 @@ class ContinuousBatchPlanner:
         self,
         waiting: list[SchedulerRequest],
         running: list[SchedulerRequest],
+        resource_manager: ResourceManager,
     ) -> list[SchedulerRequest]:
         selected: list[SchedulerRequest] = list(running)
         budget = self.max_batch_size - len(selected)
         for req in waiting:
             if budget <= 0:
                 break
+            if not resource_manager.can_allocate(req):
+                break
+            resource_manager.allocate(req)
             selected.append(req)
             budget -= 1
         return selected
 
     def build_batch(self, requests: list[SchedulerRequest]) -> Any:
         return [r.data for r in requests]
-
-
-class VideoDiffusionIterationController:
-    """Multi-step controller: error propagation + terminal detection."""
-
-    def update_request(self, request: SchedulerRequest, output: RequestOutput) -> None:
-        if output.finish_reason == "error" and request.error is None:
-            request.error = RuntimeError("Model execution failed")
-
-    def is_finished(self, request: SchedulerRequest, output: RequestOutput) -> bool:
-        if output.finished:
-            from vrl.engine.model_executor.execution_state import VideoExecutionState
-
-            state = request.data
-            if isinstance(state, VideoExecutionState):
-                request.data = state.stage_results
-            return True
-        return False

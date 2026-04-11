@@ -9,11 +9,11 @@ import pytest
 
 from vrl.engine.interfaces import (
     ContinuousBatchPlanner,
-    VideoDiffusionIterationController,
+    SimpleResourceManager,
 )
 from vrl.engine.managers.engine_loop import EngineLoop
 from vrl.engine.managers.scheduler import Scheduler
-from vrl.engine.model_executor.iteration_runner import VideoIterationRunner
+from vrl.engine.model_executor.iteration_runner import PipelineRunner
 from vrl.models.base import VideoGenerationModel
 
 
@@ -48,7 +48,7 @@ def build_engine(model) -> EngineLoop:
     return EngineLoop(
         scheduler=Scheduler(
             batch_planner=ContinuousBatchPlanner(max_batch_size=1),
-            iteration_controller=VideoDiffusionIterationController(),
+            resource_manager=SimpleResourceManager(max_count=1),
         ),
-        model_runner=VideoIterationRunner(model),
+        model_runner=PipelineRunner(model),
     )

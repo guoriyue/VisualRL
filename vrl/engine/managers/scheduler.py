@@ -20,7 +20,7 @@ from vrl.engine.types import (
 if TYPE_CHECKING:
     from vrl.engine.interfaces import (
         BatchPlanner,
-        IterationController,
+        ResourceManager,
     )
 
 logger = logging.getLogger(__name__)
@@ -35,11 +35,11 @@ class Scheduler:
     def __init__(
         self,
         batch_planner: BatchPlanner,
-        iteration_controller: IterationController,
+        resource_manager: ResourceManager,
         stream_adapter: Callable[[SchedulerRequest, RequestOutput], Any] | None = None,
     ):
         self.batch_planner = batch_planner
-        self.iteration_controller = iteration_controller
+        self.resource_manager = resource_manager
         self._stream_adapter = stream_adapter
 
         self.requests: dict[str, SchedulerRequest] = {}
@@ -84,13 +84,6 @@ class Scheduler:
 
     def has_requests(self) -> bool:
         return len(self.waiting) > 0 or len(self.running) > 0
-
-    def resume_request(self, request_id: str) -> None:
-        request = self.requests.get(request_id)
-        if request is None:
-            return
-        if request.status == SchedulerStatus.WAITING_FEEDBACK:
-            request.status = SchedulerStatus.RUNNING
 
     async def get_result(self, request_id: str) -> SchedulerRequest:
         request = self._get_request(request_id)
@@ -148,13 +141,11 @@ class Scheduler:
         self._step_id += 1
 
         waiting_reqs = [self.requests[rid] for rid in self.waiting]
-        running_reqs = [
-            self.requests[rid]
-            for rid in self.running
-            if self.requests[rid].status != SchedulerStatus.WAITING_FEEDBACK
-        ]
+        running_reqs = [self.requests[rid] for rid in self.running]
 
-        selected = self.batch_planner.select_requests(waiting_reqs, running_reqs)
+        selected = self.batch_planner.select_requests(
+            waiting_reqs, running_reqs, self.resource_manager
+        )
 
         if not selected:
             return None
@@ -192,15 +183,16 @@ class Scheduler:
                 logger.warning("Missing output for request_id=%s", request.request_id)
                 continue
 
-            self.iteration_controller.update_request(request, output)
             self._emit_stream(request, output)
 
-            if self.iteration_controller.is_finished(request, output):
-                if request.error is not None:
+            if output.finished:
+                if output.finish_reason == "error":
+                    error = request.error or RuntimeError("Model execution failed")
                     self._finish_request(
-                        request, status=SchedulerStatus.ABORTED, error=request.error
+                        request, status=SchedulerStatus.ABORTED, error=error
                     )
                 else:
+                    request.data = output.data
                     self._finish_request(request)
                 finished.append(request)
 
@@ -250,6 +242,9 @@ class Scheduler:
             self.running.remove(request.request_id)
         if request.request_id in self.waiting:
             self.waiting.remove(request.request_id)
+
+        # Free resource allocation.
+        self.resource_manager.free(request)
 
         self._aborted_ids.discard(request.request_id)
         self.requests.pop(request.request_id, None)
