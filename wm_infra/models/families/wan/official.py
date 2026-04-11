@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from wm_infra.engine.model_executor.execution_state import DenoiseLoopState
 from wm_infra.models.base import VideoGenerationModel
 from wm_infra.models.families.wan.shared import resolve_wan_reference_path, stable_hash
 from wm_infra.schemas.video_generation import StageResult, VideoGenerationRequest
@@ -607,6 +608,240 @@ class OfficialWanModel(VideoGenerationModel):
             },
             notes=[
                 f"Diffusion completed on {len(timesteps)} timesteps for {state['task_key']}.",
+            ],
+        )
+
+    # -- per-step denoise (iterative control) ----------------------------
+
+    async def denoise_init(
+        self, request: VideoGenerationRequest, state: dict[str, Any]
+    ) -> DenoiseLoopState:
+        pipeline = state["pipeline"]
+        torch = self._torch
+        size_key = self._size_key(request.width, request.height)
+        if request.seed is not None:
+            seed = request.seed
+            seed_policy = "explicit"
+        else:
+            seed = random.randint(0, sys.maxsize)
+            seed_policy = "randomized"
+        seed_g = torch.Generator(device=pipeline.device)
+        seed_g.manual_seed(seed)
+        low_noise_guidance_scale = float(request.guidance_scale)
+        high_noise_guidance_scale = (
+            low_noise_guidance_scale
+            if request.high_noise_guidance_scale is None
+            else float(request.high_noise_guidance_scale)
+        )
+
+        if state["task_key"].startswith("t2v-"):
+            width, height = self._size_configs[size_key]
+            target_shape = (
+                pipeline.vae.model.z_dim,
+                (request.frame_count - 1) // pipeline.vae_stride[0] + 1,
+                height // pipeline.vae_stride[1],
+                width // pipeline.vae_stride[2],
+            )
+            seq_len = (
+                math.ceil(
+                    (target_shape[2] * target_shape[3])
+                    / (pipeline.patch_size[1] * pipeline.patch_size[2])
+                    * target_shape[1]
+                    / pipeline.sp_size
+                )
+                * pipeline.sp_size
+            )
+            latents = [
+                torch.randn(
+                    target_shape[0],
+                    target_shape[1],
+                    target_shape[2],
+                    target_shape[3],
+                    dtype=torch.float32,
+                    device=pipeline.device,
+                    generator=seed_g,
+                )
+            ]
+            arg_c = {"context": state["text_context"], "seq_len": seq_len}
+            arg_null = {"context": state["text_context_null"], "seq_len": seq_len}
+        else:
+            max_area = self._max_area_configs[size_key]
+            frame_num = request.frame_count
+            lat_h, lat_w = state["conditioning"]["conditioning_shape"]
+            max_seq_len = (
+                ((frame_num - 1) // pipeline.vae_stride[0] + 1)
+                * lat_h
+                * lat_w
+                // (pipeline.patch_size[1] * pipeline.patch_size[2])
+            )
+            max_seq_len = math.ceil(max_seq_len / pipeline.sp_size) * pipeline.sp_size
+            latents = torch.randn(
+                16,
+                (frame_num - 1) // pipeline.vae_stride[0] + 1,
+                lat_h,
+                lat_w,
+                dtype=torch.float32,
+                generator=seed_g,
+                device=pipeline.device,
+            )
+            arg_c = {
+                "context": [state["text_context"][0]],
+                "seq_len": max_seq_len,
+                "y": [state["conditioning"]["conditioning_tensor"]],
+            }
+            arg_null = {
+                "context": state["text_context_null"],
+                "seq_len": max_seq_len,
+                "y": [state["conditioning"]["conditioning_tensor"]],
+            }
+
+        boundary = pipeline.boundary * pipeline.num_train_timesteps
+        solver_name = request.sample_solver
+        if solver_name == "unipc":
+            scheduler = importlib.import_module(
+                "wan.utils.fm_solvers_unipc"
+            ).FlowUniPCMultistepScheduler(
+                num_train_timesteps=pipeline.num_train_timesteps,
+                shift=1,
+                use_dynamic_shifting=False,
+            )
+            scheduler.set_timesteps(
+                request.num_steps, device=pipeline.device, shift=request.shift
+            )
+            timesteps = scheduler.timesteps
+        else:
+            fm_solvers = importlib.import_module("wan.utils.fm_solvers")
+            scheduler = fm_solvers.FlowDPMSolverMultistepScheduler(
+                num_train_timesteps=pipeline.num_train_timesteps,
+                shift=1,
+                use_dynamic_shifting=False,
+            )
+            sampling_sigmas = fm_solvers.get_sampling_sigmas(request.num_steps, request.shift)
+            timesteps, _ = fm_solvers.retrieve_timesteps(
+                scheduler,
+                device=pipeline.device,
+                sigmas=sampling_sigmas,
+            )
+
+        return DenoiseLoopState(
+            latents=latents,
+            timesteps=timesteps,
+            current_step=0,
+            total_steps=len(timesteps),
+            seed_generator=seed_g,
+            arg_c=arg_c,
+            arg_null=arg_null,
+            boundary=boundary,
+            high_noise_guidance_scale=high_noise_guidance_scale,
+            low_noise_guidance_scale=low_noise_guidance_scale,
+            scheduler=scheduler,
+            seed=seed,
+            seed_policy=seed_policy,
+            solver_name=solver_name,
+            pipeline=pipeline,
+            task_key=state["task_key"],
+        )
+
+    async def denoise_step(
+        self, request: VideoGenerationRequest, state: dict[str, Any], denoise_state: DenoiseLoopState
+    ) -> StageResult:
+        torch = self._torch
+        ds = denoise_state
+        pipeline = ds.pipeline
+        t = ds.timesteps[ds.current_step]
+
+        with (
+            torch.amp.autocast("cuda", dtype=pipeline.param_dtype),
+            torch.no_grad(),
+        ):
+            timestep = torch.stack([t]).to(pipeline.device)
+            if request.offload_model:
+                model = self._model_for_timestep(pipeline, t, ds.boundary)
+            else:
+                model = (
+                    pipeline.high_noise_model
+                    if t.item() >= ds.boundary
+                    else pipeline.low_noise_model
+                )
+            sample_guide_scale = (
+                ds.high_noise_guidance_scale if t.item() >= ds.boundary else ds.low_noise_guidance_scale
+            )
+
+            if ds.task_key.startswith("t2v-"):
+                noise_pred_cond = model(ds.latents, t=timestep, **ds.arg_c)[0]
+                noise_pred_uncond = model(ds.latents, t=timestep, **ds.arg_null)[0]
+                noise_pred = noise_pred_uncond + sample_guide_scale * (
+                    noise_pred_cond - noise_pred_uncond
+                )
+                temp_x0 = ds.scheduler.step(
+                    noise_pred.unsqueeze(0),
+                    t,
+                    ds.latents[0].unsqueeze(0),
+                    return_dict=False,
+                    generator=ds.seed_generator,
+                )[0]
+                ds.latents = [temp_x0.squeeze(0)]
+            else:
+                latent_model_input = [ds.latents.to(pipeline.device)]
+                noise_pred_cond = model(latent_model_input, t=timestep, **ds.arg_c)[0]
+                if request.offload_model:
+                    torch.cuda.empty_cache()
+                noise_pred_uncond = model(latent_model_input, t=timestep, **ds.arg_null)[0]
+                if request.offload_model:
+                    torch.cuda.empty_cache()
+                noise_pred = noise_pred_uncond + sample_guide_scale * (
+                    noise_pred_cond - noise_pred_uncond
+                )
+                temp_x0 = ds.scheduler.step(
+                    noise_pred.unsqueeze(0),
+                    t,
+                    ds.latents.unsqueeze(0),
+                    return_dict=False,
+                    generator=ds.seed_generator,
+                )[0]
+                ds.latents = temp_x0.squeeze(0)
+
+        ds.current_step += 1
+        return StageResult(
+            notes=[f"Denoise step {ds.current_step}/{ds.total_steps} completed."],
+        )
+
+    async def denoise_finalize(
+        self, request: VideoGenerationRequest, state: dict[str, Any], denoise_state: DenoiseLoopState
+    ) -> StageResult:
+        torch = self._torch
+        ds = denoise_state
+        pipeline = ds.pipeline
+        final_latents = ds.latents if isinstance(ds.latents, list) else [ds.latents]
+        if request.offload_model:
+            pipeline.low_noise_model.cpu()
+            pipeline.high_noise_model.cpu()
+            torch.cuda.empty_cache()
+
+        latent_shape = list(final_latents[0].shape)
+        max_area = None
+        if not ds.task_key.startswith("t2v-"):
+            size_key = self._size_key(request.width, request.height)
+            max_area = self._max_area_configs[size_key]
+
+        return StageResult(
+            state_updates={"latents": final_latents, "fps": pipeline.config.sample_fps},
+            runtime_state_updates={
+                "latent_shape": latent_shape,
+                "seed": ds.seed,
+                "seed_policy": ds.seed_policy,
+                "sample_solver": ds.solver_name,
+                "guide_scale_pair": [ds.low_noise_guidance_scale, ds.high_noise_guidance_scale],
+                "boundary_timestep": ds.boundary,
+                "max_area": max_area,
+            },
+            outputs={
+                "solver": ds.solver_name,
+                "num_steps": request.num_steps,
+                "guidance_scale": [ds.low_noise_guidance_scale, ds.high_noise_guidance_scale],
+            },
+            notes=[
+                f"Diffusion completed on {ds.total_steps} timesteps for {ds.task_key}.",
             ],
         )
 

@@ -45,7 +45,23 @@ class CosmosGenerationModel(VideoGenerationModel):
             self._executor = executor
         elif variant is not None:
             cosmos_variant = CosmosVariant(variant)
-            if cosmos_variant.value.startswith("predict2"):
+            if cosmos_variant == CosmosVariant.PREDICT25_VIDEO2WORLD:
+                from wm_infra.models.families.cosmos.predict25 import (
+                    NativeCosmosPredict25Executor,
+                )
+
+                self._executor = NativeCosmosPredict25Executor(
+                    variant=cosmos_variant,
+                    model_size=model_size,
+                    model_id_or_path=model_id_or_path,
+                    device_id=device_id,
+                    dtype=dtype,
+                    enable_cpu_offload=enable_cpu_offload,
+                )
+            elif cosmos_variant in (
+                CosmosVariant.PREDICT2_VIDEO2WORLD,
+                CosmosVariant.PREDICT2_TEXT2IMAGE,
+            ):
                 from wm_infra.models.families.cosmos.predict2 import (
                     DiffusersCosmosPredict2Executor,
                 )

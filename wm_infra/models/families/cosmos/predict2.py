@@ -33,6 +33,22 @@ def _stable_hash(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:16]
 
 
+class _PassthroughSafetyChecker:
+    """No-op safety checker that satisfies the Cosmos pipeline interface.
+
+    Used when the gated ``nvidia/Cosmos-1.0-Guardrail`` model is unavailable.
+    """
+
+    def to(self, device: Any) -> _PassthroughSafetyChecker:
+        return self
+
+    def check_text_safety(self, prompt: str) -> bool:
+        return True
+
+    def check_video_safety(self, video: Any) -> Any:
+        return video
+
+
 class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
     """Diffusers-based in-process executor for Cosmos Predict2 variants.
 
@@ -117,7 +133,21 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
             if self.variant in _T2I_VARIANTS
             else self._v2w_pipeline_cls
         )
-        pipeline = pipeline_cls.from_pretrained(model_id, torch_dtype=dtype)
+        # Monkey-patch CosmosSafetyChecker to avoid downloading the gated
+        # nvidia/Cosmos-1.0-Guardrail model during pipeline init.  The
+        # safety_checker is not needed for inference correctness.
+        import diffusers.pipelines.cosmos.pipeline_cosmos2_text2image as _t2i_mod
+        import diffusers.pipelines.cosmos.pipeline_cosmos2_video2world as _v2w_mod
+
+        _orig_v2w = _v2w_mod.CosmosSafetyChecker
+        _orig_t2i = _t2i_mod.CosmosSafetyChecker
+        _v2w_mod.CosmosSafetyChecker = _PassthroughSafetyChecker  # type: ignore[assignment]
+        _t2i_mod.CosmosSafetyChecker = _PassthroughSafetyChecker  # type: ignore[assignment]
+        try:
+            pipeline = pipeline_cls.from_pretrained(model_id, torch_dtype=dtype)
+        finally:
+            _v2w_mod.CosmosSafetyChecker = _orig_v2w
+            _t2i_mod.CosmosSafetyChecker = _orig_t2i
         pipeline.set_progress_bar_config(disable=True)
         if self.enable_cpu_offload:
             pipeline.enable_sequential_cpu_offload(gpu_id=self.device_id)

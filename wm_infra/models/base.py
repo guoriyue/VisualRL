@@ -65,6 +65,30 @@ class VideoGenerationModel(ABC):
     async def denoise(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
         """Run the main generation step, usually diffusion or a related sampler."""
 
+    async def denoise_init(
+        self, request: VideoGenerationRequest, state: dict[str, Any]
+    ) -> Any:
+        """Set up per-step denoising state.  Returns a ``DenoiseLoopState``.
+
+        Models that support per-step denoise control (e.g. WanOfficial)
+        implement this plus ``denoise_step`` and ``denoise_finalize``.
+        The default raises ``NotImplementedError`` so the runner falls
+        back to calling ``denoise()`` as a single black-box pass.
+        """
+        raise NotImplementedError
+
+    async def denoise_step(
+        self, request: VideoGenerationRequest, state: dict[str, Any], denoise_state: Any
+    ) -> StageResult:
+        """Execute one denoising step and mutate *denoise_state* in-place."""
+        raise NotImplementedError
+
+    async def denoise_finalize(
+        self, request: VideoGenerationRequest, state: dict[str, Any], denoise_state: Any
+    ) -> StageResult:
+        """Package final latents after all denoise steps are complete."""
+        raise NotImplementedError
+
     @abstractmethod
     async def decode_vae(
         self, request: VideoGenerationRequest, state: dict[str, Any]
@@ -76,3 +100,73 @@ class VideoGenerationModel(ABC):
     ) -> StageResult:
         """Assemble decoded outputs into delivery-ready artifacts."""
         return StageResult(notes=["Postprocess stage is a passthrough."])
+
+    # ------------------------------------------------------------------
+    # Batch methods — default sequential fallback
+    # ------------------------------------------------------------------
+    # Concrete models can override specific batch_* methods for true GPU
+    # batching.  The defaults loop over the single-request methods.
+
+    async def batch_encode_text(
+        self,
+        requests: list[VideoGenerationRequest],
+        states: list[dict[str, Any]],
+    ) -> list[StageResult]:
+        return [await self.encode_text(r, s) for r, s in zip(requests, states)]
+
+    async def batch_encode_conditioning(
+        self,
+        requests: list[VideoGenerationRequest],
+        states: list[dict[str, Any]],
+    ) -> list[StageResult]:
+        return [await self.encode_conditioning(r, s) for r, s in zip(requests, states)]
+
+    async def batch_denoise(
+        self,
+        requests: list[VideoGenerationRequest],
+        states: list[dict[str, Any]],
+    ) -> list[StageResult]:
+        return [await self.denoise(r, s) for r, s in zip(requests, states)]
+
+    async def batch_denoise_init(
+        self,
+        requests: list[VideoGenerationRequest],
+        states: list[dict[str, Any]],
+    ) -> list[Any]:
+        return [await self.denoise_init(r, s) for r, s in zip(requests, states)]
+
+    async def batch_denoise_step(
+        self,
+        requests: list[VideoGenerationRequest],
+        states: list[dict[str, Any]],
+        denoise_states: list[Any],
+    ) -> list[StageResult]:
+        return [
+            await self.denoise_step(r, s, d)
+            for r, s, d in zip(requests, states, denoise_states)
+        ]
+
+    async def batch_denoise_finalize(
+        self,
+        requests: list[VideoGenerationRequest],
+        states: list[dict[str, Any]],
+        denoise_states: list[Any],
+    ) -> list[StageResult]:
+        return [
+            await self.denoise_finalize(r, s, d)
+            for r, s, d in zip(requests, states, denoise_states)
+        ]
+
+    async def batch_decode_vae(
+        self,
+        requests: list[VideoGenerationRequest],
+        states: list[dict[str, Any]],
+    ) -> list[StageResult]:
+        return [await self.decode_vae(r, s) for r, s in zip(requests, states)]
+
+    async def batch_postprocess(
+        self,
+        requests: list[VideoGenerationRequest],
+        states: list[dict[str, Any]],
+    ) -> list[StageResult]:
+        return [await self.postprocess(r, s) for r, s in zip(requests, states)]

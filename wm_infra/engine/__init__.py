@@ -6,25 +6,18 @@ Public API re-exports for the engine module.
 from wm_infra.engine.interfaces import (
     BatchPlanner,
     CacheManager,
+    ContinuousBatchPlanner,
     FeedbackMailbox,
-    FIFOBatchPlanner,
-    InputPreparer,
     IterationController,
-    OutputProcessor,
-    ResourceManager,
-    SimpleResourceManager,
-    SinglePassIterationController,
+    VideoDiffusionIterationController,
 )
 from wm_infra.engine.managers.engine_loop import EngineLoop
 from wm_infra.engine.managers.scheduler import Scheduler
-from wm_infra.engine.model_executor.config import PipelineConfig
-from wm_infra.engine.model_executor.model_runner import ModelRunner, PipelineModelRunner
-from wm_infra.engine.model_executor.pipeline import ComposedPipeline
-from wm_infra.engine.model_executor.stages import (
-    PassthroughDecodeStage,
-    PipelineStage,
-    Uint8PostprocessStage,
+from wm_infra.engine.model_executor.execution_state import (
+    DenoiseLoopState,
+    VideoExecutionState,
 )
+from wm_infra.engine.model_executor.iteration_runner import VideoIterationRunner
 from wm_infra.engine.model_executor.task_graph import TaskEdge, TaskGraph, TaskNode
 from wm_infra.engine.types import (
     ModelRunnerOutput,
@@ -32,34 +25,28 @@ from wm_infra.engine.types import (
     SchedulerOutput,
     SchedulerRequest,
     SchedulerStatus,
+    VideoExecutionPhase,
 )
 
 __all__ = [
     "BatchPlanner",
     "CacheManager",
-    "PipelineModelRunner",
-    "ComposedPipeline",
+    "ContinuousBatchPlanner",
+    "DenoiseLoopState",
     "EngineLoop",
-    "FIFOBatchPlanner",
     "FeedbackMailbox",
-    "InputPreparer",
     "IterationController",
-    "ModelRunner",
     "ModelRunnerOutput",
-    "OutputProcessor",
-    "PassthroughDecodeStage",
-    "PipelineConfig",
-    "PipelineStage",
     "RequestOutput",
-    "ResourceManager",
     "Scheduler",
     "SchedulerOutput",
     "SchedulerRequest",
     "SchedulerStatus",
-    "SimpleResourceManager",
-    "SinglePassIterationController",
     "TaskEdge",
     "TaskGraph",
     "TaskNode",
-    "Uint8PostprocessStage",
+    "VideoDiffusionIterationController",
+    "VideoExecutionPhase",
+    "VideoExecutionState",
+    "VideoIterationRunner",
 ]

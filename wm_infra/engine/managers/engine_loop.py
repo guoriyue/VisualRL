@@ -1,25 +1,17 @@
-"""EngineLoop — unified engine combining Scheduler and ModelRunner.
+"""EngineLoop — unified engine combining Scheduler and model runner.
 
-Aligned with sglang-omni's OmniEngine: normal + overlap execution
-modes, cache hooks, feedback mailbox, run_in_executor for GPU work.
-
-Execution model (normal):
+Execution model:
     schedule(N) -> execute(N) -> update(N) -> schedule(N+1) -> ...
 
-Execution model (overlap):
-    schedule(N) -> launch_execute(N) ──┐
-                                       ├── concurrent
-    update(N-1) ───────────────────────┘
-    await execute(N) -> buffer result(N)
+GPU work runs in a worker thread via ``run_in_executor`` so the
+asyncio event loop stays responsive.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from collections import deque
 from contextlib import suppress
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from wm_infra.engine.managers.scheduler import Scheduler
@@ -36,14 +28,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class _PendingResult:
-    """Buffered result from a previous step, awaiting CPU processing."""
-
-    scheduler_output: SchedulerOutput
-    model_output: ModelRunnerOutput
-
-
 class EngineLoop:
     """Persistent async engine loop: schedule -> execute -> update.
 
@@ -52,13 +36,11 @@ class EngineLoop:
     scheduler : Scheduler
         Owns request lifecycle.
     model_runner
-        Stateless model executor (``ModelRunner`` or ``PipelineModelRunner``).
+        Stateless model executor (e.g. ``VideoIterationRunner``).
     cache_manager : CacheManager | None
         Optional output cache.
-    enable_overlap : bool
-        Enable overlap scheduling (GPU/CPU pipelining).
     feedback_mailbox
-        Optional queue for external feedback (e.g. stream signals).
+        Optional queue for external feedback (e.g. pause/resume).
     """
 
     def __init__(
@@ -66,21 +48,15 @@ class EngineLoop:
         scheduler: Scheduler,
         model_runner: Any,
         cache_manager: CacheManager | None = None,
-        enable_overlap: bool = False,
         feedback_mailbox: FeedbackMailbox | None = None,
     ) -> None:
         self.scheduler = scheduler
         self.model_runner = model_runner
         self.cache_manager = cache_manager
-        self.enable_overlap = enable_overlap
         self._feedback_mailbox = feedback_mailbox
 
         self._running = False
         self._loop_task: asyncio.Task[None] | None = None
-
-        # Overlap scheduling state.
-        self._result_queue: deque[_PendingResult] = deque()
-        self._last_scheduler_output: SchedulerOutput | None = None
 
     # -----------------------------------------------------------------
     # Engine public API
@@ -154,7 +130,7 @@ class EngineLoop:
             return
         self._running = True
         self._loop_task = asyncio.create_task(self._run_loop())
-        logger.info("EngineLoop started (overlap=%s)", self.enable_overlap)
+        logger.info("EngineLoop started")
 
     async def stop(self) -> None:
         """Stop the engine loop gracefully."""
@@ -164,7 +140,6 @@ class EngineLoop:
             with suppress(asyncio.CancelledError):
                 await self._loop_task
             self._loop_task = None
-        self._drain_pending_results()
         logger.info("EngineLoop stopped")
 
     @property
@@ -177,17 +152,10 @@ class EngineLoop:
 
     async def _run_loop(self) -> None:
         while self._running:
-            if self.enable_overlap:
-                await self._step_overlap()
-            else:
-                await self._step_normal()
+            await self._step()
             await asyncio.sleep(0)
 
-    # -----------------------------------------------------------------
-    # Normal step (no overlap)
-    # -----------------------------------------------------------------
-
-    async def _step_normal(self) -> bool:
+    async def _step(self) -> bool:
         scheduler_output = self.scheduler.schedule()
 
         if scheduler_output is None:
@@ -233,92 +201,8 @@ class EngineLoop:
         return True
 
     # -----------------------------------------------------------------
-    # Overlap step
+    # Helpers
     # -----------------------------------------------------------------
-
-    async def _step_overlap(self) -> bool:
-        scheduler_output = self.scheduler.schedule()
-
-        if scheduler_output is None:
-            if self._result_queue:
-                self._process_pending_result()
-            elif self._feedback_mailbox is not None:
-                self._check_feedback()
-                await asyncio.sleep(0.001)
-            else:
-                await asyncio.sleep(0.001)
-            self._last_scheduler_output = None
-            return False
-
-        try:
-            disable_overlap = self._should_disable_overlap(scheduler_output)
-
-            if disable_overlap and self._result_queue:
-                self._process_pending_result()
-
-            # Cache check.
-            if self.cache_manager is not None:
-                scheduler_output = await self._filter_cached(scheduler_output)
-                if scheduler_output is None:
-                    if not disable_overlap and self._result_queue:
-                        self._process_pending_result()
-                    self._last_scheduler_output = None
-                    return True
-
-            execute_in_thread = self._should_execute_in_thread()
-
-            if execute_in_thread and not disable_overlap:
-                # Overlap path: launch GPU, process previous on CPU.
-                loop = asyncio.get_running_loop()
-                execute_future = loop.run_in_executor(
-                    None, self.model_runner.execute, scheduler_output
-                )
-                if self._result_queue:
-                    self._process_pending_result()
-                model_output = await execute_future
-            else:
-                # Sync path.
-                if (
-                    not disable_overlap
-                    and self._last_scheduler_output is not None
-                    and self._result_queue
-                ):
-                    self._process_pending_result()
-                model_output = await self._execute_async(scheduler_output)
-
-            self._result_queue.append(
-                _PendingResult(
-                    scheduler_output=scheduler_output,
-                    model_output=model_output,
-                )
-            )
-            self._last_scheduler_output = scheduler_output
-
-        except Exception as e:
-            logger.exception(
-                "EngineLoop overlap step failed, failing %d request(s)",
-                len(scheduler_output.requests),
-            )
-            self._fail_requests(scheduler_output, e)
-            return False
-
-        return True
-
-    # -----------------------------------------------------------------
-    # Overlap helpers
-    # -----------------------------------------------------------------
-
-    def _should_disable_overlap(self, current_output: SchedulerOutput) -> bool:
-        if self._last_scheduler_output is None:
-            return False
-        last_batch = getattr(self._last_scheduler_output, "batch_data", None)
-        curr_batch = getattr(current_output, "batch_data", None)
-        if last_batch is not None and curr_batch is not None:
-            last_is_prefill = _is_prefill_batch(last_batch)
-            curr_is_prefill = _is_prefill_batch(curr_batch)
-            if last_is_prefill and curr_is_prefill:
-                return True
-        return False
 
     def _should_execute_in_thread(self) -> bool:
         flag = getattr(self.model_runner, "execute_in_thread", None)
@@ -327,44 +211,6 @@ class EngineLoop:
         device = getattr(self.model_runner, "device", None)
         device_type = getattr(device, "type", str(device) if device is not None else "")
         return str(device_type) != "cpu"
-
-    def _process_pending_result(self) -> None:
-        if not self._result_queue:
-            return
-        pending = self._result_queue.popleft()
-        try:
-            if self.cache_manager is not None:
-                self._update_cache_sync(pending.scheduler_output, pending.model_output)
-
-            finished = self.scheduler.update(
-                pending.scheduler_output, pending.model_output
-            )
-            if finished:
-                for req in finished:
-                    logger.debug("Request %s finished (overlap)", req.request_id)
-
-            self._check_feedback_for_output(
-                pending.scheduler_output, pending.model_output
-            )
-
-            if self._feedback_mailbox is not None:
-                self._check_feedback()
-
-        except Exception as e:
-            logger.exception(
-                "Failed to process pending result for %d request(s)",
-                len(pending.scheduler_output.requests),
-            )
-            self._fail_requests(pending.scheduler_output, e)
-
-    def _drain_pending_results(self) -> None:
-        while self._result_queue:
-            self._process_pending_result()
-        self._last_scheduler_output = None
-
-    # -----------------------------------------------------------------
-    # Shared helpers
-    # -----------------------------------------------------------------
 
     async def _execute_async(
         self, scheduler_output: SchedulerOutput
@@ -486,12 +332,3 @@ class EngineLoop:
 
     def num_pending(self) -> int:
         return self.scheduler.num_waiting()
-
-
-def _is_prefill_batch(batch_data: Any) -> bool:
-    forward_mode = getattr(batch_data, "forward_mode", None)
-    if forward_mode is not None:
-        is_extend = getattr(forward_mode, "is_extend", None)
-        if callable(is_extend):
-            return is_extend()
-    return False

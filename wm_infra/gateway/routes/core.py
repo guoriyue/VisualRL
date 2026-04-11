@@ -1,4 +1,4 @@
-"""Core gateway routes: health, models, metrics, rollout."""
+"""Core gateway routes: health, models, rollout."""
 
 from __future__ import annotations
 
@@ -6,8 +6,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, Response
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from wm_infra.gateway.state import get_gateway_runtime
@@ -37,10 +36,6 @@ def register_routes(app: FastAPI) -> None:
         from wm_infra.models.registry import list_models as _list_models
 
         return {"models": _list_models()}
-
-    @router.get("/metrics")
-    async def metrics():
-        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
     # ------------------------------------------------------------------
     # Rollout routes (active only when engine_client is connected)

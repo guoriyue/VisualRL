@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from wm_infra.engine import EngineLoop, FIFOBatchPlanner, Scheduler, SimpleResourceManager
+from wm_infra.engine import ContinuousBatchPlanner, EngineLoop, Scheduler
 from wm_infra.engine.ipc.artifacts import ArtifactStore
 from wm_infra.engine.types import RequestOutput, SchedulerRequest, SchedulerStatus
 from wm_infra.schemas import StageResult
@@ -47,8 +47,7 @@ def test_artifact_store_accepts_public_media_fields(tmp_path):
 
 def test_engine_loop_uses_public_feedback_mailbox_interface():
     scheduler = Scheduler(
-        batch_planner=FIFOBatchPlanner(max_batch_size=1),
-        resource_manager=SimpleResourceManager(max_concurrent=1),
+        batch_planner=ContinuousBatchPlanner(max_batch_size=1),
         iteration_controller=_FeedbackIterationController(),
     )
     request = SchedulerRequest(

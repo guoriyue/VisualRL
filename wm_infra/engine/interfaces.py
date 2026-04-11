@@ -1,16 +1,14 @@
 """Pluggable component protocols for the model-agnostic engine.
 
-Following sglang-omni's pattern, the scheduler delegates policy decisions
-to three pluggable interfaces: BatchPlanner, ResourceManager, and
-IterationController.  Default implementations are provided for the common
-single-pass diffusion use case.
+The scheduler delegates policy decisions to two pluggable interfaces:
+BatchPlanner and IterationController.
 """
 
 from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-from wm_infra.engine.types import RequestOutput, SchedulerOutput, SchedulerRequest
+from wm_infra.engine.types import RequestOutput, SchedulerRequest
 
 # ---------------------------------------------------------------------------
 # Protocols
@@ -25,23 +23,13 @@ class BatchPlanner(Protocol):
         self,
         waiting: list[SchedulerRequest],
         running: list[SchedulerRequest],
-        resource_manager: ResourceManager,
     ) -> list[SchedulerRequest]:
-        """Choose requests from *waiting* to admit this iteration."""
+        """Choose requests to include in this iteration's batch."""
         ...
 
     def build_batch(self, requests: list[SchedulerRequest]) -> Any:
-        """Build an opaque batch payload consumed by ``ModelRunner``."""
+        """Build an opaque batch payload consumed by the model runner."""
         ...
-
-
-@runtime_checkable
-class ResourceManager(Protocol):
-    """Tracks whether the system can accept more work."""
-
-    def can_allocate(self, request: SchedulerRequest) -> bool: ...
-    def allocate(self, request: SchedulerRequest) -> None: ...
-    def free(self, request: SchedulerRequest) -> None: ...
 
 
 @runtime_checkable
@@ -50,22 +38,6 @@ class IterationController(Protocol):
 
     def update_request(self, request: SchedulerRequest, output: RequestOutput) -> None: ...
     def is_finished(self, request: SchedulerRequest, output: RequestOutput) -> bool: ...
-
-
-@runtime_checkable
-class InputPreparer(Protocol):
-    """Converts SchedulerOutput into model input tensors."""
-
-    def prepare(self, scheduler_output: SchedulerOutput, device: Any) -> dict[str, Any]: ...
-
-
-@runtime_checkable
-class OutputProcessor(Protocol):
-    """Converts raw model output into per-request RequestOutputs."""
-
-    def process(
-        self, model_output: Any, scheduler_output: SchedulerOutput
-    ) -> dict[str, RequestOutput]: ...
 
 
 @runtime_checkable
@@ -90,8 +62,13 @@ class FeedbackMailbox(Protocol):
 # ---------------------------------------------------------------------------
 
 
-class FIFOBatchPlanner:
-    """Admit up to *max_batch_size* requests in FIFO order."""
+class ContinuousBatchPlanner:
+    """Re-includes running requests every iteration, admits new ones up to budget.
+
+    Running requests are included first so the ``VideoIterationRunner``
+    can advance them to their next phase.  Remaining capacity is filled
+    from waiting requests in FIFO order.
+    """
 
     def __init__(self, max_batch_size: int = 32) -> None:
         self.max_batch_size = max_batch_size
@@ -100,44 +77,40 @@ class FIFOBatchPlanner:
         self,
         waiting: list[SchedulerRequest],
         running: list[SchedulerRequest],
-        resource_manager: ResourceManager,
     ) -> list[SchedulerRequest]:
-        budget = self.max_batch_size - len(running)
-        selected: list[SchedulerRequest] = []
+        selected: list[SchedulerRequest] = list(running)
+        budget = self.max_batch_size - len(selected)
         for req in waiting:
-            if len(selected) >= budget:
+            if budget <= 0:
                 break
-            if resource_manager.can_allocate(req):
-                resource_manager.allocate(req)
-                selected.append(req)
+            selected.append(req)
+            budget -= 1
         return selected
 
     def build_batch(self, requests: list[SchedulerRequest]) -> Any:
         return [r.data for r in requests]
 
 
-class SimpleResourceManager:
-    """Count-based resource manager: limits max concurrent requests."""
+class VideoDiffusionIterationController:
+    """Multi-step iteration controller for ``VideoIterationRunner``.
 
-    def __init__(self, max_concurrent: int = 64) -> None:
-        self.max_concurrent = max_concurrent
-        self._allocated: int = 0
-
-    def can_allocate(self, request: SchedulerRequest) -> bool:
-        return self._allocated < self.max_concurrent
-
-    def allocate(self, request: SchedulerRequest) -> None:
-        self._allocated += 1
-
-    def free(self, request: SchedulerRequest) -> None:
-        self._allocated = max(0, self._allocated - 1)
-
-
-class SinglePassIterationController:
-    """One execution pass = finished.  Suitable for diffusion pipelines."""
+    The runner already advances the execution phase inside ``execute()``.
+    This controller only handles error propagation and terminal detection.
+    When a request finishes (``output.finished == True``), it replaces
+    ``request.data`` with the accumulated ``stage_results`` list so
+    callers see the same ``list[StageResult]`` format.
+    """
 
     def update_request(self, request: SchedulerRequest, output: RequestOutput) -> None:
-        request.data = output.data
+        if output.finish_reason == "error" and request.error is None:
+            request.error = RuntimeError("Model execution failed")
 
     def is_finished(self, request: SchedulerRequest, output: RequestOutput) -> bool:
-        return True
+        if output.finished:
+            from wm_infra.engine.model_executor.execution_state import VideoExecutionState
+
+            state = request.data
+            if isinstance(state, VideoExecutionState):
+                request.data = state.stage_results
+            return True
+        return False

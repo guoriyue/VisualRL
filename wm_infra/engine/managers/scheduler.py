@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from wm_infra.engine.interfaces import (
         BatchPlanner,
         IterationController,
-        ResourceManager,
     )
 
 logger = logging.getLogger(__name__)
@@ -36,14 +35,9 @@ class Scheduler:
 
     Responsibilities:
     - Manage request lifecycle (WAITING -> RUNNING -> FINISHED/ABORTED)
-    - Delegate selection to BatchPlanner and allocation to ResourceManager
+    - Delegate batch selection to BatchPlanner
     - Delegate per-request updates to IterationController
-    - Produce SchedulerOutput for ModelRunner
-
-    Does NOT know about:
-    - Input formats (tokens, latents, etc.)
-    - Model-specific batching logic
-    - Resource details (KV cache, etc.)
+    - Produce SchedulerOutput for the model runner
     """
 
     _COMPLETED_RETENTION_SOFT_LIMIT = 10000
@@ -52,12 +46,10 @@ class Scheduler:
     def __init__(
         self,
         batch_planner: BatchPlanner,
-        resource_manager: ResourceManager,
         iteration_controller: IterationController,
         stream_adapter: Callable[[SchedulerRequest, RequestOutput], Any] | None = None,
     ):
         self.batch_planner = batch_planner
-        self.resource_manager = resource_manager
         self.iteration_controller = iteration_controller
         self._stream_adapter = stream_adapter
 
@@ -194,9 +186,7 @@ class Scheduler:
             if self.requests[rid].status != SchedulerStatus.WAITING_FEEDBACK
         ]
 
-        selected = self.batch_planner.select_requests(
-            waiting_reqs, running_reqs, self.resource_manager
-        )
+        selected = self.batch_planner.select_requests(waiting_reqs, running_reqs)
 
         if not selected:
             return None
@@ -289,17 +279,10 @@ class Scheduler:
         status: SchedulerStatus = SchedulerStatus.FINISHED,
         error: Exception | None = None,
     ) -> None:
-        had_resources = request.status in (
-            SchedulerStatus.RUNNING,
-            SchedulerStatus.WAITING_FEEDBACK,
-        )
         request.status = status
         if error is not None:
             request.error = error
         request.finish_time = time.monotonic()
-
-        if had_resources:
-            self.resource_manager.free(request)
 
         # Remove from queues.
         if request.request_id in self.running:
