@@ -1,8 +1,8 @@
-"""Online RL trainer — collect -> reward -> advantage -> backward -> step.
+"""Online RL trainer — collect -> evaluate -> advantage -> loss -> backward -> step.
 
-Ported from flow_grpo/scripts/train_wan2_1.py lines 880-1005.
-The key difference from the previous stub: this actually calls
-loss.backward(), optimizer.step(), and clip_grad_norm_.
+Supports two modes:
+- Legacy: RolloutSource + LogProbComputer (original flow_grpo port)
+- New 4-layer: Collector + Adapter + Evaluator + Algorithm pipeline
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Protocols
+# Legacy Protocols (kept for backward compat)
 # ---------------------------------------------------------------------------
 
 @runtime_checkable
@@ -40,11 +40,7 @@ class RolloutSource(Protocol):
 
 
 class LogProbComputer(Protocol):
-    """Protocol for computing fresh log-probs under the current policy.
-
-    flow_grpo does this via a full model forward at each timestep
-    (train_wan2_1.py:937 ``compute_log_prob(transformer, pipeline, ...)``).
-    """
+    """Protocol for computing fresh log-probs under the current policy."""
 
     def compute_log_prob(
         self,
@@ -105,42 +101,49 @@ def _get_autocast(config: TrainerConfig, device: torch.device) -> Any:
 # ---------------------------------------------------------------------------
 
 class OnlineTrainer(Trainer):
-    """Orchestrates the full online RL loop with real backward passes.
+    """Orchestrates the full online RL loop.
 
-    Ported from flow_grpo/scripts/train_wan2_1.py.  The loop:
+    Supports two modes:
 
-    1. Collect rollouts via ``rollout_source``
-    2. Score with ``reward_fn``
-    3. Compute advantages via ``algorithm``
-    4. For each mini-batch, for each timestep:
-       a. Fresh forward pass → new log_prob (tensor)
-       b. GRPO clipped surrogate loss (tensor)
-       c. loss.backward()
-       d. clip_grad_norm_()
-       e. optimizer.step() + zero_grad()
-    5. EMA update (if enabled)
-    6. Sync weights (if configured)
+    **New 4-layer mode** (preferred): pass ``collector``, ``adapter``,
+    ``evaluator``, and ``algorithm`` — the trainer just orchestrates
+    collect -> evaluate -> advantage -> loss -> backward -> step.
+
+    **Legacy mode**: pass ``rollout_source``, ``reward_fn``, and optionally
+    ``log_prob_computer`` for the original flow_grpo-style training loop.
     """
 
     def __init__(
         self,
         algorithm: Algorithm,
-        reward_fn: RewardFunction,
-        rollout_source: RolloutSource,
+        # -- New 4-layer mode --
+        collector: Any | None = None,      # Collector protocol
+        adapter: Any | None = None,        # ModelAdapter protocol
+        evaluator: Any | None = None,      # Evaluator protocol
+        # -- Legacy mode --
+        reward_fn: RewardFunction | None = None,
+        rollout_source: RolloutSource | None = None,
+        log_prob_computer: LogProbComputer | None = None,
+        # -- Common --
         model: nn.Module | None = None,
         ref_model: nn.Module | None = None,
-        log_prob_computer: LogProbComputer | None = None,
         weight_syncer: WeightSyncer | None = None,
         config: TrainerConfig | None = None,
         prompts: list[str] | None = None,
         device: torch.device | str = "cuda",
     ) -> None:
         self.algorithm = algorithm
+        # New 4-layer components
+        self.collector = collector
+        self.adapter = adapter
+        self.evaluator = evaluator
+        # Legacy components
         self.reward_fn = reward_fn
         self.rollout_source = rollout_source
+        self.log_prob_computer = log_prob_computer
+        # Common
         self.model = model
         self.ref_model = ref_model
-        self.log_prob_computer = log_prob_computer
         self.weight_syncer = weight_syncer
         self.config = config or TrainerConfig()
         self.prompts = prompts or []
@@ -184,15 +187,154 @@ class OnlineTrainer(Trainer):
             )
         return self._ema
 
+    @property
+    def _is_4layer_mode(self) -> bool:
+        """Check if we're in new 4-layer mode."""
+        return self.collector is not None and self.evaluator is not None
+
     # ------------------------------------------------------------------
-    # Training step
+    # Training step (dispatches to new or legacy path)
     # ------------------------------------------------------------------
 
-    async def step(self) -> TrainStepMetrics:
-        """Run one full training step: collect → reward → advantage → train."""
+    async def step(self, prompts: list[str] | None = None) -> TrainStepMetrics:
+        """Run one full training step.
+
+        In 4-layer mode: collect -> evaluate -> advantage -> loss -> backward -> step.
+        In legacy mode: collect -> reward -> advantage -> train (original flow_grpo).
+        """
+        if prompts is not None:
+            self.prompts = prompts
+
+        if self._is_4layer_mode:
+            metrics = await self._step_4layer()
+        else:
+            metrics = await self._step_legacy()
+
+        # Update state
+        self.state.step += 1
+        self.state.total_reward += metrics.reward_mean
+        self.state.total_loss += metrics.loss
+
+        # Sync weights
+        if self.weight_syncer is not None and self.model is not None:
+            state_dict = self.model.state_dict()
+            await self.weight_syncer.push(state_dict)
+
+        return metrics
+
+    # ------------------------------------------------------------------
+    # New 4-layer training step
+    # ------------------------------------------------------------------
+
+    async def _step_4layer(self) -> TrainStepMetrics:
+        """Pure orchestrator: collect -> evaluate -> advantage -> loss."""
+        from vrl.evaluators.types import SignalRequest
+
+        cfg = self.config
+        assert self.model is not None
+        assert self.collector is not None
+        assert self.evaluator is not None
+        assert self.adapter is not None
+
+        optimizer = self._ensure_optimizer()
+        ema = self._ensure_ema()
+
+        # 1. Collect experience
+        batch = await self.collector.collect(self.prompts)
+
+        # 2. Compute advantages
+        advantages = self.algorithm.compute_advantages_from_tensors(
+            batch.rewards, batch.group_ids
+        )
+
+        # 3. Train loop
+        self.model.train()
+        autocast_ctx = _get_autocast(cfg, self.device)
+        agg_metrics: dict[str, list[float]] = defaultdict(list)
+
+        num_timesteps = batch.observations.shape[1]
+        # Select timesteps to train on (fraction)
+        train_timestep_count = max(1, int(num_timesteps * cfg.timestep_fraction))
+        # Evenly spaced timestep indices
+        if train_timestep_count < num_timesteps:
+            step_size = num_timesteps / train_timestep_count
+            train_indices = [int(i * step_size) for i in range(train_timestep_count)]
+        else:
+            train_indices = list(range(num_timesteps))
+
+        old_log_probs = batch.extras["log_probs"]
+
+        for _inner_epoch in range(cfg.num_inner_epochs):
+            for j in train_indices:
+                with autocast_ctx:
+                    signals = self.evaluator.evaluate(
+                        self.adapter,
+                        self.model,
+                        batch,
+                        j,
+                        ref_model=self.ref_model,
+                        signal_request=SignalRequest(
+                            need_ref=cfg.beta > 0,
+                            need_kl_intermediates=cfg.beta > 0,
+                        ),
+                    )
+
+                    old_lp_j = old_log_probs[:, j] if old_log_probs.ndim > 1 else old_log_probs
+                    loss, metrics = self.algorithm.compute_signal_loss(
+                        signals, advantages, old_lp_j
+                    )
+
+                # backward
+                loss.backward()
+
+                agg_metrics["loss"].append(metrics.loss)
+                agg_metrics["policy_loss"].append(metrics.policy_loss)
+                agg_metrics["kl_penalty"].append(metrics.kl_penalty)
+                agg_metrics["clip_fraction"].append(metrics.clip_fraction)
+
+            # gradient clipping + optimizer step
+            if cfg.max_grad_norm > 0:
+                nn.utils.clip_grad_norm_(self.model.parameters(), cfg.max_grad_norm)
+            optimizer.step()
+            optimizer.zero_grad()
+
+            # EMA update
+            if ema is not None:
+                trainable = [p for p in self.model.parameters() if p.requires_grad]
+                ema.step(trainable, self.state.global_step)
+
+            self.state.global_step += 1
+
+        # Aggregate metrics
+        n_steps = max(len(agg_metrics.get("loss", [])), 1)
+        avg = lambda key: sum(agg_metrics.get(key, [0.0])) / n_steps
+
+        reward_mean = batch.rewards.mean().item()
+        reward_std = batch.rewards.std().item() if batch.rewards.numel() > 1 else 0.0
+        adv_mean = advantages.mean().item()
+
+        return TrainStepMetrics(
+            loss=avg("loss"),
+            policy_loss=avg("policy_loss"),
+            kl_penalty=avg("kl_penalty"),
+            reward_mean=reward_mean,
+            reward_std=reward_std,
+            advantage_mean=adv_mean,
+            clip_fraction=avg("clip_fraction"),
+        )
+
+    # ------------------------------------------------------------------
+    # Legacy training step
+    # ------------------------------------------------------------------
+
+    async def _step_legacy(self) -> TrainStepMetrics:
+        """Original flow_grpo-style training loop."""
         cfg = self.config
         optimizer = self._ensure_optimizer()
         ema = self._ensure_ema()
+
+        assert self.rollout_source is not None
+        assert self.reward_fn is not None
 
         # 1. Collect rollouts
         groups = await self.rollout_source.collect(self.prompts)
@@ -207,24 +349,14 @@ class OnlineTrainer(Trainer):
         for group in groups:
             group.advantages = self.algorithm.compute_advantages(group)
 
-        # 4. Train — the real loop ported from flow_grpo
+        # 4. Train
         batch = RolloutBatch(groups=groups)
         metrics = self._train_on_batch(batch, optimizer, ema)
-
-        # 5. Update state
-        self.state.step += 1
-        self.state.total_reward += metrics.reward_mean
-        self.state.total_loss += metrics.loss
-
-        # 6. Sync weights
-        if self.weight_syncer is not None and self.model is not None:
-            state_dict = self.model.state_dict()
-            await self.weight_syncer.push(state_dict)
 
         return metrics
 
     # ------------------------------------------------------------------
-    # Inner training loop — ported from train_wan2_1.py:911-1005
+    # Inner training loop — legacy path (ported from train_wan2_1.py)
     # ------------------------------------------------------------------
 
     def _train_on_batch(
@@ -233,13 +365,7 @@ class OnlineTrainer(Trainer):
         optimizer: torch.optim.Optimizer,
         ema: EMAModuleWrapper | None,
     ) -> TrainStepMetrics:
-        """Backward + step loop over a RolloutBatch.
-
-        If ``log_prob_computer`` is set and ``model`` is a real nn.Module,
-        this does fresh forward passes per timestep (like flow_grpo).
-        Otherwise falls back to the pre-computed log-prob path but still
-        builds a real loss tensor and calls backward.
-        """
+        """Backward + step loop over a RolloutBatch (legacy path)."""
         cfg = self.config
         assert self.model is not None
 
@@ -265,7 +391,6 @@ class OnlineTrainer(Trainer):
                         with autocast_ctx:
                             old_lp = torch.tensor(step.log_prob, device=self.device)
 
-                            # Fresh forward pass if available, else use stored
                             if step.new_log_prob is not None:
                                 new_lp = torch.tensor(
                                     step.new_log_prob, device=self.device,
@@ -284,7 +409,6 @@ class OnlineTrainer(Trainer):
                             clipped_loss = -adv * clipped_ratio
                             policy_loss = torch.maximum(unclipped_loss, clipped_loss)
 
-                            # KL penalty
                             kl_loss = torch.tensor(0.0, device=self.device)
                             if cfg.beta > 0 and self.ref_model is not None:
                                 ref_lp_val = (
@@ -297,7 +421,6 @@ class OnlineTrainer(Trainer):
 
                             loss = policy_loss + cfg.beta * kl_loss
 
-                        # backward pass
                         loss.backward()
 
                         info["policy_loss"].append(policy_loss.item())
@@ -311,7 +434,6 @@ class OnlineTrainer(Trainer):
                             float(torch.abs(ratio.detach() - 1.0) > cfg.clip_range)
                         )
 
-            # gradient clipping + optimizer step (after accumulating)
             if cfg.max_grad_norm > 0:
                 nn.utils.clip_grad_norm_(
                     self.model.parameters(), cfg.max_grad_norm
@@ -319,7 +441,6 @@ class OnlineTrainer(Trainer):
             optimizer.step()
             optimizer.zero_grad()
 
-            # EMA update
             if ema is not None:
                 trainable = [p for p in self.model.parameters() if p.requires_grad]
                 ema.step(trainable, self.state.global_step)
@@ -346,7 +467,7 @@ class OnlineTrainer(Trainer):
         )
 
     # ------------------------------------------------------------------
-    # Tensor-based training (for real model forward passes)
+    # Tensor-based training (legacy — for real model forward passes)
     # ------------------------------------------------------------------
 
     def train_on_samples(
@@ -357,22 +478,10 @@ class OnlineTrainer(Trainer):
         prompt_embeds: torch.Tensor,
         negative_embeds: torch.Tensor | None = None,
     ) -> dict[str, float]:
-        """Low-level training loop matching flow_grpo exactly.
+        """Low-level training loop matching flow_grpo exactly (legacy path).
 
-        This is the direct port of train_wan2_1.py lines 928-1005.
         Call this if you've already collected samples as tensors
         (e.g., from a pipeline_with_logprob call).
-
-        Args:
-            samples: dict with keys "latents", "next_latents", "timesteps",
-                     "log_probs", "prompt_embeds" — all [B, T, ...] tensors.
-            advantages: [B, T] advantage values.
-            train_timesteps: list of timestep indices to train on.
-            prompt_embeds: [B, D] text embeddings.
-            negative_embeds: optional [B, D] negative embeddings for CFG.
-
-        Returns:
-            dict of averaged metrics.
         """
         cfg = self.config
         assert self.model is not None
@@ -393,7 +502,6 @@ class OnlineTrainer(Trainer):
                     )
                 )
 
-                # Reference model forward for KL
                 if cfg.beta > 0 and self.ref_model is not None:
                     with torch.no_grad():
                         _, prev_sample_mean_ref, _, dt_ref = (
@@ -403,7 +511,6 @@ class OnlineTrainer(Trainer):
                             )
                         )
 
-                # GRPO loss — from train_wan2_1.py:944-963
                 adv = torch.clamp(
                     advantages[:, j], -cfg.adv_clip_max, cfg.adv_clip_max
                 )
@@ -414,7 +521,6 @@ class OnlineTrainer(Trainer):
                 )
                 policy_loss = torch.mean(torch.maximum(unclipped_loss, clipped_loss))
 
-                # Latent-space KL (NOT naive log-prob KL)
                 if cfg.beta > 0 and self.ref_model is not None:
                     kl = (
                         (prev_sample_mean - prev_sample_mean_ref) ** 2
@@ -427,7 +533,6 @@ class OnlineTrainer(Trainer):
                     kl_loss = torch.tensor(0.0, device=self.device)
                     loss = policy_loss
 
-            # backward
             loss.backward()
 
             info["approx_kl"].append(
@@ -441,19 +546,16 @@ class OnlineTrainer(Trainer):
                 info["kl_loss"].append(kl_loss)
             info["loss"].append(loss)
 
-        # clip + step
         if cfg.max_grad_norm > 0:
             nn.utils.clip_grad_norm_(self.model.parameters(), cfg.max_grad_norm)
         optimizer.step()
         optimizer.zero_grad()
 
-        # EMA
         if ema is not None:
             trainable = [p for p in self.model.parameters() if p.requires_grad]
             ema.step(trainable, self.state.global_step)
         self.state.global_step += 1
 
-        # average metrics
         result = {}
         for k, v_list in info.items():
             result[k] = torch.mean(torch.stack(v_list)).item()

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from vrl.algorithms.base import Algorithm
@@ -13,6 +13,7 @@ from vrl.algorithms.types import (
     RolloutGroup,
     TrainStepMetrics,
 )
+from vrl.evaluators.types import SignalBatch
 
 
 @dataclass(slots=True)
@@ -30,7 +31,7 @@ class GRPO(Algorithm):
     """Group Relative Policy Optimization.
 
     Advantages are normalised within each prompt group:
-        â_i = (r_i - mean(r)) / max(std(r), eps)
+        a_i = (r_i - mean(r)) / max(std(r), eps)
 
     Loss is the clipped surrogate objective (PPO-style) applied to
     pre-computed log-probabilities stored in ``TrajectoryStep.log_prob``.
@@ -40,7 +41,7 @@ class GRPO(Algorithm):
         self.config = config or GRPOConfig()
 
     # ------------------------------------------------------------------
-    # Advantages
+    # Legacy: Advantages from RolloutGroup
     # ------------------------------------------------------------------
 
     def compute_advantages(
@@ -85,7 +86,7 @@ class GRPO(Algorithm):
         )
 
     # ------------------------------------------------------------------
-    # Loss
+    # Legacy: Loss from RolloutBatch
     # ------------------------------------------------------------------
 
     def compute_loss(
@@ -94,16 +95,7 @@ class GRPO(Algorithm):
         policy: Any,
         ref_policy: Any = None,
     ) -> tuple[Any, TrainStepMetrics]:
-        """Clipped surrogate loss over all rollout groups.
-
-        Expects each ``TrajectoryStep`` to carry:
-        - ``log_prob``: log π_old(a|s) recorded during rollout collection
-        - a corresponding new log-prob accessible as ``step.log_prob``
-          (the caller should have refreshed log-probs under the current
-          policy before calling this method).
-
-        Returns a scalar loss (float) and ``TrainStepMetrics``.
-        """
+        """Clipped surrogate loss over all rollout groups (legacy path)."""
         cfg = self.config
         total_loss = 0.0
         total_policy_loss = 0.0
@@ -122,8 +114,6 @@ class GRPO(Algorithm):
                 all_advantages.append(adv)
                 for step in rollout.trajectory.steps:
                     old_lp = step.log_prob
-                    # new_log_prob is refreshed by the trainer before calling
-                    # compute_loss; fall back to old_lp (ratio=1).
                     new_lp = step.new_log_prob if step.new_log_prob is not None else old_lp
 
                     ratio = math.exp(new_lp - old_lp)
@@ -134,7 +124,6 @@ class GRPO(Algorithm):
                     if ratio != clipped:
                         clip_count += 1
 
-                    # Optional KL penalty (π_old ‖ π_ref)
                     if cfg.kl_coeff > 0 and ref_policy is not None:
                         ref_lp = step.ref_log_prob if step.ref_log_prob is not None else old_lp
                         kl = old_lp - ref_lp
@@ -165,3 +154,103 @@ class GRPO(Algorithm):
             clip_fraction=clip_count / max(total_steps, 1),
         )
         return total_loss, metrics
+
+    # ------------------------------------------------------------------
+    # New 4-layer: Advantages from tensors
+    # ------------------------------------------------------------------
+
+    def compute_advantages_from_tensors(
+        self,
+        rewards: Any,     # [B] tensor
+        group_ids: Any,   # [B] tensor
+    ) -> Any:
+        """Per-group advantage normalization on tensors.
+
+        Groups are identified by ``group_ids`` — samples sharing the same
+        group_id are normalized together (GRPO per-prompt normalization).
+        """
+        import torch
+
+        cfg = self.config
+        advantages = torch.zeros_like(rewards)
+        unique_groups = torch.unique(group_ids)
+
+        for gid in unique_groups:
+            mask = group_ids == gid
+            group_rewards = rewards[mask]
+            mean = group_rewards.mean()
+
+            if cfg.global_std:
+                std = rewards.std()
+            else:
+                std = group_rewards.std()
+
+            denom = torch.clamp(std, min=cfg.eps)
+            group_adv = (group_rewards - mean) / denom
+            group_adv = torch.clamp(group_adv, -cfg.adv_clip_max, cfg.adv_clip_max)
+            advantages[mask] = group_adv
+
+        return advantages
+
+    # ------------------------------------------------------------------
+    # New 4-layer: Loss from SignalBatch
+    # ------------------------------------------------------------------
+
+    def compute_signal_loss(
+        self,
+        signals: SignalBatch,
+        advantages: Any,       # [B] advantages
+        old_log_probs: Any,    # [B] old log-probs from collection
+    ) -> tuple[Any, TrainStepMetrics]:
+        """Clipped surrogate loss from evaluator signals.
+
+        Handles both flow-matching (latent-space KL) and generic (log-prob KL).
+        """
+        import torch
+
+        from vrl.evaluators.diffusion.flow_matching import compute_kl_divergence
+
+        cfg = self.config
+
+        ratio = torch.exp(signals.log_prob - old_log_probs)
+        clipped_ratio = torch.clamp(ratio, 1.0 - cfg.clip_eps, 1.0 + cfg.clip_eps)
+        unclipped_loss = -advantages * ratio
+        clipped_loss = -advantages * clipped_ratio
+        policy_loss = torch.mean(torch.maximum(unclipped_loss, clipped_loss))
+
+        # KL penalty
+        if cfg.kl_coeff > 0 and signals.ref_log_prob is not None:
+            if (
+                signals.dist_family == "flow_matching"
+                and signals.prev_sample_mean is not None
+                and signals.ref_prev_sample_mean is not None
+            ):
+                # Latent-space KL (more principled for continuous diffusion)
+                kl = compute_kl_divergence(
+                    signals.prev_sample_mean,
+                    signals.ref_prev_sample_mean,
+                    signals.std_dev_t,
+                    signals.dt,
+                )
+                kl_loss = torch.mean(kl)
+            else:
+                # Log-prob KL fallback
+                kl_loss = torch.mean(signals.log_prob - signals.ref_log_prob)
+            loss = policy_loss + cfg.kl_coeff * kl_loss
+        else:
+            kl_loss = torch.tensor(0.0, device=signals.log_prob.device)
+            loss = policy_loss
+
+        # Metrics
+        clip_fraction = torch.mean((torch.abs(ratio - 1.0) > cfg.clip_eps).float()).item()
+        approx_kl = 0.5 * torch.mean((signals.log_prob - old_log_probs) ** 2).item()
+
+        metrics = TrainStepMetrics(
+            loss=loss.item(),
+            policy_loss=policy_loss.item(),
+            kl_penalty=kl_loss.item(),
+            clip_fraction=clip_fraction,
+        )
+        metrics.approx_kl = approx_kl  # type: ignore[attr-defined]
+
+        return loss, metrics
