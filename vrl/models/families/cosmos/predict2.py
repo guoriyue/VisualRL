@@ -10,7 +10,7 @@ import time
 from typing import Any
 
 from vrl.models.families.cosmos.variants import CosmosLocalExecutor, CosmosVariant
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
+from vrl.models.base import ModelResult, VideoGenerationRequest
 
 _MODEL_ID_MAP: dict[tuple[str, str], str] = {
     ("video2world", "2B"): "nvidia/Cosmos-Predict2-2B-Video2World",
@@ -144,7 +144,7 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         self._load_modules()
         pipeline = self._get_pipeline()
 
@@ -174,7 +174,7 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
                 negative_prompt_embeds.cpu(),
             )
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "prompt_embeds": prompt_embeds,
                 "negative_prompt_embeds": negative_prompt_embeds,
@@ -202,9 +202,9 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         if self.variant in _T2I_VARIANTS:
-            return StageResult(
+            return ModelResult(
                 state_updates={"has_reference": False},
                 outputs={"reference_count": 0},
                 notes=["Text2Image variant — no reference conditioning needed."],
@@ -219,7 +219,7 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
         reference_path = request.references[0]
         reference_image = self._pil_image.open(reference_path).convert("RGB")
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "reference_image": reference_image,
                 "has_reference": True,
@@ -235,7 +235,7 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         pipeline = state["pipeline"]
         torch = self._torch
 
@@ -273,7 +273,7 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
         gc.collect()
         torch.cuda.empty_cache()
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "video_frames": frames,
                 "seed": seed,
@@ -300,9 +300,9 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         frames = self._np.asarray(state["video_frames"])
-        return StageResult(
+        return ModelResult(
             state_updates={"video_frames": frames},
             runtime_state_updates={
                 "decoded_frame_count": int(frames.shape[0]),
@@ -318,12 +318,12 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         np = self._np
         frames = np.asarray(state["video_frames"])
         if frames.dtype != np.uint8:
             frames = np.clip(frames * 255.0, 0.0, 255.0).astype(np.uint8)
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "video_frames": frames,
                 "output_fps": request.fps or 16,

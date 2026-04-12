@@ -15,7 +15,7 @@ from vrl.engine.types import (
     SchedulerRequest,
 )
 from vrl.models.base import VideoGenerationModel
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
+from vrl.models.base import ModelResult, VideoGenerationRequest
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ class PipelineRunner:
     ) -> list[RequestOutput]:
         requests = [vgr for _, vgr in members]
         states: list[dict[str, Any]] = [{} for _ in members]
-        all_stage_results: list[list[StageResult]] = [[] for _ in members]
+        all_stage_results: list[list[ModelResult]] = [[] for _ in members]
 
         # 1. encode_text
         results = asyncio.run(self.model.batch_encode_text(requests, states))

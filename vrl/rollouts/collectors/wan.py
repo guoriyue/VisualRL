@@ -7,11 +7,16 @@ using sde_step_with_logprob instead of the standard scheduler.step.
 from __future__ import annotations
 
 import logging
+import random
 from dataclasses import dataclass
 from typing import Any
 
+import copy
+from dataclasses import replace
+
 from vrl.algorithms.types import Rollout, Trajectory
-from vrl.rollouts.evaluators.diffusion.flow_matching import sde_step_with_logprob
+from vrl.models.base import VideoGenerationRequest
+from vrl.rollouts.evaluators.diffusion.flow_matching import SDEStepResult, sde_step_with_logprob
 from vrl.rollouts.types import ExperienceBatch
 from vrl.models.families.wan.state import WanDenoiseState
 from vrl.rewards.base import RewardFunction
@@ -31,6 +36,21 @@ class WanCollectorConfig:
     offload_model: bool = False
     cfg: bool = True
 
+    # Gap 3: KL reward — subtract kl_reward * kl from rewards before advantages.
+    # Port from flow_grpo train_wan2_1.py:788:
+    #   samples["rewards"]["avg"] = ... - config.sample.kl_reward * samples["kl"]
+    kl_reward: float = 0.0
+
+    # Gap 4: SDE window — only inject SDE noise for steps within the window.
+    # Port from flow_grpo sd3_pipeline_with_logprob_fast.py:135-142.
+    # sde_window_size=0 means all steps use SDE.
+    sde_window_size: int = 0
+    sde_window_range: tuple[int, int] = (0, 10)
+
+    # Gap 5: Same latent — reuse the same noise for samples sharing a prompt.
+    # Port from flow_grpo config.sample.same_latent.
+    same_latent: bool = False
+
 
 class WanCollector:
     """Collect Wan rollouts with per-step log-probabilities for training.
@@ -48,10 +68,25 @@ class WanCollector:
         wan_model: Any,  # OfficialWanModel
         reward_fn: RewardFunction,
         config: WanCollectorConfig | None = None,
+        request_template: VideoGenerationRequest | None = None,
     ) -> None:
         self.wan_model = wan_model
         self.reward_fn = reward_fn
         self.config = config or WanCollectorConfig()
+        self.request_template = request_template
+
+    def _get_sde_window(self) -> tuple[int, int] | None:
+        """Compute random SDE window for this collection.
+
+        Returns None if sde_window_size=0 (all steps use SDE).
+        """
+        cfg = self.config
+        if cfg.sde_window_size <= 0:
+            return None
+        lo, hi = cfg.sde_window_range
+        start = random.randint(lo, max(lo, hi - cfg.sde_window_size))
+        end = start + cfg.sde_window_size
+        return (start, end)
 
     async def collect(
         self,
@@ -66,19 +101,22 @@ class WanCollector:
         3. Custom denoise loop with sde_step_with_logprob
         4. decode_vae() -> videos
         5. reward_fn.score() -> rewards
-        6. Stack into ExperienceBatch
+        6. (Gap 3) Subtract kl_reward * kl from rewards
+        7. Stack into ExperienceBatch
         """
         import torch
 
         wan = self.wan_model
         cfg = self.config
 
-        # Build a minimal request for encode_text / denoise_init
+        # Build a request: use explicit kwarg, or clone from template with prompt
         request = kwargs.get("request")
+        if request is None and self.request_template is not None:
+            request = replace(self.request_template, prompt=prompts[0])
         if request is None:
             raise ValueError(
-                "WanCollector.collect() requires a 'request' kwarg "
-                "(VideoGenerationRequest) for encode_text/denoise_init."
+                "WanCollector.collect() requires either a 'request' kwarg "
+                "or a request_template at init time."
             )
 
         # 1. Encode text
@@ -98,10 +136,21 @@ class WanCollector:
         pipeline = ms.pipeline
         total_steps = denoise_loop.total_steps
 
+        # Gap 4: Compute SDE window
+        sde_window = self._get_sde_window()
+
+        # Gap 5: Same-latent generator
+        if cfg.same_latent:
+            latent_generator = torch.Generator(device=pipeline.device)
+            latent_generator.manual_seed(hash(prompts[0]) % (2**32))
+        else:
+            latent_generator = None
+
         # 3. Custom denoise loop with log-prob tracking
         all_observations = []  # x_t at each step
         all_actions = []       # x_{t-1} at each step
         all_log_probs = []     # log_prob at each step
+        all_kls = []           # per-step KL (for kl_reward)
         all_timesteps = []     # timestep values
 
         latents = ms.latents
@@ -138,16 +187,6 @@ class WanCollector:
                     noise_pred = noise_pred_uncond + sample_guide_scale * (
                         noise_pred_cond - noise_pred_uncond
                     )
-                    # SDE step with log-prob (replaces scheduler.step)
-                    sde_result = sde_step_with_logprob(
-                        ms.scheduler,
-                        noise_pred.unsqueeze(0),
-                        t.unsqueeze(0),
-                        current_latents.unsqueeze(0),
-                        return_dt=True,
-                    )
-                    next_latents = sde_result.prev_sample.squeeze(0)
-                    latents = [next_latents]
                 else:
                     latent_model_input = [current_latents.to(pipeline.device)]
                     noise_pred_cond = model(latent_model_input, t=timestep, **ms.arg_c)[0]
@@ -155,14 +194,36 @@ class WanCollector:
                     noise_pred = noise_pred_uncond + sample_guide_scale * (
                         noise_pred_cond - noise_pred_uncond
                     )
+
+                # Gap 4: Check if this step is inside the SDE window
+                in_sde_window = sde_window is None or (sde_window[0] <= step_idx < sde_window[1])
+
+                if in_sde_window:
+                    # SDE step with log-prob (replaces scheduler.step)
                     sde_result = sde_step_with_logprob(
                         ms.scheduler,
                         noise_pred.unsqueeze(0),
                         t.unsqueeze(0),
                         current_latents.unsqueeze(0),
-                        return_dt=True,
+                        generator=latent_generator,
+                        return_dt=cfg.kl_reward > 0,
                     )
-                    next_latents = sde_result.prev_sample.squeeze(0)
+                else:
+                    # Deterministic step outside SDE window — no noise, zero log_prob
+                    sde_result = sde_step_with_logprob(
+                        ms.scheduler,
+                        noise_pred.unsqueeze(0),
+                        t.unsqueeze(0),
+                        current_latents.unsqueeze(0),
+                        deterministic=True,
+                        return_dt=cfg.kl_reward > 0,
+                    )
+
+                next_latents = sde_result.prev_sample.squeeze(0)
+
+                if ms.task_key.startswith("t2v-"):
+                    latents = [next_latents]
+                else:
                     latents = next_latents
 
                 all_observations.append(current_latents.detach())
@@ -170,11 +231,16 @@ class WanCollector:
                 all_log_probs.append(sde_result.log_prob.detach())
                 all_timesteps.append(t.detach())
 
+                # Gap 3: Track per-step KL for kl_reward
+                # The KL is approximated as the log_prob itself (||noise||^2 term)
+                all_kls.append(sde_result.log_prob.detach().abs())
+
         # Stack trajectories: [T, ...] -> add batch dim [1, T, ...]
         observations = torch.stack(all_observations, dim=0).unsqueeze(0)  # [1, T, ...]
         actions = torch.stack(all_actions, dim=0).unsqueeze(0)            # [1, T, ...]
         log_probs = torch.stack(all_log_probs, dim=0).unsqueeze(0)       # [1, T]
         timesteps_tensor = torch.stack(all_timesteps, dim=0).unsqueeze(0) # [1, T]
+        kl_tensor = torch.stack(all_kls, dim=0).unsqueeze(0)             # [1, T]
 
         # 4. Decode VAE -> video
         final_latents = latents if isinstance(latents, list) else [latents]
@@ -185,7 +251,6 @@ class WanCollector:
         video = state["video_tensor"]  # [C, T, H, W]
 
         # 5. Score with reward function
-        # Wrap into a Rollout for backward-compatible reward scoring
         dummy_trajectory = Trajectory(
             prompt=prompts[0],
             seed=ms.seed,
@@ -198,8 +263,14 @@ class WanCollector:
         )
         reward = await self.reward_fn.score(dummy_rollout)
 
-        # 6. Build ExperienceBatch
-        rewards = torch.tensor([reward], dtype=torch.float32, device=observations.device)
+        # 6. Gap 3: Subtract kl_reward * kl from reward
+        # Port from flow_grpo train_wan2_1.py:788:
+        #   rewards = rewards - kl_reward * kl_values
+        kl_total = kl_tensor.sum().item()
+        reward_adjusted = reward - cfg.kl_reward * kl_total
+
+        # 7. Build ExperienceBatch
+        rewards = torch.tensor([reward_adjusted], dtype=torch.float32, device=observations.device)
         dones = torch.ones(1, dtype=torch.bool, device=observations.device)
         group_ids = torch.zeros(1, dtype=torch.long, device=observations.device)
 
@@ -212,6 +283,8 @@ class WanCollector:
             extras={
                 "log_probs": log_probs,
                 "timesteps": timesteps_tensor,
+                "kl": kl_tensor,
+                "reward_before_kl": torch.tensor([reward], dtype=torch.float32),
                 "scheduler": ms.scheduler,
                 "arg_c": ms.arg_c,
                 "arg_null": ms.arg_null,

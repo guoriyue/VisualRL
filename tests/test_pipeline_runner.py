@@ -13,7 +13,7 @@ from vrl.engine.types import (
     SchedulerRequest,
 )
 from vrl.models.base import VideoGenerationModel
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
+from vrl.models.base import ModelResult, VideoGenerationRequest
 
 
 # ---------------------------------------------------------------------------
@@ -35,18 +35,18 @@ class MockVideoModel(VideoGenerationModel):
 
     async def encode_text(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
-        return StageResult(notes=["encoded text"])
+    ) -> ModelResult:
+        return ModelResult(notes=["encoded text"])
 
     async def generate(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
-        return StageResult(notes=["generated"])
+    ) -> ModelResult:
+        return ModelResult(notes=["generated"])
 
     async def decode_vae(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
-        return StageResult(notes=["decoded"])
+    ) -> ModelResult:
+        return ModelResult(notes=["decoded"])
 
     # Override batch methods to record calls (still delegate to sequential defaults)
 

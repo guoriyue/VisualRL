@@ -17,6 +17,12 @@ class PerPromptStatTracker:
     When ``global_std=True``, the standard deviation is computed across
     *all* rewards in the batch (not just same-prompt), which is better
     for diverse prompt sets.
+
+    Supported advantage methods (matching flow_grpo/stat_tracking.py):
+    - ``grpo``: (reward - mean) / std per prompt group
+    - ``rwr``:  raw rewards (reward-weighted regression)
+    - ``sft``:  one-hot: 1 for the best sample in group, 0 otherwise
+    - ``dpo``:  +1 for best, -1 for worst, 0 otherwise
     """
 
     def __init__(self, global_std: bool = False) -> None:
@@ -32,12 +38,10 @@ class PerPromptStatTracker:
     ) -> Any:
         """Compute advantages for the given prompts and rewards.
 
-        Supported methods:
-        - ``"grpo"``: (reward - mean) / std per prompt group
-        - ``"rwr"``:  raw rewards (reward-weighted regression)
-
         Returns a numpy array of advantages, same shape as ``rewards``.
         """
+        import torch
+
         prompts = np.array(prompts)
         rewards = np.array(rewards, dtype=np.float64)
         unique = np.unique(prompts)
@@ -61,8 +65,32 @@ class PerPromptStatTracker:
 
             if method == "grpo":
                 advantages[prompts == prompt] = (prompt_rewards - mean) / std
+
             elif method == "rwr":
                 advantages[prompts == prompt] = prompt_rewards
+
+            elif method == "sft":
+                # One-hot: 1.0 for the best sample(s) in group, 0.0 otherwise
+                # Port from flow_grpo/stat_tracking.py:37
+                t = torch.tensor(prompt_rewards)
+                advantages[prompts == prompt] = (
+                    t == torch.max(t)
+                ).float().numpy()
+
+            elif method == "dpo":
+                # Best sample = +1, worst = -1, others = 0
+                # Port from flow_grpo/stat_tracking.py:39-52
+                t = torch.tensor(prompt_rewards)
+                max_idx = torch.argmax(t)
+                min_idx = torch.argmin(t)
+                # If all rewards are identical, arbitrarily pick indices
+                if max_idx == min_idx:
+                    min_idx = 0
+                    max_idx = min(1, len(t) - 1)
+                result = torch.zeros_like(t).float()
+                result[max_idx] = 1.0
+                result[min_idx] = -1.0
+                advantages[prompts == prompt] = result.numpy()
 
         return advantages
 

@@ -178,10 +178,16 @@ class GRPO(Algorithm):
         for gid in unique_groups:
             mask = group_ids == gid
             group_rewards = rewards[mask]
+
+            # Single sample → advantage is 0 (no group contrast possible)
+            if group_rewards.numel() <= 1:
+                advantages[mask] = 0.0
+                continue
+
             mean = group_rewards.mean()
 
             if cfg.global_std:
-                std = rewards.std()
+                std = rewards.std() if rewards.numel() > 1 else torch.tensor(0.0)
             else:
                 std = group_rewards.std()
 

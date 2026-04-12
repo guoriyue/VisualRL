@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
 
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
+from vrl.models.base import ModelResult, VideoGenerationRequest
 
 
 class CosmosVariant(str, Enum):
@@ -32,23 +32,23 @@ class CosmosLocalExecutor(ABC):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         """Produce prompt-side conditioning."""
 
     async def encode_conditioning(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         """Produce reference-side conditioning."""
-        return StageResult(outputs={"reference_count": len(request.references)})
+        return ModelResult(outputs={"reference_count": len(request.references)})
 
     @abstractmethod
     async def generate(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         """Run generation loop."""
 
     @abstractmethod
@@ -56,7 +56,7 @@ class CosmosLocalExecutor(ABC):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         """Decode latent state into video frames."""
 
     @abstractmethod
@@ -64,7 +64,7 @@ class CosmosLocalExecutor(ABC):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         """Normalize decoded frames."""
 
     def describe(self) -> dict[str, Any]:

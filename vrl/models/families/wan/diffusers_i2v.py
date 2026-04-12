@@ -10,7 +10,7 @@ from typing import Any
 
 from vrl.models.base import VideoGenerationModel
 from vrl.models.families.wan.shared import resolve_wan_reference_path, stable_hash
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
+from vrl.models.base import ModelResult, VideoGenerationRequest
 
 
 class DiffusersWanI2VModel(VideoGenerationModel):
@@ -106,7 +106,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
 
     async def encode_text(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
+    ) -> ModelResult:
         self._load_modules()
         model_dir = self._resolve_model_dir(request)
         pipeline = self._get_pipeline(model_dir)
@@ -118,7 +118,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
             f"max_seq={request.extra.get('max_sequence_length', 512)}"
         )
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "pipeline": pipeline,
                 "model_dir": str(model_dir),
@@ -140,7 +140,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
 
     async def encode_conditioning(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
+    ) -> ModelResult:
         self._load_modules()
         reference_path = resolve_wan_reference_path(request.references[0])
         cache_key = (
@@ -154,7 +154,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
             reference_image = self._pil_image.open(reference_path).convert("RGB")
             self._conditioning_cache[cache_key] = reference_image.copy()
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "reference_image": reference_image,
             },
@@ -167,7 +167,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
             cache_hit=cache_hit,
         )
 
-    async def generate(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
+    async def generate(self, request: VideoGenerationRequest, state: dict[str, Any]) -> ModelResult:
         pipeline = state["pipeline"]
         torch = self._torch
         if request.seed is not None:
@@ -203,7 +203,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
         gc.collect()
         torch.cuda.empty_cache()
 
-        return StageResult(
+        return ModelResult(
             state_updates={"video_frames": frames},
             runtime_state_updates={
                 "frame_shape": list(frames.shape),
@@ -223,9 +223,9 @@ class DiffusersWanI2VModel(VideoGenerationModel):
 
     async def decode_vae(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
+    ) -> ModelResult:
         frames = self._np.asarray(state["video_frames"])
-        return StageResult(
+        return ModelResult(
             state_updates={"video_frames": frames},
             runtime_state_updates={
                 "decoded_frame_count": int(frames.shape[0]),
@@ -239,11 +239,11 @@ class DiffusersWanI2VModel(VideoGenerationModel):
 
     async def postprocess(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
+    ) -> ModelResult:
         frames = self._np.asarray(state["video_frames"])
         if frames.dtype != self._np.uint8:
             frames = self._np.clip(frames * 255.0, 0.0, 255.0).astype(self._np.uint8)
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "video_frames": frames,
                 "output_fps": request.fps or 16,

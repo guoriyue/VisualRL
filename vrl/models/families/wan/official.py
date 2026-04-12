@@ -14,7 +14,7 @@ from vrl.engine.model_executor.execution_state import DenoiseLoopState
 from vrl.models.base import VideoGenerationModel
 from vrl.models.families.wan.shared import resolve_wan_reference_path, stable_hash
 from vrl.models.families.wan.state import WanDenoiseState
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
+from vrl.models.base import ModelResult, VideoGenerationRequest
 
 
 def _clone_tensor_list_to_cpu(tensors: list[Any]) -> list[Any]:
@@ -266,7 +266,7 @@ class OfficialWanModel(VideoGenerationModel):
 
     async def encode_text(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
+    ) -> ModelResult:
         pipeline, task_key, checkpoint_dir = self._get_pipeline(request)
         torch = self._torch
         n_prompt = request.negative_prompt or pipeline.sample_neg_prompt
@@ -294,7 +294,7 @@ class OfficialWanModel(VideoGenerationModel):
 
         device_context = _move_tensor_list_to_device(cached_context, pipeline.device)
         device_context_null = _move_tensor_list_to_device(cached_context_null, pipeline.device)
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "pipeline": pipeline,
                 "task_key": task_key,
@@ -317,10 +317,10 @@ class OfficialWanModel(VideoGenerationModel):
 
     async def encode_conditioning(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
+    ) -> ModelResult:
         pipeline = state["pipeline"]
         if request.task_type != "image_to_video":
-            return StageResult(
+            return ModelResult(
                 notes=["Conditioning stage skipped because the request is text-to-video."]
             )
         reference_path = resolve_wan_reference_path(request.references[0])
@@ -400,7 +400,7 @@ class OfficialWanModel(VideoGenerationModel):
                 "reference_path": reference_path,
             }
 
-        return StageResult(
+        return ModelResult(
             state_updates={"conditioning": conditioning},
             runtime_state_updates={
                 "conditioning_shape": conditioning["conditioning_shape"],
@@ -412,7 +412,7 @@ class OfficialWanModel(VideoGenerationModel):
             cache_hit=cache_hit,
         )
 
-    async def generate(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
+    async def generate(self, request: VideoGenerationRequest, state: dict[str, Any]) -> ModelResult:
         pipeline = state["pipeline"]
         torch = self._torch
         size_key = self._size_key(request.width, request.height)
@@ -580,7 +580,7 @@ class OfficialWanModel(VideoGenerationModel):
                 torch.cuda.empty_cache()
 
         latent_shape = list(final_latents[0].shape)
-        return StageResult(
+        return ModelResult(
             state_updates={"latents": final_latents, "fps": pipeline.config.sample_fps},
             runtime_state_updates={
                 "latent_shape": latent_shape,
@@ -736,7 +736,7 @@ class OfficialWanModel(VideoGenerationModel):
 
     async def denoise_step(
         self, request: VideoGenerationRequest, state: dict[str, Any], denoise_state: DenoiseLoopState
-    ) -> StageResult:
+    ) -> ModelResult:
         torch = self._torch
         ms: WanDenoiseState = denoise_state.model_state
         pipeline = ms.pipeline
@@ -794,13 +794,13 @@ class OfficialWanModel(VideoGenerationModel):
                 ms.latents = temp_x0.squeeze(0)
 
         denoise_state.current_step += 1
-        return StageResult(
+        return ModelResult(
             notes=[f"Denoise step {denoise_state.current_step}/{denoise_state.total_steps} completed."],
         )
 
     async def denoise_finalize(
         self, request: VideoGenerationRequest, state: dict[str, Any], denoise_state: DenoiseLoopState
-    ) -> StageResult:
+    ) -> ModelResult:
         torch = self._torch
         ms: WanDenoiseState = denoise_state.model_state
         pipeline = ms.pipeline
@@ -816,7 +816,7 @@ class OfficialWanModel(VideoGenerationModel):
             size_key = self._size_key(request.width, request.height)
             max_area = self._max_area_configs[size_key]
 
-        return StageResult(
+        return ModelResult(
             state_updates={"latents": final_latents, "fps": pipeline.config.sample_fps},
             runtime_state_updates={
                 "latent_shape": latent_shape,
@@ -839,13 +839,13 @@ class OfficialWanModel(VideoGenerationModel):
 
     async def decode_vae(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
+    ) -> ModelResult:
         pipeline = state["pipeline"]
         video = pipeline.vae.decode(state["latents"])[0]
         if request.offload_model:
             gc.collect()
             self._torch.cuda.synchronize()
-        return StageResult(
+        return ModelResult(
             state_updates={"video_tensor": video},
             runtime_state_updates={
                 "decoded_frame_count": int(video.shape[1]),
@@ -857,9 +857,9 @@ class OfficialWanModel(VideoGenerationModel):
 
     async def postprocess(
         self, request: VideoGenerationRequest, state: dict[str, Any]
-    ) -> StageResult:
+    ) -> ModelResult:
         video = state["video_tensor"]
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "output_fps": int(state["fps"]),
                 "video_tensor": video,

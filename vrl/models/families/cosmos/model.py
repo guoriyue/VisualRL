@@ -9,7 +9,7 @@ from vrl.models.families.cosmos.variants import (
     CosmosLocalExecutor,
     CosmosVariant,
 )
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
+from vrl.models.base import ModelResult, VideoGenerationRequest
 
 
 class CosmosGenerationModel(VideoGenerationModel):
@@ -114,33 +114,33 @@ class CosmosGenerationModel(VideoGenerationModel):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         return await self._executor.encode_text(request, state)
 
     async def encode_conditioning(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         return await self._executor.encode_conditioning(request, state)
 
     async def generate(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         return await self._executor.generate(request, state)
 
     async def decode_vae(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         return await self._executor.decode_vae(request, state)
 
     async def postprocess(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         return await self._executor.postprocess(request, state)

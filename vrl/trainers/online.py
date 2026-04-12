@@ -17,8 +17,10 @@ import torch
 import torch.nn as nn
 
 from vrl.algorithms.base import Algorithm
+from vrl.algorithms.stat_tracking import PerPromptStatTracker
 from vrl.algorithms.types import RolloutBatch, RolloutGroup, TrainStepMetrics
 from vrl.rewards.base import RewardFunction
+from vrl.rollouts.types import ExperienceBatch, stack_batches
 from vrl.trainers.base import Trainer
 from vrl.trainers.ema import EMAModuleWrapper
 from vrl.trainers.types import TrainerConfig, TrainState
@@ -118,6 +120,7 @@ class OnlineTrainer(Trainer):
         algorithm: Algorithm,
         # -- New 4-layer mode --
         collector: Any | None = None,      # Collector protocol
+        adapter: Any | None = None,        # ModelAdapter protocol
         evaluator: Any | None = None,      # Evaluator protocol
         # -- Legacy mode --
         reward_fn: RewardFunction | None = None,
@@ -130,10 +133,13 @@ class OnlineTrainer(Trainer):
         config: TrainerConfig | None = None,
         prompts: list[str] | None = None,
         device: torch.device | str = "cuda",
+        # Gap 8: HF Accelerate integration
+        accelerator: Any | None = None,
     ) -> None:
         self.algorithm = algorithm
         # New 4-layer components
         self.collector = collector
+        self.adapter = adapter
         self.evaluator = evaluator
         # Legacy components
         self.reward_fn = reward_fn
@@ -147,6 +153,13 @@ class OnlineTrainer(Trainer):
         self.prompts = prompts or []
         self.device = torch.device(device) if isinstance(device, str) else device
         self.state = TrainState()
+        self.accelerator = accelerator
+
+        # Per-prompt stat tracking for group-relative advantage normalization
+        self._stat_tracker = PerPromptStatTracker(
+            global_std=getattr(self.algorithm, "config", None)
+            and getattr(self.algorithm.config, "global_std", False),
+        )
 
         # Optimizer — created lazily when model is available
         self._optimizer: torch.optim.Optimizer | None = None
@@ -184,6 +197,33 @@ class OnlineTrainer(Trainer):
                 device=self.device,
             )
         return self._ema
+
+    # ------------------------------------------------------------------
+    # Accelerator-aware backward/step helpers
+    # ------------------------------------------------------------------
+
+    def _backward(self, loss: Any) -> None:
+        """Call loss.backward(), or accelerator.backward() if available."""
+        if self.accelerator is not None:
+            self.accelerator.backward(loss)
+        else:
+            loss.backward()
+
+    def _clip_and_step(self, optimizer: Any) -> None:
+        """Gradient clipping + optimizer step + zero_grad."""
+        cfg = self.config
+        if self.accelerator is not None:
+            if self.accelerator.sync_gradients and cfg.max_grad_norm > 0:
+                self.accelerator.clip_grad_norm_(
+                    self.model.parameters(), cfg.max_grad_norm
+                )
+        else:
+            if cfg.max_grad_norm > 0:
+                nn.utils.clip_grad_norm_(
+                    self.model.parameters(), cfg.max_grad_norm
+                )
+        optimizer.step()
+        optimizer.zero_grad()
 
     @property
     def _is_4layer_mode(self) -> bool:
@@ -236,12 +276,26 @@ class OnlineTrainer(Trainer):
         optimizer = self._ensure_optimizer()
         ema = self._ensure_ema()
 
-        # 1. Collect experience
-        batch = await self.collector.collect(self.prompts)
+        # 1. Collect group_size samples per prompt
+        all_batches: list[ExperienceBatch] = []
+        for prompt_idx, prompt in enumerate(self.prompts):
+            for _sample in range(cfg.group_size):
+                b = await self.collector.collect([prompt])
+                # Assign group_id = prompt_idx for all samples in this batch
+                b.group_ids[:] = prompt_idx
+                all_batches.append(b)
 
-        # 2. Compute advantages
-        advantages = self.algorithm.compute_advantages_from_tensors(
-            batch.rewards, batch.group_ids
+        batch = stack_batches(all_batches)
+
+        # 2. Compute advantages via PerPromptStatTracker (group-relative)
+        prompts_flat = batch.prompts or [
+            self.prompts[gid] for gid in batch.group_ids.tolist()
+        ]
+        adv_np = self._stat_tracker.update(
+            prompts_flat, batch.rewards.tolist(),
+        )
+        advantages = torch.tensor(
+            adv_np, dtype=batch.rewards.dtype, device=batch.rewards.device,
         )
 
         # 3. Train loop
@@ -282,7 +336,7 @@ class OnlineTrainer(Trainer):
                     )
 
                 # backward
-                loss.backward()
+                self._backward(loss)
 
                 agg_metrics["loss"].append(metrics.loss)
                 agg_metrics["policy_loss"].append(metrics.policy_loss)
@@ -290,10 +344,7 @@ class OnlineTrainer(Trainer):
                 agg_metrics["clip_fraction"].append(metrics.clip_fraction)
 
             # gradient clipping + optimizer step
-            if cfg.max_grad_norm > 0:
-                nn.utils.clip_grad_norm_(self.model.parameters(), cfg.max_grad_norm)
-            optimizer.step()
-            optimizer.zero_grad()
+            self._clip_and_step(optimizer)
 
             # EMA update
             if ema is not None:
@@ -418,7 +469,7 @@ class OnlineTrainer(Trainer):
 
                             loss = policy_loss + cfg.beta * kl_loss
 
-                        loss.backward()
+                        self._backward(loss)
 
                         info["policy_loss"].append(policy_loss.item())
                         info["loss"].append(loss.item())
@@ -431,12 +482,7 @@ class OnlineTrainer(Trainer):
                             float(torch.abs(ratio.detach() - 1.0) > cfg.clip_range)
                         )
 
-            if cfg.max_grad_norm > 0:
-                nn.utils.clip_grad_norm_(
-                    self.model.parameters(), cfg.max_grad_norm
-                )
-            optimizer.step()
-            optimizer.zero_grad()
+            self._clip_and_step(optimizer)
 
             if ema is not None:
                 trainable = [p for p in self.model.parameters() if p.requires_grad]
@@ -530,7 +576,7 @@ class OnlineTrainer(Trainer):
                     kl_loss = torch.tensor(0.0, device=self.device)
                     loss = policy_loss
 
-            loss.backward()
+            self._backward(loss)
 
             info["approx_kl"].append(
                 0.5 * torch.mean((log_prob - samples["log_probs"][:, j]) ** 2)
@@ -543,10 +589,7 @@ class OnlineTrainer(Trainer):
                 info["kl_loss"].append(kl_loss)
             info["loss"].append(loss)
 
-        if cfg.max_grad_norm > 0:
-            nn.utils.clip_grad_norm_(self.model.parameters(), cfg.max_grad_norm)
-        optimizer.step()
-        optimizer.zero_grad()
+        self._clip_and_step(optimizer)
 
         if ema is not None:
             trainable = [p for p in self.model.parameters() if p.requires_grad]

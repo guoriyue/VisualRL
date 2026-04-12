@@ -58,6 +58,14 @@ class WanGRPOConfig:
     ema: bool = False
     ema_decay: float = 0.9999
 
+    # Sampling — from flow_grpo config.sample.*
+    kl_reward: float = 0.0
+    sde_window_size: int = 0
+    sde_window_range: tuple[int, int] = (0, 10)
+    same_latent: bool = False
+    noise_level: float = 1.0
+    sde_type: str = "sde"
+
     # Data
     prompt_file: str = ""
     prompts: list[str] = field(default_factory=list)
@@ -80,7 +88,7 @@ async def train(config: WanGRPOConfig) -> None:
     from vrl.rollouts.collectors.wan import WanCollector, WanCollectorConfig
     from vrl.models.families.wan.official import OfficialWanModel
     from vrl.rewards import get_reward
-    from vrl.schemas.video_generation import VideoGenerationRequest
+    from vrl.models.base import VideoGenerationRequest
     from vrl.trainers.online import OnlineTrainer
     from vrl.trainers.types import TrainerConfig
 
@@ -142,10 +150,21 @@ async def train(config: WanGRPOConfig) -> None:
         guidance_scale=config.guidance_scale,
         sample_solver=config.sample_solver,
         shift=config.shift,
+        kl_reward=config.kl_reward,
+        sde_window_size=config.sde_window_size,
+        sde_window_range=config.sde_window_range,
+        same_latent=config.same_latent,
     )
-    collector = WanCollector(wan_model, reward_fn, collector_config)
+    collector = WanCollector(
+        wan_model, reward_fn, collector_config,
+        request_template=template_request,
+    )
 
-    evaluator = FlowMatchingEvaluator(scheduler)
+    evaluator = FlowMatchingEvaluator(
+        scheduler,
+        noise_level=config.noise_level,
+        sde_type=config.sde_type,
+    )
 
     grpo_config = GRPOConfig(
         clip_eps=config.clip_range,
@@ -158,6 +177,7 @@ async def train(config: WanGRPOConfig) -> None:
         lr=config.lr,
         max_grad_norm=config.max_grad_norm,
         num_inner_epochs=config.num_inner_epochs,
+        group_size=config.group_size,
         clip_range=config.clip_range,
         adv_clip_max=config.adv_clip_max,
         beta=config.beta,

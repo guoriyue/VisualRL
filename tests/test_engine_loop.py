@@ -18,7 +18,7 @@ from vrl.engine.types import (
     RequestOutput,
     SchedulerOutput,
 )
-from vrl.schemas.video_generation import VideoGenerationRequest
+from vrl.models.base import VideoGenerationRequest
 
 
 class _EchoRunner:

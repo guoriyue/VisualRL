@@ -7,6 +7,7 @@ that wraps them behind the ``Evaluator`` protocol.
 
 from __future__ import annotations
 
+import contextlib
 import math
 from dataclasses import dataclass
 from typing import Any
@@ -31,7 +32,7 @@ class SDEStepResult:
 
 
 # ------------------------------------------------------------------
-# Core math (moved from algorithms/flow_matching.py)
+# Core math
 # ------------------------------------------------------------------
 
 def sde_step_with_logprob(
@@ -43,19 +44,26 @@ def sde_step_with_logprob(
     generator: Any | None = None,
     deterministic: bool = False,
     return_dt: bool = False,
+    noise_level: float = 1.0,
+    sde_type: str = "sde",
 ) -> SDEStepResult:
     """Compute one SDE step and its log-probability.
 
-    This implements the flow-matching SDE formulation from flow_grpo:
+    Supports two SDE formulations (from flow_grpo):
 
-        prev_sample_mean = sample * (1 + sigma^2/(2*sigma) * dt)
-                         + model_output * (1 + sigma^2(1-sigma)/(2*sigma)) * dt
+    **sde** (default, used by WAN):
+        std_dev_t = sigma_min + (sigma_max - sigma_min) * sigma
+        prev_sample_mean = sample*(1 + std^2/(2*sigma)*dt) + model*(1 + std^2(1-sigma)/(2*sigma))*dt
 
-        log p(x_{t-1} | x_t) = -||x_{t-1} - mu||^2 / (2 * (sigma*sqrt(-dt))^2)
-                               - log(sigma*sqrt(-dt)) - log(sqrt(2*pi))
+    **cps** (Consistency Probability Sampler, used by SD3/Flux):
+        std_dev_t = sigma_prev * sin(noise_level * pi / 2)
+        pred_x0 = sample - sigma * model_output
+        pred_x1 = sample + model_output * (1 - sigma)
+        prev_sample_mean = pred_x0*(1-sigma_prev) + pred_x1*sqrt(sigma_prev^2 - std^2)
 
-    All inputs/outputs are tensors.  We import torch lazily so the module
-    remains importable without torch for lightweight testing.
+    Args:
+        noise_level: Scales diffusion noise (SD3: 0.7-1.5, WAN: 1.0).
+        sde_type: "sde" for standard flow-matching, "cps" for consistency probability sampler.
     """
     import torch
     from diffusers.utils.torch_utils import randn_tensor
@@ -78,35 +86,72 @@ def sde_step_with_logprob(
     sigma_min = scheduler.sigmas[-1].item()
     dt = sigma_prev - sigma
 
-    std_dev_t = sigma_min + (sigma_max - sigma_min) * sigma
-    prev_sample_mean = (
-        sample * (1 + std_dev_t**2 / (2 * sigma) * dt)
-        + model_output * (1 + std_dev_t**2 * (1 - sigma) / (2 * sigma)) * dt
-    )
-
-    if prev_sample is not None and generator is not None:
-        raise ValueError("Cannot pass both generator and prev_sample.")
-
-    if prev_sample is None:
-        variance_noise = randn_tensor(
-            model_output.shape,
-            generator=generator,
-            device=model_output.device,
-            dtype=model_output.dtype,
+    if sde_type == "cps":
+        # Consistency Probability Sampler (from sd3_sde_with_logprob.py:70-86)
+        std_dev_t = sigma_prev * math.sin(noise_level * math.pi / 2)
+        pred_original_sample = sample - sigma * model_output  # predicted x_0
+        noise_estimate = sample + model_output * (1 - sigma)  # predicted x_1
+        prev_sample_mean = (
+            pred_original_sample * (1 - sigma_prev)
+            + noise_estimate * torch.sqrt(sigma_prev**2 - std_dev_t**2)
         )
-        prev_sample = prev_sample_mean + std_dev_t * torch.sqrt(-1 * dt) * variance_noise
 
-    if deterministic:
-        prev_sample = sample + dt * model_output
+        if prev_sample is not None and generator is not None:
+            raise ValueError("Cannot pass both generator and prev_sample.")
 
-    noise_scale = std_dev_t * torch.sqrt(-1 * dt)
-    log_prob = (
-        -((prev_sample.detach() - prev_sample_mean) ** 2) / (2 * noise_scale**2)
-        - torch.log(noise_scale)
-        - torch.log(torch.sqrt(2 * torch.as_tensor(math.pi)))
-    )
-    # Mean across all but batch dimension
-    log_prob = log_prob.mean(dim=tuple(range(1, log_prob.ndim)))
+        if prev_sample is None:
+            variance_noise = randn_tensor(
+                model_output.shape,
+                generator=generator,
+                device=model_output.device,
+                dtype=model_output.dtype,
+            )
+            prev_sample = prev_sample_mean + std_dev_t * variance_noise
+
+        if deterministic:
+            prev_sample = sample + dt * model_output
+
+        # CPS: simplified log_prob (no normalization constants, per flow_grpo)
+        log_prob = -((prev_sample.detach() - prev_sample_mean) ** 2)
+        log_prob = log_prob.mean(dim=tuple(range(1, log_prob.ndim)))
+
+    else:
+        # Standard SDE (from wan_pipeline_with_logprob.py)
+        std_dev_t = sigma_min + (sigma_max - sigma_min) * sigma
+
+        # Apply noise_level scaling for SD3 (WAN passes 1.0 = no-op)
+        if noise_level != 1.0:
+            std_dev_t = torch.sqrt(
+                sigma / (1 - torch.where(sigma == 1, torch.tensor(sigma_max, device=sigma.device), sigma))
+            ) * noise_level
+
+        prev_sample_mean = (
+            sample * (1 + std_dev_t**2 / (2 * sigma) * dt)
+            + model_output * (1 + std_dev_t**2 * (1 - sigma) / (2 * sigma)) * dt
+        )
+
+        if prev_sample is not None and generator is not None:
+            raise ValueError("Cannot pass both generator and prev_sample.")
+
+        if prev_sample is None:
+            variance_noise = randn_tensor(
+                model_output.shape,
+                generator=generator,
+                device=model_output.device,
+                dtype=model_output.dtype,
+            )
+            prev_sample = prev_sample_mean + std_dev_t * torch.sqrt(-1 * dt) * variance_noise
+
+        if deterministic:
+            prev_sample = sample + dt * model_output
+
+        noise_scale = std_dev_t * torch.sqrt(-1 * dt)
+        log_prob = (
+            -((prev_sample.detach() - prev_sample_mean) ** 2) / (2 * noise_scale**2)
+            - torch.log(noise_scale)
+            - torch.log(torch.sqrt(2 * torch.as_tensor(math.pi)))
+        )
+        log_prob = log_prob.mean(dim=tuple(range(1, log_prob.ndim)))
 
     sqrt_neg_dt = torch.sqrt(-1 * dt) if return_dt else None
     return SDEStepResult(
@@ -128,8 +173,6 @@ def compute_kl_divergence(
 
     From flow_grpo train_wan2_1.py / train_sd3.py:
         kl = ||mu - mu_ref||^2 / (2 * (sigma * dt)^2)
-
-    This is more principled for continuous diffusion than naive log-prob KL.
     """
     denom = 2 * std_dev_t**2
     if dt is not None:
@@ -151,8 +194,15 @@ class FlowMatchingEvaluator:
     optionally reference model signals for latent-space KL.
     """
 
-    def __init__(self, scheduler: Any) -> None:
+    def __init__(
+        self,
+        scheduler: Any,
+        noise_level: float = 1.0,
+        sde_type: str = "sde",
+    ) -> None:
         self.scheduler = scheduler
+        self.noise_level = noise_level
+        self.sde_type = sde_type
 
     def evaluate(
         self,
@@ -163,7 +213,12 @@ class FlowMatchingEvaluator:
         ref_model: Any | None = None,
         signal_request: SignalRequest | None = None,
     ) -> SignalBatch:
-        """Run collector.forward_step() -> sde_step_with_logprob -> SignalBatch."""
+        """Run collector.forward_step() -> sde_step_with_logprob -> SignalBatch.
+
+        Gap 7: When ref_model is the same object as model (LoRA scenario),
+        uses disable_adapter() to get base-model predictions — matching
+        flow_grpo train_wan2_1.py:940.
+        """
         import torch
 
         if signal_request is None:
@@ -172,7 +227,6 @@ class FlowMatchingEvaluator:
         timesteps = batch.extras["timesteps"]
         t = timesteps[:, timestep_idx] if timesteps.ndim > 1 else timesteps
 
-        # Current latents and next latents for this timestep
         observations = batch.observations[:, timestep_idx]  # x_t
         actions = batch.actions[:, timestep_idx]             # x_{t-1}
 
@@ -188,6 +242,8 @@ class FlowMatchingEvaluator:
             observations,
             prev_sample=actions,
             return_dt=signal_request.need_kl_intermediates,
+            noise_level=self.noise_level,
+            sde_type=self.sde_type,
         )
 
         ref_log_prob = None
@@ -197,20 +253,33 @@ class FlowMatchingEvaluator:
         # Reference model forward for KL
         if signal_request.need_ref and ref_model is not None:
             with torch.no_grad():
-                ref_fwd = collector.forward_step(ref_model, batch, timestep_idx)
-                ref_noise_pred = ref_fwd["noise_pred"]
-
-                ref_result = sde_step_with_logprob(
-                    self.scheduler,
-                    ref_noise_pred,
-                    t,
-                    observations,
-                    prev_sample=actions,
-                    return_dt=signal_request.need_kl_intermediates,
+                # Gap 7: LoRA disable_adapter() — when ref_model IS model,
+                # disable LoRA adapter to get base model output.
+                # Port from flow_grpo train_wan2_1.py:940:
+                #   with transformer.module.disable_adapter():
+                use_adapter_disable = (
+                    ref_model is model
+                    and hasattr(model, "disable_adapter")
                 )
-                ref_log_prob = ref_result.log_prob
-                ref_prev_sample_mean = ref_result.prev_sample_mean
-                ref_dt = ref_result.dt
+                ctx = model.disable_adapter() if use_adapter_disable else contextlib.nullcontext()
+
+                with ctx:
+                    ref_fwd = collector.forward_step(ref_model, batch, timestep_idx)
+                    ref_noise_pred = ref_fwd["noise_pred"]
+
+                    ref_result = sde_step_with_logprob(
+                        self.scheduler,
+                        ref_noise_pred,
+                        t,
+                        observations,
+                        prev_sample=actions,
+                        return_dt=signal_request.need_kl_intermediates,
+                        noise_level=self.noise_level,
+                        sde_type=self.sde_type,
+                    )
+                    ref_log_prob = ref_result.log_prob
+                    ref_prev_sample_mean = ref_result.prev_sample_mean
+                    ref_dt = ref_result.dt
 
         return SignalBatch(
             log_prob=result.log_prob,

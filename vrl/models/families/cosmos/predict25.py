@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 from vrl.models.families.cosmos.variants import CosmosLocalExecutor, CosmosVariant
-from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
+from vrl.models.base import ModelResult, VideoGenerationRequest
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +276,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         model = self._ensure_model()
         torch = self._torch
 
@@ -301,7 +301,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
 
         self._offload_text_encoder()
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "t5_embeds": t5_embeds,
                 "neg_t5_embeds": neg_t5_embeds,
@@ -329,7 +329,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         model = self._ensure_model()
         torch = self._torch
 
@@ -341,7 +341,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
             h, w = request.height, request.width
             vid_input = torch.zeros(1, 3, model_required_frames, h, w, dtype=torch.uint8)
             num_cond_frames = 0
-            return StageResult(
+            return ModelResult(
                 state_updates={
                     "vid_input": vid_input,
                     "num_conditional_frames": num_cond_frames,
@@ -366,7 +366,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
                 f"Supported: {sorted(_IMAGE_EXTENSIONS)}"
             )
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "vid_input": vid_input,
                 "num_conditional_frames": num_cond_frames,
@@ -381,7 +381,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         model = self._ensure_model()
         torch = self._torch
 
@@ -428,7 +428,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
 
         latent_shape = list(latent_samples.shape) if hasattr(latent_samples, "shape") else None
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "latent_samples": latent_samples,
                 "seed": seed,
@@ -455,7 +455,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         model = self._ensure_model()
         torch = self._torch
 
@@ -474,7 +474,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
         gc.collect()
         torch.cuda.empty_cache()
 
-        return StageResult(
+        return ModelResult(
             state_updates={"video_tensor": video},
             runtime_state_updates={
                 "decoded_frame_count": int(video.shape[1]),
@@ -488,14 +488,14 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
-    ) -> StageResult:
+    ) -> ModelResult:
         torch = self._torch
 
         video = state["video_tensor"]  # (C, T, H, W) in [0, 1]
         frames = (video * 255.0).clamp(0.0, 255.0).to(torch.uint8)
         frames = frames.permute(1, 2, 3, 0).cpu().numpy()
 
-        return StageResult(
+        return ModelResult(
             state_updates={
                 "video_frames": frames,
                 "output_fps": request.fps or 16,

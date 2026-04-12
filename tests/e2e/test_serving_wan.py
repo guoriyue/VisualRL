@@ -12,7 +12,7 @@ from tests.e2e.helpers import (
     resolve_hf_snapshot,
 )
 from vrl.models.families.wan.diffusers_i2v import DiffusersWanI2VModel
-from vrl.schemas.video_generation import VideoGenerationRequest
+from vrl.models.base import VideoGenerationRequest
 
 
 @pytest.mark.asyncio

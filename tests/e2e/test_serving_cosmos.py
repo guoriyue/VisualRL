@@ -11,7 +11,7 @@ from tests.e2e.helpers import (
     resolve_hf_snapshot,
 )
 from vrl.models.families.cosmos.model import CosmosGenerationModel
-from vrl.schemas.video_generation import VideoGenerationRequest
+from vrl.models.base import VideoGenerationRequest
 
 
 def _find_reference_image():
