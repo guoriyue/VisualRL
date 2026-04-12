@@ -90,7 +90,7 @@ async def train(config: Wan1_3BConfig) -> None:
         WanDiffusersCollectorConfig,
     )
     from vrl.rollouts.evaluators.diffusion.flow_matching import FlowMatchingEvaluator
-    from vrl.rewards import get_reward
+    from vrl.rewards.multi import MultiReward, _register_builtins, get_reward
     from vrl.trainers.online import OnlineTrainer
     from vrl.trainers.types import TrainerConfig
 
@@ -157,7 +157,9 @@ async def train(config: Wan1_3BConfig) -> None:
     pipeline.scheduler.set_timesteps(config.num_steps, device=device)
 
     # 4. Build reward function
-    reward_fn = get_reward(config.reward_type)
+    _register_builtins()
+    reward_cls = get_reward(config.reward_type)
+    reward_fn = reward_cls(device=str(device))
 
     # 5. Wire up 4-layer architecture
     collector_config = WanDiffusersCollectorConfig(

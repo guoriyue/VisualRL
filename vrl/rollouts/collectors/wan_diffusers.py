@@ -14,12 +14,12 @@ from __future__ import annotations
 import logging
 import random
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from vrl.algorithms.types import Rollout, Trajectory
-from vrl.rollouts.evaluators.diffusion.flow_matching import sde_step_with_logprob
 from vrl.rollouts.types import ExperienceBatch
-from vrl.rewards.base import RewardFunction
+
+if TYPE_CHECKING:
+    from vrl.rewards.base import RewardFunction
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class WanDiffusersCollector:
     def __init__(
         self,
         pipeline: Any,  # diffusers.WanPipeline
-        reward_fn: RewardFunction,
+        reward_fn: Any,  # RewardFunction instance
         config: WanDiffusersCollectorConfig | None = None,
     ) -> None:
         self.pipeline = pipeline
@@ -97,6 +97,9 @@ class WanDiffusersCollector:
         6. Stack into ExperienceBatch
         """
         import torch
+
+        from vrl.algorithms.types import Rollout, Trajectory
+        from vrl.rollouts.evaluators.diffusion.flow_matching import sde_step_with_logprob
 
         pipe = self.pipeline
         cfg = self.config
@@ -222,7 +225,7 @@ class WanDiffusersCollector:
         )  # [B, T]
         kl_tensor = torch.stack(all_kls, dim=1)               # [B, T]
 
-        # 4. Decode VAE -> video
+        # 4. Decode VAE -> video (matching flow_grpo wan_pipeline_with_logprob)
         latents_for_decode = latents.to(pipe.vae.dtype)
         latents_mean = (
             torch.tensor(pipe.vae.config.latents_mean)
@@ -236,7 +239,10 @@ class WanDiffusersCollector:
         )
         latents_for_decode = latents_for_decode / latents_std + latents_mean
         video = pipe.vae.decode(latents_for_decode, return_dict=False)[0]
-        # video: [B, C, T, H, W] float in [0, 1]
+        # Postprocess to [0, 1] range (matching flow_grpo output_type="pt")
+        video = pipe.video_processor.postprocess_video(video, output_type="pt")
+        # video: [B, T, C, H, W] after postprocess — transpose to [B, C, T, H, W]
+        video = video.permute(0, 2, 1, 3, 4)
 
         # 5. Score with reward function
         rewards_list = []

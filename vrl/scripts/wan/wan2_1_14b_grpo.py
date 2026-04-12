@@ -87,7 +87,7 @@ async def train(config: WanGRPOConfig) -> None:
     from vrl.rollouts.evaluators.diffusion.flow_matching import FlowMatchingEvaluator
     from vrl.rollouts.collectors.wan import WanCollector, WanCollectorConfig
     from vrl.models.families.wan.official import OfficialWanModel
-    from vrl.rewards import get_reward
+    from vrl.rewards.multi import MultiReward, _register_builtins, get_reward
     from vrl.models.base import VideoGenerationRequest
     from vrl.trainers.online import OnlineTrainer
     from vrl.trainers.types import TrainerConfig
@@ -142,7 +142,9 @@ async def train(config: WanGRPOConfig) -> None:
         logger.warning("peft not installed — training full model (no LoRA)")
 
     # 5. Build reward function
-    reward_fn = get_reward(config.reward_type)
+    _register_builtins()
+    reward_cls = get_reward(config.reward_type)
+    reward_fn = reward_cls(device="cuda")
 
     # 6. Wire up CEA pipeline
     collector_config = WanCollectorConfig(
