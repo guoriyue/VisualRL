@@ -231,7 +231,7 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
             notes=["Video2World reference image loaded for conditioning."],
         )
 
-    async def denoise(
+    async def generate(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],

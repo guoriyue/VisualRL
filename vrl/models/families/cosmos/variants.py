@@ -44,7 +44,7 @@ class CosmosLocalExecutor(ABC):
         return StageResult(outputs={"reference_count": len(request.references)})
 
     @abstractmethod
-    async def denoise(
+    async def generate(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],

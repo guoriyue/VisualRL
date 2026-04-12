@@ -138,7 +138,7 @@ class EngineIPCServer:
         return {"request_id": request_id, "cancelled": cancelled}
 
     def _handle_status(self, payload: dict) -> dict:
-        """Return phase + step progress for a request."""
+        """Return scheduler status + step progress for a request."""
         request_id: str = payload["request_id"]
         request = self.engine.scheduler.get_request(request_id)
         if request is None:
@@ -147,20 +147,20 @@ class EngineIPCServer:
             if meta is not None:
                 return {
                     "request_id": request_id,
-                    "phase": "done",
+                    "status": "done",
                     "step_index": meta.get("num_steps", 0),
                     "num_steps": meta.get("num_steps", 0),
                 }
-            return {"request_id": request_id, "phase": "unknown", "step_index": 0, "num_steps": 0}
+            return {"request_id": request_id, "status": "unknown", "step_index": 0, "num_steps": 0}
         payload_data = request.data if isinstance(request.data, dict) else {}
         num_steps = int(payload_data.get("num_steps", 0) or 0)
-        phase = request.status.value
+        status = request.status.value
         if request.status == SchedulerStatus.FINISHED and self.store.read_meta(request_id) is not None:
-            phase = "done"
+            status = "done"
         return {
             "request_id": request_id,
-            "phase": phase,
-            "step_index": num_steps if phase == "done" else 0,
+            "status": status,
+            "step_index": num_steps if status == "done" else 0,
             "num_steps": num_steps,
         }
 

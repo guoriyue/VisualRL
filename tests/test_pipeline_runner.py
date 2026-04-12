@@ -6,10 +6,7 @@ from typing import Any
 
 import pytest
 
-from vrl.engine.model_executor.execution_state import (
-    DenoiseLoopState,
-    WorkloadSignature,
-)
+from vrl.engine.model_executor.execution_state import WorkloadSignature
 from vrl.engine.model_executor.iteration_runner import PipelineRunner
 from vrl.engine.types import (
     SchedulerOutput,
@@ -41,10 +38,10 @@ class MockVideoModel(VideoGenerationModel):
     ) -> StageResult:
         return StageResult(notes=["encoded text"])
 
-    async def denoise(
+    async def generate(
         self, request: VideoGenerationRequest, state: dict[str, Any]
     ) -> StageResult:
-        return StageResult(notes=["denoised"])
+        return StageResult(notes=["generated"])
 
     async def decode_vae(
         self, request: VideoGenerationRequest, state: dict[str, Any]
@@ -61,9 +58,9 @@ class MockVideoModel(VideoGenerationModel):
         self.calls.append(("batch_encode_conditioning", len(requests)))
         return await super().batch_encode_conditioning(requests, states)
 
-    async def batch_denoise(self, requests, states):
-        self.calls.append(("batch_denoise", len(requests)))
-        return await super().batch_denoise(requests, states)
+    async def batch_generate(self, requests, states):
+        self.calls.append(("batch_generate", len(requests)))
+        return await super().batch_generate(requests, states)
 
     async def batch_decode_vae(self, requests, states):
         self.calls.append(("batch_decode_vae", len(requests)))
@@ -72,32 +69,6 @@ class MockVideoModel(VideoGenerationModel):
     async def batch_postprocess(self, requests, states):
         self.calls.append(("batch_postprocess", len(requests)))
         return await super().batch_postprocess(requests, states)
-
-
-class MockVideoModelWithPerStepDenoise(MockVideoModel):
-    """Mock that supports per-step denoise (denoise_init/step/finalize)."""
-
-    async def denoise_init(self, request, state) -> DenoiseLoopState:
-        return DenoiseLoopState(total_steps=3, current_step=0)
-
-    async def denoise_step(self, request, state, denoise_state) -> StageResult:
-        denoise_state.current_step += 1
-        return StageResult(notes=[f"step {denoise_state.current_step}"])
-
-    async def denoise_finalize(self, request, state, denoise_state) -> StageResult:
-        return StageResult(notes=["finalized"])
-
-    async def batch_denoise_init(self, requests, states):
-        self.calls.append(("batch_denoise_init", len(requests)))
-        return await super().batch_denoise_init(requests, states)
-
-    async def batch_denoise_step(self, requests, states, denoise_states):
-        self.calls.append(("batch_denoise_step", len(requests)))
-        return await super().batch_denoise_step(requests, states, denoise_states)
-
-    async def batch_denoise_finalize(self, requests, states, denoise_states):
-        self.calls.append(("batch_denoise_finalize", len(requests)))
-        return await super().batch_denoise_finalize(requests, states, denoise_states)
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +120,7 @@ class TestFullPipeline:
         assert model.calls == [
             ("batch_encode_text", 1),
             ("batch_encode_conditioning", 1),
-            ("batch_denoise", 1),
+            ("batch_generate", 1),
             ("batch_decode_vae", 1),
             ("batch_postprocess", 1),
         ]
@@ -174,7 +145,7 @@ class TestBatchedPipeline:
         assert model.calls == [
             ("batch_encode_text", 3),
             ("batch_encode_conditioning", 3),
-            ("batch_denoise", 3),
+            ("batch_generate", 3),
             ("batch_decode_vae", 3),
             ("batch_postprocess", 3),
         ]
@@ -208,7 +179,7 @@ class TestWorkloadSignatureGrouping:
         for stage_name in (
             "batch_encode_text",
             "batch_encode_conditioning",
-            "batch_denoise",
+            "batch_generate",
             "batch_decode_vae",
             "batch_postprocess",
         ):
@@ -234,34 +205,6 @@ class TestErrorIsolation:
         # r1 should succeed
         assert output.outputs["r1"].finished is True
         assert output.outputs["r1"].finish_reason == "completed"
-
-
-class TestPerStepDenoise:
-    """Test: per-step denoise model runs init → step × N → finalize."""
-
-    def test_per_step_denoise_pipeline(self):
-        model = MockVideoModelWithPerStepDenoise()
-        runner = PipelineRunner(model)
-
-        r1 = _make_request("r1")
-        output = runner.execute(_make_scheduler_output(r1))
-
-        assert output.outputs["r1"].finished is True
-        assert output.outputs["r1"].finish_reason == "completed"
-
-        # Should have: encode_text, encode_conditioning, denoise_init, 3× denoise_step, denoise_finalize, decode_vae, postprocess
-        method_names = [name for name, _ in model.calls]
-        assert method_names == [
-            "batch_encode_text",
-            "batch_encode_conditioning",
-            "batch_denoise_init",
-            "batch_denoise_step",
-            "batch_denoise_step",
-            "batch_denoise_step",
-            "batch_denoise_finalize",
-            "batch_decode_vae",
-            "batch_postprocess",
-        ]
 
 
 class TestWorkloadSignatureFields:

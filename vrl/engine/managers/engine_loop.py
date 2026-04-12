@@ -16,7 +16,7 @@ from vrl.engine.types import (
 )
 
 if TYPE_CHECKING:
-    from vrl.engine.interfaces import CacheManager
+    from vrl.engine.protocols import CacheManager
 
 logger = logging.getLogger(__name__)
 

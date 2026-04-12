@@ -69,13 +69,13 @@ def register_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=503, detail="Engine IPC not configured")
 
         status = await runtime.engine_client.get_status(request_id)
-        phase = status.get("phase", "unknown")
+        state = status.get("status", "unknown")
 
-        if phase in {"done", "finished"}:
+        if state in {"done", "finished"}:
             result = await runtime.engine_client.get_result(request_id)
             return {
                 "request_id": request_id,
-                "phase": phase,
+                "status": state,
                 "done": result.get("done", False),
                 "step_index": status.get("step_index", 0),
                 "num_steps": status.get("num_steps", 0),
@@ -85,7 +85,7 @@ def register_routes(app: FastAPI) -> None:
 
         return {
             "request_id": request_id,
-            "phase": phase,
+            "status": state,
             "done": False,
             "step_index": status.get("step_index", 0),
             "num_steps": status.get("num_steps", 0),

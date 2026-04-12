@@ -27,19 +27,6 @@ class PipelineRunner:
 
     def __init__(self, model: VideoGenerationModel) -> None:
         self.model = model
-        self._supports_per_step: bool | None = None
-
-    def _check_per_step_support(self) -> bool:
-        if self._supports_per_step is None:
-            try:
-                self.model.denoise_init
-                self.model.denoise_step
-                self.model.denoise_finalize
-                base_init = VideoGenerationModel.denoise_init
-                self._supports_per_step = type(self.model).denoise_init is not base_init
-            except AttributeError:
-                self._supports_per_step = False
-        return self._supports_per_step
 
     def execute(self, scheduler_output: SchedulerOutput) -> ModelRunnerOutput:
         outputs: dict[str, RequestOutput] = {}
@@ -137,26 +124,8 @@ class PipelineRunner:
             states[i].update(result.state_updates)
             all_stage_results[i].append(result)
 
-        # 3. denoise
-        if self._check_per_step_support():
-            denoise_states = asyncio.run(
-                self.model.batch_denoise_init(requests, states)
-            )
-            while any(
-                d.current_step < d.total_steps for d in denoise_states
-            ):
-                asyncio.run(
-                    self.model.batch_denoise_step(
-                        requests, states, denoise_states
-                    )
-                )
-            results = asyncio.run(
-                self.model.batch_denoise_finalize(
-                    requests, states, denoise_states
-                )
-            )
-        else:
-            results = asyncio.run(self.model.batch_denoise(requests, states))
+        # 3. generate
+        results = asyncio.run(self.model.batch_generate(requests, states))
         for i, result in enumerate(results):
             states[i].update(result.state_updates)
             all_stage_results[i].append(result)

@@ -18,7 +18,7 @@ from vrl.engine.types import (
 )
 
 if TYPE_CHECKING:
-    from vrl.engine.interfaces import (
+    from vrl.engine.protocols import (
         BatchPlanner,
         ResourceManager,
     )

@@ -9,7 +9,7 @@ from vrl.schemas.video_generation import StageResult, VideoGenerationRequest
 
 
 class VideoGenerationModel(ABC):
-    """Five-stage generation: encode_text → encode_conditioning → denoise → decode_vae → postprocess."""
+    """Five-stage generation: encode_text → encode_conditioning → generate → decode_vae → postprocess."""
 
     model_family: str = "video_generation"
 
@@ -34,8 +34,8 @@ class VideoGenerationModel(ABC):
         return StageResult(notes=["No conditioning inputs were provided."])
 
     @abstractmethod
-    async def denoise(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
-        """Run diffusion / sampling."""
+    async def generate(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
+        """Run generation (diffusion sampling, AR decode, etc.)."""
 
     async def denoise_init(
         self, request: VideoGenerationRequest, state: dict[str, Any]
@@ -83,12 +83,12 @@ class VideoGenerationModel(ABC):
     ) -> list[StageResult]:
         return [await self.encode_conditioning(r, s) for r, s in zip(requests, states)]
 
-    async def batch_denoise(
+    async def batch_generate(
         self,
         requests: list[VideoGenerationRequest],
         states: list[dict[str, Any]],
     ) -> list[StageResult]:
-        return [await self.denoise(r, s) for r, s in zip(requests, states)]
+        return [await self.generate(r, s) for r, s in zip(requests, states)]
 
     async def batch_denoise_init(
         self,

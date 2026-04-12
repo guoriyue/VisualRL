@@ -124,12 +124,12 @@ class CosmosGenerationModel(VideoGenerationModel):
     ) -> StageResult:
         return await self._executor.encode_conditioning(request, state)
 
-    async def denoise(
+    async def generate(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],
     ) -> StageResult:
-        return await self._executor.denoise(request, state)
+        return await self._executor.generate(request, state)
 
     async def decode_vae(
         self,

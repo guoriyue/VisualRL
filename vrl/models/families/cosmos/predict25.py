@@ -377,7 +377,7 @@ class NativeCosmosPredict25Executor(CosmosLocalExecutor):
             notes=[f"Reference image loaded and preprocessed ({ext})."],
         )
 
-    async def denoise(
+    async def generate(
         self,
         request: VideoGenerationRequest,
         state: dict[str, Any],

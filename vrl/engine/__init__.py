@@ -1,11 +1,11 @@
 """Engine public API re-exports."""
 
-from vrl.engine.interfaces import (
+from vrl.engine.protocols import (
     BatchPlanner,
     CacheManager,
-    ContinuousBatchPlanner,
     ResourceManager,
 )
+from vrl.engine.managers.batch_planner import ContinuousBatchPlanner
 from vrl.engine.managers.resource_manager import SimpleResourceManager
 from vrl.engine.managers.engine_loop import EngineLoop
 from vrl.engine.managers.scheduler import Scheduler

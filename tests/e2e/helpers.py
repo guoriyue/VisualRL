@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from vrl.engine.interfaces import ContinuousBatchPlanner
+from vrl.engine.managers.batch_planner import ContinuousBatchPlanner
 from vrl.engine.managers.resource_manager import SimpleResourceManager
 from vrl.engine.managers.engine_loop import EngineLoop
 from vrl.engine.managers.scheduler import Scheduler

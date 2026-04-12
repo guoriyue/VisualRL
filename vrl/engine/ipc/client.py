@@ -97,7 +97,7 @@ class EngineIPCClient:
         while True:
             await asyncio.sleep(poll_interval)
             status = await self.get_status(request_id)
-            if status.get("phase") == "done":
+            if status.get("status") == "done":
                 return await self.get_result(request_id)
 
     # ------------------------------------------------------------------

@@ -167,7 +167,7 @@ class DiffusersWanI2VModel(VideoGenerationModel):
             cache_hit=cache_hit,
         )
 
-    async def denoise(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
+    async def generate(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
         pipeline = state["pipeline"]
         torch = self._torch
         if request.seed is not None:

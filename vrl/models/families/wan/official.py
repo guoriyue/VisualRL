@@ -412,7 +412,7 @@ class OfficialWanModel(VideoGenerationModel):
             cache_hit=cache_hit,
         )
 
-    async def denoise(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
+    async def generate(self, request: VideoGenerationRequest, state: dict[str, Any]) -> StageResult:
         pipeline = state["pipeline"]
         torch = self._torch
         size_key = self._size_key(request.width, request.height)
