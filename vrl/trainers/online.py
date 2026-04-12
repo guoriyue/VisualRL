@@ -105,7 +105,7 @@ class OnlineTrainer(Trainer):
 
     Supports two modes:
 
-    **New 4-layer mode** (preferred): pass ``collector``, ``adapter``,
+    **New 4-layer mode** (preferred): pass ``collector``,
     ``evaluator``, and ``algorithm`` — the trainer just orchestrates
     collect -> evaluate -> advantage -> loss -> backward -> step.
 
@@ -118,7 +118,6 @@ class OnlineTrainer(Trainer):
         algorithm: Algorithm,
         # -- New 4-layer mode --
         collector: Any | None = None,      # Collector protocol
-        adapter: Any | None = None,        # ModelAdapter protocol
         evaluator: Any | None = None,      # Evaluator protocol
         # -- Legacy mode --
         reward_fn: RewardFunction | None = None,
@@ -135,7 +134,6 @@ class OnlineTrainer(Trainer):
         self.algorithm = algorithm
         # New 4-layer components
         self.collector = collector
-        self.adapter = adapter
         self.evaluator = evaluator
         # Legacy components
         self.reward_fn = reward_fn
@@ -228,13 +226,12 @@ class OnlineTrainer(Trainer):
 
     async def _step_4layer(self) -> TrainStepMetrics:
         """Pure orchestrator: collect -> evaluate -> advantage -> loss."""
-        from vrl.evaluators.types import SignalRequest
+        from vrl.rollouts.evaluators.types import SignalRequest
 
         cfg = self.config
         assert self.model is not None
         assert self.collector is not None
         assert self.evaluator is not None
-        assert self.adapter is not None
 
         optimizer = self._ensure_optimizer()
         ema = self._ensure_ema()
@@ -268,7 +265,7 @@ class OnlineTrainer(Trainer):
             for j in train_indices:
                 with autocast_ctx:
                     signals = self.evaluator.evaluate(
-                        self.adapter,
+                        self.collector,
                         self.model,
                         batch,
                         j,

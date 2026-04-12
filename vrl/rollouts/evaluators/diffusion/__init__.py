@@ -1,6 +1,6 @@
 """Diffusion-based training signal evaluators."""
 
-from vrl.evaluators.diffusion.flow_matching import (
+from vrl.rollouts.evaluators.diffusion.flow_matching import (
     FlowMatchingEvaluator,
     SDEStepResult,
     compute_kl_divergence,

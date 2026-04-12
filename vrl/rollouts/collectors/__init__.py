@@ -1,5 +1,5 @@
 """Experience collectors for RL training."""
 
-from vrl.experience.collectors.base import Collector
+from vrl.rollouts.collectors.base import Collector
 
 __all__ = ["Collector"]

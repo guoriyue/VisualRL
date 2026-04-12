@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from vrl.algorithms.types import Advantages, RolloutBatch, RolloutGroup, TrainStepMetrics
-from vrl.evaluators.types import SignalBatch
+from vrl.rollouts.evaluators.types import SignalBatch
 
 
 class Algorithm(ABC):

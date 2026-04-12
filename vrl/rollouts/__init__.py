@@ -1,5 +1,5 @@
 """Experience collection for RL training."""
 
-from vrl.experience.types import ExperienceBatch
+from vrl.rollouts.types import ExperienceBatch
 
 __all__ = ["ExperienceBatch"]

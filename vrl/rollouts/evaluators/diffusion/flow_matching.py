@@ -11,9 +11,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from vrl.adapters.base import ModelAdapter
-from vrl.evaluators.types import SignalBatch, SignalRequest
-from vrl.experience.types import ExperienceBatch
+from vrl.rollouts.evaluators.types import SignalBatch, SignalRequest
+from vrl.rollouts.types import ExperienceBatch
 
 
 # ------------------------------------------------------------------
@@ -157,14 +156,14 @@ class FlowMatchingEvaluator:
 
     def evaluate(
         self,
-        adapter: ModelAdapter,
+        collector: Any,
         model: Any,
         batch: ExperienceBatch,
         timestep_idx: int,
         ref_model: Any | None = None,
         signal_request: SignalRequest | None = None,
     ) -> SignalBatch:
-        """Run adapter forward -> sde_step_with_logprob -> SignalBatch."""
+        """Run collector.forward_step() -> sde_step_with_logprob -> SignalBatch."""
         import torch
 
         if signal_request is None:
@@ -178,7 +177,7 @@ class FlowMatchingEvaluator:
         actions = batch.actions[:, timestep_idx]             # x_{t-1}
 
         # Forward pass through current model
-        fwd = adapter.forward_step(model, batch, timestep_idx)
+        fwd = collector.forward_step(model, batch, timestep_idx)
         noise_pred = fwd["noise_pred"]
 
         # SDE step with log-prob
@@ -198,7 +197,7 @@ class FlowMatchingEvaluator:
         # Reference model forward for KL
         if signal_request.need_ref and ref_model is not None:
             with torch.no_grad():
-                ref_fwd = adapter.forward_step(ref_model, batch, timestep_idx)
+                ref_fwd = collector.forward_step(ref_model, batch, timestep_idx)
                 ref_noise_pred = ref_fwd["noise_pred"]
 
                 ref_result = sde_step_with_logprob(

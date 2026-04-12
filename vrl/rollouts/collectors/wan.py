@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from vrl.algorithms.types import Rollout, Trajectory
-from vrl.evaluators.diffusion.flow_matching import sde_step_with_logprob
-from vrl.experience.types import ExperienceBatch
+from vrl.rollouts.evaluators.diffusion.flow_matching import sde_step_with_logprob
+from vrl.rollouts.types import ExperienceBatch
 from vrl.models.families.wan.state import WanDenoiseState
 from vrl.rewards.base import RewardFunction
 
@@ -223,3 +223,58 @@ class WanCollector:
             videos=video.unsqueeze(0),  # [1, C, T, H, W]
             prompts=prompts,
         )
+
+    # ------------------------------------------------------------------
+    # forward_step — used by Evaluator during training
+    # ------------------------------------------------------------------
+
+    def forward_step(
+        self,
+        model: Any,
+        batch: ExperienceBatch,
+        timestep_idx: int,
+    ) -> dict[str, Any]:
+        """Wan-specific forward: dual-expert selection + CFG.
+
+        Used by the evaluator to compute fresh log-probs under the
+        current policy during training.
+        """
+        import torch
+
+        timesteps = batch.extras["timesteps"]
+        t = timesteps[:, timestep_idx] if timesteps.ndim > 1 else timesteps
+        timestep_value = t[0].item() if t.ndim > 0 else t.item()
+
+        boundary = batch.extras["boundary"]
+        task_key = batch.extras["task_key"]
+        arg_c = batch.extras["arg_c"]
+        arg_null = batch.extras["arg_null"]
+        guidance_scale = batch.extras["guidance_scale"]
+        pipeline = batch.extras["pipeline"]
+
+        # Select expert by boundary
+        if hasattr(model, "high_noise_model"):
+            active_model = model.high_noise_model if timestep_value >= boundary else model.low_noise_model
+        else:
+            active_model = model
+
+        # Prepare latents
+        latents = batch.observations[:, timestep_idx]
+        timestep_tensor = torch.stack([t[0]]).to(latents.device) if t.ndim > 0 else torch.stack([t]).to(latents.device)
+
+        if task_key.startswith("t2v-"):
+            model_input = [latents[i] for i in range(latents.shape[0])] if latents.ndim > 4 else latents
+            noise_pred_cond = active_model(model_input, t=timestep_tensor, **arg_c)[0]
+            noise_pred_uncond = active_model(model_input, t=timestep_tensor, **arg_null)[0]
+        else:
+            model_input = [latents.to(pipeline.device)]
+            noise_pred_cond = active_model(model_input, t=timestep_tensor, **arg_c)[0]
+            noise_pred_uncond = active_model(model_input, t=timestep_tensor, **arg_null)[0]
+
+        noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_cond - noise_pred_uncond)
+
+        return {
+            "noise_pred": noise_pred,
+            "noise_pred_cond": noise_pred_cond,
+            "noise_pred_uncond": noise_pred_uncond,
+        }

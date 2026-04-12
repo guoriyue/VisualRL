@@ -75,10 +75,9 @@ async def train(config: WanGRPOConfig) -> None:
     """Main training loop."""
     import torch
 
-    from vrl.adapters.wan import WanAdapter
     from vrl.algorithms.grpo import GRPO, GRPOConfig
-    from vrl.evaluators.diffusion.flow_matching import FlowMatchingEvaluator
-    from vrl.experience.collectors.wan import WanCollector, WanCollectorConfig
+    from vrl.rollouts.evaluators.diffusion.flow_matching import FlowMatchingEvaluator
+    from vrl.rollouts.collectors.wan import WanCollector, WanCollectorConfig
     from vrl.models.families.wan.official import OfficialWanModel
     from vrl.rewards import get_reward
     from vrl.schemas.video_generation import VideoGenerationRequest
@@ -146,7 +145,6 @@ async def train(config: WanGRPOConfig) -> None:
     )
     collector = WanCollector(wan_model, reward_fn, collector_config)
 
-    adapter = WanAdapter.from_denoise_state(denoise_loop.model_state)
     evaluator = FlowMatchingEvaluator(scheduler)
 
     grpo_config = GRPOConfig(
@@ -172,7 +170,6 @@ async def train(config: WanGRPOConfig) -> None:
     trainer = OnlineTrainer(
         algorithm=algorithm,
         collector=collector,
-        adapter=adapter,
         evaluator=evaluator,
         model=transformer,
         config=trainer_config,

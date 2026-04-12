@@ -13,7 +13,7 @@ from vrl.algorithms.types import (
     RolloutGroup,
     TrainStepMetrics,
 )
-from vrl.evaluators.types import SignalBatch
+from vrl.rollouts.evaluators.types import SignalBatch
 
 
 @dataclass(slots=True)
@@ -208,7 +208,7 @@ class GRPO(Algorithm):
         """
         import torch
 
-        from vrl.evaluators.diffusion.flow_matching import compute_kl_divergence
+        from vrl.rollouts.evaluators.diffusion.flow_matching import compute_kl_divergence
 
         cfg = self.config
 
