@@ -55,8 +55,8 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 
-# Benchmark results (regenerable)
-benchmarks/results/
+outputs/
 
 # Claude Code
 .claude/
+
