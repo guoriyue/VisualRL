@@ -336,6 +336,220 @@ class DiffusersCosmosPredict2Executor(CosmosLocalExecutor):
             notes=["Postprocess normalized frames to uint8."],
         )
 
+    # -- Step-level denoising for RL training ----------------------------
+
+    async def denoise_init(
+        self,
+        request: VideoGenerationRequest,
+        state: dict[str, Any],
+    ) -> Any:
+        """Set up per-step denoising state for Cosmos Predict2.
+
+        Returns a ``DenoiseLoopState`` whose ``model_state`` is a
+        ``DiffusersDenoiseState`` populated with Cosmos-specific fields.
+        """
+        import torch
+
+        from vrl.engine.model_executor.execution_state import DenoiseLoopState
+        from vrl.models.families.diffusers_state import DiffusersDenoiseState
+
+        pipeline = self._get_pipeline()
+        device = torch.device(f"cuda:{self.device_id}")
+
+        # Text conditioning must already be in state (from encode_text)
+        prompt_embeds = state["prompt_embeds"]
+        negative_prompt_embeds = state.get("negative_prompt_embeds")
+
+        guidance_scale = request.guidance_scale
+        do_cfg = guidance_scale > 1.0
+
+        # Scheduler
+        pipeline.scheduler.set_timesteps(request.num_steps, device=device)
+        timesteps = pipeline.scheduler.timesteps
+
+        num_channels_latents = pipeline.transformer.config.in_channels
+        batch_size = prompt_embeds.shape[0]
+
+        # Reference image for Video2World
+        reference_image = state.get("reference_image")
+        if reference_image is not None:
+            video_input = pipeline.video_processor.preprocess_video(
+                reference_image,
+                height=request.height,
+                width=request.width,
+            ).to(device, dtype=pipeline.vae.dtype)
+        else:
+            video_input = torch.zeros(
+                batch_size, 3, 1, request.height, request.width,
+                device=device, dtype=pipeline.vae.dtype,
+            )
+
+        # Cosmos2 prepare_latents returns 6-tuple
+        latents_result = pipeline.prepare_latents(
+            video=video_input,
+            batch_size=batch_size,
+            num_channels_latents=num_channels_latents,
+            height=request.height,
+            width=request.width,
+            num_frames=request.frame_count,
+            do_classifier_free_guidance=do_cfg,
+            dtype=torch.float32,
+            device=device,
+            generator=None,
+            latents=None,
+        )
+        latents = latents_result[0]
+        init_latents = latents_result[1]
+        cond_indicator = latents_result[2]
+        uncond_indicator = latents_result[3]
+        cond_mask = latents_result[4]
+        uncond_mask = latents_result[5]
+
+        sigma_data = pipeline.scheduler.config.sigma_data
+        sigma_conditioning = 0.0001
+
+        seed = request.seed if request.seed is not None else random.randint(0, sys.maxsize)
+
+        ms = DiffusersDenoiseState(
+            latents=latents,
+            timesteps=timesteps,
+            scheduler=pipeline.scheduler,
+            prompt_embeds=prompt_embeds,
+            negative_prompt_embeds=negative_prompt_embeds,
+            guidance_scale=guidance_scale,
+            do_cfg=do_cfg,
+            pipeline=pipeline,
+            init_latents=init_latents,
+            cond_indicator=cond_indicator,
+            uncond_indicator=uncond_indicator,
+            cond_mask=cond_mask,
+            uncond_mask=uncond_mask,
+            fps=request.fps or 16,
+            sigma_data=sigma_data,
+            sigma_conditioning=sigma_conditioning,
+            seed=seed,
+            model_family="cosmos-predict2",
+        )
+
+        return DenoiseLoopState(
+            current_step=0,
+            total_steps=request.num_steps,
+            model_state=ms,
+        )
+
+    async def predict_noise(
+        self,
+        denoise_state: Any,
+        step_idx: int,
+    ) -> dict[str, Any]:
+        """Forward pass using the pipeline's own transformer."""
+        return self._predict_noise_impl(
+            self._get_pipeline().transformer, denoise_state, step_idx,
+        )
+
+    def _predict_noise_with_model(
+        self,
+        model: Any,
+        denoise_state: Any,
+        step_idx: int,
+    ) -> dict[str, Any]:
+        """Training path: forward using an externally-provided model (e.g. LoRA'd)."""
+        return self._predict_noise_impl(model, denoise_state, step_idx)
+
+    def _predict_noise_impl(
+        self,
+        model: Any,
+        denoise_state: Any,
+        step_idx: int,
+    ) -> dict[str, Any]:
+        """Cosmos Predict2 transformer forward + optional CFG.
+
+        Handles cond_indicator blending and condition_mask kwargs.
+        """
+        import torch
+
+        ms = denoise_state.model_state
+        t = ms.timesteps[step_idx]
+        batch_size = ms.latents.shape[0]
+        transformer_dtype = ms.prompt_embeds.dtype
+
+        # Build conditioning latent (reference frames blended with noise)
+        cond_latent = (
+            ms.init_latents * (1 - ms.sigma_conditioning)
+            + ms.sigma_conditioning * torch.randn_like(ms.init_latents)
+        )
+        cond_latent_input = (
+            ms.cond_indicator * cond_latent
+            + (1 - ms.cond_indicator) * ms.latents.to(transformer_dtype)
+        )
+
+        # Forward pass: cond
+        noise_pred_cond = model(
+            hidden_states=cond_latent_input.to(transformer_dtype),
+            timestep=t.expand(batch_size),
+            encoder_hidden_states=ms.prompt_embeds,
+            fps=ms.fps,
+            condition_mask=ms.cond_mask,
+            return_dict=False,
+        )[0]
+        noise_pred_cond = noise_pred_cond.to(ms.prompt_embeds.dtype)
+
+        # CFG: uncond pass
+        if ms.do_cfg:
+            uncond_latent_input = (
+                ms.uncond_indicator * cond_latent
+                + (1 - ms.uncond_indicator) * ms.latents.to(transformer_dtype)
+            )
+            noise_pred_uncond = model(
+                hidden_states=uncond_latent_input.to(transformer_dtype),
+                timestep=t.expand(batch_size),
+                encoder_hidden_states=ms.negative_prompt_embeds,
+                fps=ms.fps,
+                condition_mask=ms.uncond_mask,
+                return_dict=False,
+            )[0]
+            noise_pred = noise_pred_uncond + ms.guidance_scale * (
+                noise_pred_cond - noise_pred_uncond
+            )
+        else:
+            noise_pred_uncond = torch.zeros_like(noise_pred_cond)
+            noise_pred = noise_pred_cond
+
+        return {
+            "noise_pred": noise_pred,
+            "noise_pred_cond": noise_pred_cond,
+            "noise_pred_uncond": noise_pred_uncond,
+        }
+
+    async def decode_vae_for_latents(self, latents: Any) -> Any:
+        """Decode raw latents -> video tensor with Cosmos normalization.
+
+        Returns video tensor [B, C, T, H, W].
+        """
+        import torch
+
+        pipeline = self._get_pipeline()
+        sigma_data = pipeline.scheduler.config.sigma_data
+
+        latents_for_decode = latents.to(pipeline.vae.dtype)
+        latents_mean = (
+            torch.tensor(pipeline.vae.config.latents_mean)
+            .view(1, pipeline.vae.config.z_dim, 1, 1, 1)
+            .to(latents_for_decode.device, latents_for_decode.dtype)
+        )
+        latents_std = (
+            torch.tensor(pipeline.vae.config.latents_std)
+            .view(1, pipeline.vae.config.z_dim, 1, 1, 1)
+            .to(latents_for_decode.device, latents_for_decode.dtype)
+        )
+        # Cosmos2 decode: z_raw = z_norm * std / sigma_data + mean
+        latents_for_decode = latents_for_decode * latents_std / sigma_data + latents_mean
+        video = pipeline.vae.decode(latents_for_decode, return_dict=False)[0]
+        video = pipeline.video_processor.postprocess_video(video, output_type="pt")
+        # [B, T, C, H, W] -> [B, C, T, H, W]
+        video = video.permute(0, 2, 1, 3, 4)
+        return video
+
     def describe(self) -> dict[str, Any]:
         return {
             "execution_mode": self.execution_mode,

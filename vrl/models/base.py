@@ -84,6 +84,15 @@ class VideoGenerationModel(ABC):
     async def generate(self, request: VideoGenerationRequest, state: dict[str, Any]) -> ModelResult:
         """Run generation (diffusion sampling, AR decode, etc.)."""
 
+    async def predict_noise(
+        self, denoise_state: Any, step_idx: int,
+    ) -> dict[str, Any]:
+        """Model forward + CFG for a single denoise step.
+
+        Returns ``{'noise_pred': Tensor, ...}``.  No scheduler step.
+        """
+        raise NotImplementedError
+
     async def denoise_init(
         self, request: VideoGenerationRequest, state: dict[str, Any]
     ) -> Any:

@@ -174,7 +174,10 @@ async def train(config: Wan1_3BConfig) -> None:
         sde_window_range=config.sde_window_range,
         same_latent=config.same_latent,
     )
-    collector = WanDiffusersCollector(pipeline, reward_fn, collector_config)
+    from vrl.models.families.wan.diffusers_t2v import DiffusersWanT2VModel
+
+    wan_model = DiffusersWanT2VModel(pipeline=pipeline, device=device)
+    collector = WanDiffusersCollector(wan_model, reward_fn, collector_config)
 
     evaluator = FlowMatchingEvaluator(
         pipeline.scheduler,

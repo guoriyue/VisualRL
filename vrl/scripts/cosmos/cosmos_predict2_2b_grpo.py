@@ -208,8 +208,18 @@ async def train(config: CosmosPred2Config) -> None:
         sde_window_range=config.sde_window_range,
         same_latent=config.same_latent,
     )
+    from vrl.models.families.cosmos.predict2 import DiffusersCosmosPredict2Executor
+    from vrl.models.families.cosmos.variants import CosmosVariant
+
+    cosmos_executor = DiffusersCosmosPredict2Executor(
+        variant=CosmosVariant.PREDICT2_VIDEO2WORLD,
+        model_size="2B",
+    )
+    cosmos_executor._pipeline = pipeline
+    cosmos_executor._modules_loaded = True
+
     collector = CosmosDiffusersCollector(
-        pipeline, reward_fn, collector_config,
+        cosmos_executor, reward_fn, collector_config,
         reference_image=reference_image,
     )
 

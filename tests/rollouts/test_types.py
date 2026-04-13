@@ -82,3 +82,80 @@ class TestStackBatches:
         )
         result = stack_batches([b])
         assert result is b  # same object
+
+    def test_context_taken_from_first_batch(self) -> None:
+        """context dict is taken from the first batch (not stacked)."""
+        import torch
+        from vrl.rollouts.types import ExperienceBatch, stack_batches
+
+        ctx = {"guidance_scale": 7.0, "model_family": "cosmos"}
+        b1 = ExperienceBatch(
+            observations=torch.randn(1, 2, 4),
+            actions=torch.randn(1, 2, 4),
+            rewards=torch.tensor([1.0]),
+            dones=torch.tensor([True]),
+            group_ids=torch.tensor([0]),
+            context=ctx,
+        )
+        b2 = ExperienceBatch(
+            observations=torch.randn(1, 2, 4),
+            actions=torch.randn(1, 2, 4),
+            rewards=torch.tensor([2.0]),
+            dones=torch.tensor([True]),
+            group_ids=torch.tensor([1]),
+            context={"guidance_scale": 7.0, "model_family": "cosmos"},
+        )
+        combined = stack_batches([b1, b2])
+        assert combined.context["guidance_scale"] == 7.0
+        assert combined.context["model_family"] == "cosmos"
+
+    def test_context_defaults_to_empty(self) -> None:
+        """Without context, field defaults to empty dict."""
+        from vrl.rollouts.types import ExperienceBatch
+
+        import torch
+        b = ExperienceBatch(
+            observations=torch.randn(1, 2, 4),
+            actions=torch.randn(1, 2, 4),
+            rewards=torch.tensor([1.0]),
+            dones=torch.tensor([True]),
+            group_ids=torch.tensor([0]),
+        )
+        assert b.context == {}
+
+    def test_only_tensor_extras_stacked(self) -> None:
+        """Only tensor values in extras get stacked; non-tensors kept from first."""
+        import torch
+        from vrl.rollouts.types import ExperienceBatch, stack_batches
+
+        b1 = ExperienceBatch(
+            observations=torch.randn(1, 2, 4),
+            actions=torch.randn(1, 2, 4),
+            rewards=torch.tensor([1.0]),
+            dones=torch.tensor([True]),
+            group_ids=torch.tensor([0]),
+            extras={
+                "log_probs": torch.tensor([[0.1, 0.2]]),
+                "label": "first",
+            },
+            context={"cfg": True},
+        )
+        b2 = ExperienceBatch(
+            observations=torch.randn(1, 2, 4),
+            actions=torch.randn(1, 2, 4),
+            rewards=torch.tensor([2.0]),
+            dones=torch.tensor([True]),
+            group_ids=torch.tensor([1]),
+            extras={
+                "log_probs": torch.tensor([[0.3, 0.4]]),
+                "label": "second",
+            },
+            context={"cfg": True},
+        )
+        combined = stack_batches([b1, b2])
+        # Tensor extras stacked
+        assert combined.extras["log_probs"].shape == (2, 2)
+        # Non-tensor extras kept from first
+        assert combined.extras["label"] == "first"
+        # Context preserved
+        assert combined.context["cfg"] is True

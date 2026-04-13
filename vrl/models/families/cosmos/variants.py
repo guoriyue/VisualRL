@@ -67,5 +67,27 @@ class CosmosLocalExecutor(ABC):
     ) -> ModelResult:
         """Normalize decoded frames."""
 
+    # -- Optional: step-level denoising for RL training --
+
+    async def denoise_init(
+        self,
+        request: VideoGenerationRequest,
+        state: dict[str, Any],
+    ) -> Any:
+        """Set up per-step denoising state. Returns a DenoiseLoopState."""
+        raise NotImplementedError
+
+    async def predict_noise(
+        self,
+        denoise_state: Any,
+        step_idx: int,
+    ) -> dict[str, Any]:
+        """Model forward + CFG for a single step. Returns {'noise_pred': ...}."""
+        raise NotImplementedError
+
+    async def decode_vae_for_latents(self, latents: Any) -> Any:
+        """Decode raw latents -> video tensor."""
+        raise NotImplementedError
+
     def describe(self) -> dict[str, Any]:
         return {"execution_mode": self.execution_mode, "executor": self.__class__.__name__}

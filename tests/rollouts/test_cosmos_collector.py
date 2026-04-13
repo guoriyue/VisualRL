@@ -70,7 +70,7 @@ class TestCosmosDiffusersCollectorSdeWindow:
 
         cfg = CosmosDiffusersCollectorConfig(sde_window_size=0)
         collector = CosmosDiffusersCollector(
-            pipeline=None, reward_fn=None, config=cfg,
+            model=None, reward_fn=None, config=cfg,
         )
         assert collector._get_sde_window() is None
 
@@ -85,7 +85,7 @@ class TestCosmosDiffusersCollectorSdeWindow:
             sde_window_size=5, sde_window_range=(0, 20),
         )
         collector = CosmosDiffusersCollector(
-            pipeline=None, reward_fn=None, config=cfg,
+            model=None, reward_fn=None, config=cfg,
         )
         for _ in range(20):
             window = collector._get_sde_window()
@@ -106,7 +106,7 @@ class TestCosmosDiffusersCollectorSdeWindow:
             sde_window_size=3, sde_window_range=(2, 10),
         )
         collector = CosmosDiffusersCollector(
-            pipeline=None, reward_fn=None, config=cfg,
+            model=None, reward_fn=None, config=cfg,
         )
         for _ in range(10):
             window = collector._get_sde_window()
@@ -118,15 +118,15 @@ class TestCosmosDiffusersCollectorSdeWindow:
 # ---------------------------------------------------------------------------
 
 class TestCosmosDiffusersCollectorInit:
-    def test_accepts_pipeline_and_reward(self) -> None:
-        """Collector initializes with pipeline and reward function."""
+    def test_accepts_model_and_reward(self) -> None:
+        """Collector initializes with model and reward function."""
         from vrl.rollouts.collectors.cosmos import CosmosDiffusersCollector
 
         collector = CosmosDiffusersCollector(
-            pipeline="mock_pipeline",
+            model="mock_model",
             reward_fn="mock_reward",
         )
-        assert collector.pipeline == "mock_pipeline"
+        assert collector.model == "mock_model"
         assert collector.reward_fn == "mock_reward"
         assert collector.reference_image is None
 
@@ -135,7 +135,7 @@ class TestCosmosDiffusersCollectorInit:
         from vrl.rollouts.collectors.cosmos import CosmosDiffusersCollector
 
         collector = CosmosDiffusersCollector(
-            pipeline="mock_pipeline",
+            model="mock_model",
             reward_fn="mock_reward",
             reference_image="mock_image",
         )
@@ -149,7 +149,7 @@ class TestCosmosDiffusersCollectorInit:
         )
 
         collector = CosmosDiffusersCollector(
-            pipeline=None, reward_fn=None,
+            model=None, reward_fn=None,
         )
         assert isinstance(collector.config, CosmosDiffusersCollectorConfig)
         assert collector.config.num_steps == 35
@@ -172,18 +172,32 @@ class TestCosmosDiffusersCollectorForwardStep:
 
         B, T, C, D, H, W = 2, 5, 16, 4, 22, 40
         cfg = CosmosDiffusersCollectorConfig(cfg=False)
+
+        # The collector needs a model with _predict_noise_with_model
+        # (or _executor._predict_noise_with_model)
+        class MockExecutor:
+            def _predict_noise_with_model(self, model, denoise_state, step_idx):
+                ms = denoise_state.model_state
+                return {
+                    "noise_pred": ms.latents,
+                    "noise_pred_cond": ms.latents,
+                    "noise_pred_uncond": torch.zeros_like(ms.latents),
+                }
+
+        mock_model = MockExecutor()
+
         collector = CosmosDiffusersCollector(
-            pipeline=None, reward_fn=None, config=cfg,
+            model=mock_model, reward_fn=None, config=cfg,
         )
 
-        # Mock model: return input as noise_pred
-        class MockModel:
+        # Mock transformer model: return input as noise_pred
+        class MockTransformerModel:
             def __call__(self, **kwargs):
                 return (kwargs["hidden_states"],)
 
-        model = MockModel()
+        transformer_model = MockTransformerModel()
 
-        # Build a mock ExperienceBatch
+        # Build a mock ExperienceBatch with context
         observations = torch.randn(B, T, C, D, H, W)
         actions = torch.randn(B, T, C, D, H, W)
         timesteps = torch.rand(B, T) * 1000
@@ -205,6 +219,9 @@ class TestCosmosDiffusersCollectorForwardStep:
                 "timesteps": timesteps,
                 "prompt_embeds": prompt_embeds,
                 "negative_prompt_embeds": neg_embeds,
+                "init_latents": init_latents,
+            },
+            context={
                 "guidance_scale": 7.0,
                 "cfg": False,
                 "fps": 16,
@@ -212,11 +229,10 @@ class TestCosmosDiffusersCollectorForwardStep:
                 "uncond_mask": uncond_mask,
                 "cond_indicator": cond_indicator,
                 "uncond_indicator": uncond_indicator,
-                "init_latents": init_latents,
             },
         )
 
-        result = collector.forward_step(model, batch, timestep_idx=0)
+        result = collector.forward_step(transformer_model, batch, timestep_idx=0)
 
         assert "noise_pred" in result
         assert "noise_pred_cond" in result

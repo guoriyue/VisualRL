@@ -20,6 +20,7 @@ class ExperienceBatch:
     dones: Any           # [B] episode termination flags
     group_ids: Any       # [B] prompt group assignment (for per-prompt normalization)
     extras: dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)  # shared metadata (not stacked)
     videos: Any | None = None      # [B, C, T, H, W] decoded frames (for reward scoring)
     prompts: list[str] | None = None
 
@@ -63,6 +64,9 @@ def stack_batches(batches: list[ExperienceBatch]) -> ExperienceBatch:
         else:
             extras[key] = val  # non-tensor: keep from first batch
 
+    # Context: shared metadata — take from first batch (not stacked)
+    context: dict[str, Any] = dict(batches[0].context)
+
     return ExperienceBatch(
         observations=observations,
         actions=actions,
@@ -70,6 +74,7 @@ def stack_batches(batches: list[ExperienceBatch]) -> ExperienceBatch:
         dones=dones,
         group_ids=group_ids,
         extras=extras,
+        context=context,
         videos=videos,
         prompts=prompts or None,
     )

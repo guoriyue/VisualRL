@@ -124,6 +124,23 @@ class CosmosGenerationModel(VideoGenerationModel):
     ) -> ModelResult:
         return await self._executor.encode_conditioning(request, state)
 
+    async def predict_noise(
+        self,
+        denoise_state: Any,
+        step_idx: int,
+    ) -> dict[str, Any]:
+        return await self._executor.predict_noise(denoise_state, step_idx)
+
+    async def denoise_init(
+        self,
+        request: VideoGenerationRequest,
+        state: dict[str, Any],
+    ) -> Any:
+        return await self._executor.denoise_init(request, state)
+
+    async def decode_vae_for_latents(self, latents: Any) -> Any:
+        return await self._executor.decode_vae_for_latents(latents)
+
     async def generate(
         self,
         request: VideoGenerationRequest,
