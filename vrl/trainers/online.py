@@ -175,20 +175,30 @@ class OnlineTrainer(Trainer):
         else:
             loss.backward()
 
-    def _clip_and_step(self, optimizer: Any) -> None:
+    def _clip_and_step(self, optimizer: Any) -> float:
+        """Clip grads, step optimizer, return pre-clip total grad-norm (float)."""
         cfg = self.config
+        grad_norm: Any = 0.0
         if self.accelerator is not None:
             if self.accelerator.sync_gradients and cfg.max_grad_norm > 0:
-                self.accelerator.clip_grad_norm_(
+                grad_norm = self.accelerator.clip_grad_norm_(
                     self.model.parameters(), cfg.max_grad_norm
                 )
         else:
             if cfg.max_grad_norm > 0:
-                nn.utils.clip_grad_norm_(
+                grad_norm = nn.utils.clip_grad_norm_(
                     self.model.parameters(), cfg.max_grad_norm
                 )
+            else:
+                # no clip — compute norm manually for diagnostic
+                sq_sum = 0.0
+                for p in self.model.parameters():
+                    if p.grad is not None:
+                        sq_sum += float(p.grad.detach().pow(2).sum().item())
+                grad_norm = sq_sum ** 0.5
         optimizer.step()
         optimizer.zero_grad()
+        return float(grad_norm) if hasattr(grad_norm, "__float__") else float(grad_norm)
 
     # ------------------------------------------------------------------
     # Training step — CEA pipeline
@@ -241,6 +251,17 @@ class OnlineTrainer(Trainer):
             advantages = self.algorithm.compute_advantages_from_tensors(
                 batch.rewards, batch.group_ids,
             )
+
+        # Advantage diagnostics: zero_rate = |adv|<1e-6 (group collapse),
+        # saturation = |adv| at adv_clip_max (reward outlier clipped).
+        _adv_abs = advantages.detach().abs()
+        _total = max(advantages.numel(), 1)
+        adv_zero_rate = float((_adv_abs < 1e-6).sum().item()) / _total
+        _clip_max = getattr(self.algorithm.config, "adv_clip_max", None)
+        adv_saturation = (
+            float((_adv_abs >= _clip_max - 1e-6).sum().item()) / _total
+            if _clip_max is not None else 0.0
+        )
 
         # 3. Train loop
         self.model.train()
@@ -309,7 +330,8 @@ class OnlineTrainer(Trainer):
 
             # gradient clipping + optimizer step
             with timer.time("optim_step"):
-                self._clip_and_step(optimizer)
+                _gn = self._clip_and_step(optimizer)
+                agg_metrics["grad_norm"].append(_gn)
 
             # EMA update
             if ema is not None:
@@ -318,9 +340,11 @@ class OnlineTrainer(Trainer):
 
             self.state.global_step += 1
 
-        # Aggregate metrics
-        n_steps = max(len(agg_metrics.get("loss", [])), 1)
-        avg = lambda key: sum(agg_metrics.get(key, [0.0])) / n_steps
+        # Aggregate metrics — each metric averages over its own count (loss/policy
+        # appended per-timestep, grad_norm appended per-inner-epoch).
+        def avg(key: str) -> float:
+            vals = agg_metrics.get(key, [])
+            return sum(vals) / len(vals) if vals else 0.0
 
         reward_mean = batch.rewards.mean().item()
         reward_std = batch.rewards.std().item() if batch.rewards.numel() > 1 else 0.0
@@ -344,6 +368,9 @@ class OnlineTrainer(Trainer):
             advantage_mean=adv_mean,
             clip_fraction=avg("clip_fraction"),
             approx_kl=avg("approx_kl"),
+            grad_norm=avg("grad_norm"),
+            adv_saturation=adv_saturation,
+            adv_zero_rate=adv_zero_rate,
             phase_times=phase_times,
         )
 

@@ -303,12 +303,12 @@ async def train(config: WanOCRConfig) -> None:
     # CSV log — include per-component reward columns (empty when unused).
     csv_path = output_dir / "metrics.csv"
     csv_component_names = list(reward_weights.keys())
-    if not csv_path.exists():
-        component_cols = ",".join(f"r_{n}" for n in csv_component_names)
-        csv_path.write_text(
-            "epoch,loss,policy_loss,kl_penalty,reward_mean,reward_std,"
-            "clip_fraction,approx_kl,advantage_mean," + component_cols + "\n"
-        )
+    component_cols = ",".join(f"r_{n}" for n in csv_component_names)
+    csv_path.write_text(
+        "epoch,loss,policy_loss,kl_penalty,reward_mean,reward_std,"
+        "clip_fraction,approx_kl,advantage_mean,"
+        "grad_norm,adv_saturation,adv_zero_rate," + component_cols + "\n"
+    )
 
     # 7. Training loop
     if config.global_std and config.prompts_per_step == 1:
@@ -342,16 +342,16 @@ async def train(config: WanOCRConfig) -> None:
                 f"{n}={component_means[n]:.3f}" for n in csv_component_names
             )
             logger.info(
-                "Epoch %d | loss=%.4f policy_loss=%.4f kl=%.4f "
-                "reward=%.4f+/-%.4f clip_frac=%.3f approx_kl=%.6f | %s",
+                "Epoch %d | loss=%.4f kl=%.4f reward=%.4f+/-%.4f "
+                "grad_norm=%.4f adv_sat=%.3f adv_zero=%.3f | %s",
                 epoch,
                 metrics.loss,
-                metrics.policy_loss,
                 metrics.kl_penalty,
                 metrics.reward_mean,
                 metrics.reward_std,
-                metrics.clip_fraction,
-                metrics.approx_kl,
+                metrics.grad_norm,
+                metrics.adv_saturation,
+                metrics.adv_zero_rate,
                 component_str,
             )
             with open(csv_path, "a") as f:
@@ -360,9 +360,12 @@ async def train(config: WanOCRConfig) -> None:
                 )
                 f.write(
                     f"{epoch},{metrics.loss:.6f},{metrics.policy_loss:.6f},"
-                    f"{metrics.kl_penalty:.6f},{metrics.reward_mean:.4f},"
-                    f"{metrics.reward_std:.4f},{metrics.clip_fraction:.4f},"
-                    f"{metrics.approx_kl:.6f},{metrics.advantage_mean:.4f},"
+                    f"{metrics.kl_penalty:.6f},"
+                    f"{metrics.reward_mean:.4f},{metrics.reward_std:.4f},"
+                    f"{metrics.clip_fraction:.4f},{metrics.approx_kl:.6f},"
+                    f"{metrics.advantage_mean:.6f},"
+                    f"{metrics.grad_norm:.6f},{metrics.adv_saturation:.4f},"
+                    f"{metrics.adv_zero_rate:.4f},"
                     + component_vals + "\n"
                 )
 
