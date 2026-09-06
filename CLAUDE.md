@@ -1,12 +1,6 @@
 # Project instructions
 
-Canonical agent guidelines live in AGENTS.md (shared with Codex). They are
-imported below so Claude Code loads them as project memory — edit AGENTS.md,
-not this file.
-
-Claude inherits the Evidence-First Work rule from AGENTS.md: read the actual
-source, adjacent modules, call sites, configs, and tests before making
-modifications, concrete suggestions, deletion/refactor recommendations, or
-architecture claims.
-
-@AGENTS.md
+- Chinese for conversation, explanations, reviews, and plan files; English for code, comments, docs, commit messages.
+- Ruff is the formatter and linter; run it only on the files a task touched, never repository-wide.
+- Commit work in reviewable groups; never push unless the user asks for a push in that message.
+- Read the actual source, call sites, configs, and tests before changing code or recommending a deletion; cite the path that supports the claim.
