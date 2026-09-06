@@ -1,5 +1,10 @@
 # SPRINT: Multi-objective advantage combination
 
+状态：**done（seam 2026-08-23 落地，实验与 combiner 裁决 2026-08-25 收口；2026-09-06 归档）**。
+下文 "Experiment status" 的第 3 项（per-prompt objective masking）与第 4 项（非 GRPO 算法接线）
+是**带触发条件的搁置项**，不是待办：前者的唯一消费者是 anima 质量-vs-安全线（等外部评审），
+后者按原文只在某个 NFT recipe 真的需要多目标时才做。再次扫描 planned 时不应把它们当增量。
+
 ## What landed (2026-08-23)
 
 A pluggable **advantage-combination seam** so multiple reward components are no

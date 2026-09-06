@@ -38,7 +38,7 @@ or elsewhere under `/home/mingfeiguo`:
 - `scratchpad/paper.txt`
 
 The only surviving local summary is
-[`SPRINT_multi_objective_advantage.md`](../sprints/planned/SPRINT_multi_objective_advantage.md).
+[`SPRINT_multi_objective_advantage.md`](../sprints/done/SPRINT_multi_objective_advantage.md).
 This audit therefore does not treat the interrupted transcript as evidence.
 PAMA and every other method below were checked again against primary papers or
 author-maintained code.

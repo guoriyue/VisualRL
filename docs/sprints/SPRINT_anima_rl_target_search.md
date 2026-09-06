@@ -88,7 +88,7 @@ qualification of close multi-person interaction as the replacement source axis.
 Section 11.17 records the append-only source wave, the still-unmet independent
 human-review gate, and the now-complete bounded-canary execution boundary.
 姊妹文档：[SPRINT_anima_rl_5090.md](SPRINT_anima_rl_5090.md)（同一条实验线的前史）、
-[planned/SPRINT_multi_objective_advantage.md](planned/SPRINT_multi_objective_advantage.md)（combiner 那一段）。
+[done/SPRINT_multi_objective_advantage.md](done/SPRINT_multi_objective_advantage.md)（combiner 那一段）。
 
 触发：quality/safety 的多目标路线全部失败后，问题变成「那到底该训什么」。
 本轮把「先量空间、再投 GPU」当成硬纪律，全部结论都有本机实测数字。
