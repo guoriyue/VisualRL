@@ -182,7 +182,7 @@ def test_each_incompatible_feature_is_reported(overrides: dict, expected: str) -
     conflicts = compile_conflicts(parse_config(_compile_cfg(**overrides)))
 
     assert len(conflicts) == 1
-    assert expected in conflicts[0]
+    assert expected in conflicts[0].message
 
 
 def test_several_conflicts_are_reported_together() -> None:
@@ -254,7 +254,8 @@ def test_rollout_scope_keeps_rollout_conflicts() -> None:
 
     conflicts = compile_conflicts(parse_config(cfg))
     assert len(conflicts) == 1
-    assert "gpus_per_engine=2" in conflicts[0]
+    assert conflicts[0].feature == "sequence_parallel"
+    assert "gpus_per_engine=2" in conflicts[0].message
 
 
 def test_replay_scope_releases_rollout_conflicts() -> None:
@@ -275,7 +276,8 @@ def test_replay_scope_keeps_trainer_conflicts() -> None:
 
     conflicts = compile_conflicts(parse_config(cfg))
     assert len(conflicts) == 1
-    assert "gradient_checkpointing" in conflicts[0]
+    assert conflicts[0].feature == "gradient_checkpointing"
+    assert "gradient_checkpointing" in conflicts[0].message
 
 
 def test_unknown_compile_scope_is_refused_at_config_load() -> None:

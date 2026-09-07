@@ -1319,7 +1319,7 @@ def test_production_video_reward_structural_rules() -> None:
             "production": {"kling_video_reward": {"enabled": True}},
         }
     )
-    from vrl.config.validation import validate_production_reward_contract
+    from vrl.config.production import validate_production_reward_contract
 
     validate_production_reward_contract(parse_config(cfg))
 

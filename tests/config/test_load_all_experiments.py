@@ -30,11 +30,8 @@ from vrl.config.loading import (
     list_bundled_configs,
     load_config,
 )
-from vrl.config.schema import parse_config
-from vrl.config.validation import (
-    RewardConfig,
-    require_training_config,
-)
+from vrl.config.schema import RewardConfig, parse_config
+from vrl.config.validation import require_training_config
 from vrl.ray.resources import ResolvedDistributedResources
 from vrl.rollouts.orchestration import validate_rollout_schedule_topology
 from vrl.scripts.common.factory import validate_reward_memory_parking

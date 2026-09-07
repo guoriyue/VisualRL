@@ -99,34 +99,17 @@ def resolve_gradient_checkpointing_mode(root: RootConfig) -> str:
 def validate_compile_checkpointing_compatible(root: RootConfig) -> None:
     """Refuse compiling the replay policy combined with grad-checkpointing.
 
-    compile + manual checkpointing collide: torch.compile traces
-    torch.utils.checkpoint into an InternalTorchDynamoError (measured for both
-    full and selective/SAC), and inductor's AOTAutograd min-cut partitioner
-    already does automatic selective recompute -- so compiling makes manual
-    checkpointing both broken and redundant. Mirrors the FSDP+compile guard in
-    trainers/strategy.py. Called from BOTH the runtime apply below and
-    config-load validation (require_training_config): a model-layer default can
-    flip compile on underneath a ckpt recipe, so the collision must fail at load
-    time (where config tests see it), not as a cryptic mid-run dynamo crash.
+    The rule itself lives in the torch.compile compatibility matrix
+    (``vrl.config.validation.compile_conflicts``), which config load already
+    runs; this re-checks only the checkpointing entry at runtime apply, for
+    callers that build a bundle without going through ``require_training_config``.
     """
 
-    mode = resolve_gradient_checkpointing_mode(root)
-    if mode == "off":
-        return
-    from vrl.models.interfaces.runtime import torch_compile_for_role
+    from vrl.config.validation import compile_conflicts
 
-    if torch_compile_for_role(
-        (root.model.torch_compile if root.model is not None else None), "replay"
-    ):
-        raise ValueError(
-            f"actor.gradient_checkpointing={mode!r} cannot combine with compiling "
-            "the replay policy: torch.compile traces torch.utils.checkpoint into "
-            "an InternalTorchDynamoError, and its min-cut partitioner already does "
-            "automatic selective recompute. Pick one — compile alone (preferred "
-            "when it fits memory), eager + checkpointing, or "
-            "model.torch_compile.scope=rollout to keep the trainer eager while "
-            "the rollout policy compiles.",
-        )
+    for conflict in compile_conflicts(root):
+        if conflict.feature == "gradient_checkpointing":
+            raise ValueError(conflict.message)
 
 
 def enable_transformer_gradient_checkpointing(bundle: Any, root: RootConfig) -> None:

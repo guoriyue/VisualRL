@@ -9,7 +9,7 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from vrl.config.validation import RewardConfig
+from vrl.config.schema import RewardConfig
 from vrl.rewards.functions.kling_video_reward import KlingVideoReward
 from vrl.rewards.inference import RewardInferenceResult
 from vrl.rewards.types import RewardSample

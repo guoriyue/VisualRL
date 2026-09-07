@@ -16,7 +16,7 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from vrl.config.validation import RewardConfig
+from vrl.config.schema import RewardConfig
 from vrl.rewards.functions.hpsv3 import HPSv3Reward
 from vrl.rewards.functions.videoscore2 import VideoScore2Reward
 from vrl.rewards.inference import RewardInferenceResult

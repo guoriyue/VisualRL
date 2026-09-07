@@ -108,12 +108,16 @@ def test_checkpointing_rejects_replay_compile_but_accepts_rollout_scope() -> Non
         validate_compile_checkpointing_compatible,
     )
 
-    def _cfg(compile_block: dict) -> OmegaConf:
-        return OmegaConf.create(
-            {
-                "actor": {"gradient_checkpointing": "full"},
-                "model": {"torch_compile": compile_block},
-            },
+    def _cfg(compile_block: dict):
+        # The check reads the compile matrix off a parsed root, as the runtime
+        # apply path hands it one.
+        return parse_config(
+            OmegaConf.create(
+                {
+                    "actor": {"gradient_checkpointing": "full"},
+                    "model": {"family": "sd3_5", "torch_compile": compile_block},
+                },
+            )
         )
 
     with pytest.raises(ValueError, match="gradient_checkpointing"):
