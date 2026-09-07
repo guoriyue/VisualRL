@@ -36,6 +36,7 @@ from typing import Any
 import torch
 
 from vrl.generation.types import DenoiseRequest
+from vrl.models.interfaces.runtime import ModelBuild
 from vrl.models.steps.denoise import (
     DiffusersPipelineModelBase,
     DiffusersReplayModelBase,
@@ -50,7 +51,10 @@ from vrl.models.steps.denoise.common import (
     expand_batch_timestep,
     pack_eval_timestep,
 )
-from vrl.models.steps.denoise.common.lora import LoraModelMixin
+from vrl.models.steps.denoise.common.lora import (
+    LoraModelMixin,
+    require_lora_for_previous_policy_adapter,
+)
 
 
 @dataclass
@@ -97,6 +101,12 @@ class SD3_5Model(
     # T5-XXL plus two CLIP encoders still fit beside the 2B/8B MMDiT; keep them
     # on-device (no CPU offload dance like Qwen-Image's 15 GB VL).
     _prompt_encoder_on_cpu = False
+
+    @classmethod
+    def from_build(cls, build: ModelBuild) -> SD3_5Model:
+        """Reject the previous-adapter config before paying the pipeline load."""
+        require_lora_for_previous_policy_adapter(build)
+        return super().from_build(build)
 
     # -- encode_prompt -------------------------------------------------
 
@@ -283,12 +293,50 @@ class SD3_5Model(
         }
 
     def export_replay_tensors(self, state: SD3SamplingState) -> dict[str, Any]:
-        """Project SD3 sampling state into trajectory replay tensors."""
+        """Project SD3 sampling state into trajectory replay tensors.
+
+        ``latents_clean`` is the final (fully denoised) latent, captured at
+        decode time: the x0 the forward-process objectives (DiffusionNFT,
+        V-GRPO) regress toward. GRPO ignores it.
+        """
         return {
             "prompt_embeds": state.prompt_embeds,
             "pooled_prompt_embeds": state.pooled_prompt_embeds,
             "negative_prompt_embeds": state.negative_prompt_embeds,
             "negative_pooled_prompt_embeds": state.negative_pooled_prompt_embeds,
+            "latents_clean": state.latents.detach(),
+        }
+
+    def diffusion_nft_prepare_transformer_input(
+        self,
+        *,
+        latents: torch.Tensor,
+        prompt_embeds: torch.Tensor,
+        pooled_prompt_embeds: torch.Tensor | None,
+        timestep: torch.Tensor,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Raw ``SD3Transformer2DModel`` kwargs for the forward-process objectives.
+
+        DiffusionNFT and V-GRPO call ``transformer(**inputs)[0]`` on the
+        unwrapped transformer with a noised clean latent, so this returns
+        exactly the conditional branch ``build_branch`` maps in ``forward_step``:
+        the latent, the raw ``[0, 1000]`` timestep, the T5+CLIP sequence embeds
+        and the pooled CLIP projection. Guidance is not a transformer input for
+        SD3 (CFG is a two-branch combine the objectives never run).
+        """
+        del kwargs
+        if pooled_prompt_embeds is None:
+            raise ValueError("SD3.5 forward-process input requires pooled_prompt_embeds")
+        td = self._transformer_dtype()
+        bsz = int(latents.shape[0])
+        timestep_batch = expand_batch_timestep(timestep, bsz).to(device=latents.device, dtype=td)
+        return {
+            "hidden_states": latents.to(td),
+            "timestep": timestep_batch,
+            "encoder_hidden_states": prompt_embeds.to(td),
+            "pooled_projections": pooled_prompt_embeds.to(td),
+            "return_dict": False,
         }
 
     def restore_eval_state(

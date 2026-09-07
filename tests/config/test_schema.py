@@ -515,7 +515,7 @@ def test_janus_families_select_the_shared_family_section(family: str) -> None:
     ("family", "field"),
     [
         ("emu3", "vq_latent_channels"),
-        ("sd3_5", "nft_previous_adapter"),
+        ("sana", "nft_previous_adapter"),
         ("cosmos-predict2", "skip_text_encoder"),
     ],
 )

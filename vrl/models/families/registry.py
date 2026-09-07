@@ -605,7 +605,7 @@ _register_model_family(
     _full_sequence_denoise_entry(
         family="sd3_5",
         task="t2i",
-        model_section_cls=SHARED_MODEL_SECTION_CLS,
+        model_section_cls="vrl.models.families.sd3_5.config:SD3_5ModelSection",
         sampling_section_cls=TEXT_ENCODED_IMAGE_SAMPLING_SECTION_CLS,
         build=DenoiseFamilyBuild(
             model_cls="vrl.models.families.sd3_5.model:SD3_5Model",

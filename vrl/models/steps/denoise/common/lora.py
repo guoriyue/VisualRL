@@ -5,14 +5,14 @@ convention (validated saved adapter for warm start vs
 LoraConfig+get_peft_model for fresh adapters) is family-agnostic, so it lives
 here once. Families only override the small hooks that actually differ.
 
-The DiffusionNFT previous-policy adapter primitives (``build_lora_config`` /
+The previous-policy adapter primitives (``build_lora_config`` /
 ``copy_adapter_weights`` / ``freeze_checkpoint_owned_adapter_params``) also
-live here: they are pure PEFT operations with no family specifics, shared by
-both cosmos/predict2.5 (its custom ``apply_lora``) and flux (its
-``attach_previous_policy_adapter`` / ``sync_previous_policy_adapter`` methods).
-Keeping one copy here is the same de-duplication rationale as the attach logic
-above — a second copy would rot the moment the PEFT param-naming convention
-shifts under one family but not the other.
+live here: they are pure PEFT operations with no family specifics. The frozen
+``previous`` LoRA mirror they build is what DiffusionNFT's negative branch and
+V-GRPO's importance ratio evaluate the behaviour policy through, so the mixin
+carries the attach / sync pair once (``model.nft_previous_adapter: true`` opts
+a LoRA family in) instead of every family copying it; cosmos/predict2.5 keeps
+its own ``apply_lora`` because it always builds the mirror.
 """
 
 from __future__ import annotations
@@ -107,6 +107,62 @@ class LoraModelMixin:
             target_modules=lora_config["target_modules"],
         )
         self._set_transformer(get_peft_model(transformer, cfg))
+        if previous_policy_adapter_requested(build):
+            self.attach_previous_policy_adapter(build)
+
+    # -- previous-policy adapter (DiffusionNFT / V-GRPO) ------------------
+    # Both objectives evaluate the behaviour policy through a frozen ``previous``
+    # copy of the trainable adapter: forward-only under no_grad, refreshed by
+    # weight copy after each optimizer step, never optimized. Attach runs right
+    # after the normal LoRA attach (``self.transformer`` must carry ``default``).
+
+    def attach_previous_policy_adapter(self, build: ModelBuild) -> None:
+        """Build the frozen ``previous`` adapter, seeded from ``default``.
+
+        Idempotent on the adapter slot: only adds it once, then (re)seeds it from
+        the current ``default`` so ``previous == default`` at attach time (the
+        lr=0 invariants of NFT and V-GRPO). Leaves ``default`` active.
+        """
+
+        transformer = self.transformer
+        lora_config = getattr(build, "lora", None)
+        if lora_config is None:
+            raise ValueError(
+                "attach_previous_policy_adapter requires build.lora (LoRA only)",
+            )
+        if "previous" not in getattr(transformer, "peft_config", {}):
+            transformer.add_adapter("previous", build_lora_config(lora_config))
+        copy_adapter_weights(transformer, src="default", dst="previous")
+        freeze_checkpoint_owned_adapter_params(transformer, "previous")
+        transformer.set_adapter("default")
+
+    def sync_previous_policy_adapter(self, *, decay: float = 0.0) -> None:
+        """Refresh the ``previous`` adapter from the trainable ``default`` adapter.
+
+        Reached via getattr dispatch from the objectives' ``after_optimizer_step``
+        (vrl/algorithms/diffusion_nft.py, vrl/algorithms/v_grpo.py), not a
+        direct call — keep even though textual call-site searches miss it.
+        """
+
+        copy_adapter_weights(self.transformer, src="default", dst="previous", decay=decay)
+
+
+def previous_policy_adapter_requested(build: ModelBuild) -> bool:
+    """Whether ``model.nft_previous_adapter`` asks for the frozen mirror."""
+
+    # Bare test builds are namespaces without model_config; treat as "no".
+    model_config = getattr(build, "model_config", None) or {}
+    return bool(model_config.get("nft_previous_adapter", False))
+
+
+def require_lora_for_previous_policy_adapter(build: ModelBuild) -> None:
+    """Reject the previous-adapter switch without LoRA before paying a model load."""
+
+    if previous_policy_adapter_requested(build) and not build.use_lora:
+        raise RuntimeError(
+            "model.nft_previous_adapter requires LoRA (the frozen previous "
+            "adapter is a PEFT adapter); set model.use_lora=true.",
+        )
 
 
 def build_lora_config(lora_config: Any) -> Any:
@@ -210,4 +266,6 @@ __all__ = [
     "build_lora_config",
     "copy_adapter_weights",
     "freeze_checkpoint_owned_adapter_params",
+    "previous_policy_adapter_requested",
+    "require_lora_for_previous_policy_adapter",
 ]
