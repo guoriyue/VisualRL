@@ -30,8 +30,16 @@ compile × checkpointing 的重复文案，docstring 说"也被 require_training
 | 2 跨 section 规则 | `rules.py::CROSS_SECTION_RULES`（6 条 `rule_*`） | `RootConfig` 的 model_validator 转发，所以直接 `RootConfig.model_validate` 也触发 | 只读已解析的 root，不 import torch / 运行时模块 |
 | 3 启动门 | `validation.py::TRAINING_GATES`（compile 矩阵、漂移守卫、生产 Kling 门） | `require_training_config`（只有训练启动付这个钱） | precision policy / 运行时模块 / 文件系统 |
 
-生产 Kling 门的文件级校验单独进 `production.py`（contract + data provenance 两个
-公开函数）。`compile_conflicts` 返回结构化的 `CompileConflict(feature, message)`，
+生产门不再是 Kling 专属的一坨：`production.py` 只剩一个通用循环——对每个
+`production.<reward>.enabled` 的组件，调 reward 类自己的
+`validate_production_kwargs`（`DiskArtifactRewardFunction` 上的契约：media type、
+artifact format、`production_task_types`、锁定的 worker_config 键），再调数据层的
+`validate_dataset_provenance`（`vrl/trainers/data/provenance.py`：按 `data.task_type`
+查 `PROVENANCE_SPECS`，用 config 声明的 loader 加载两份 manifest，走
+`ArtifactManifestReport.from_examples` 做 artifact / 元数据检查，再用 `SourceReport`
+对账 report.json）。奖励读的额外 artifact（DINO 的 `target_video`）由
+`RewardFunction.required_prompt_artifacts` 声明，不再在 config 层硬编码奖励名。
+原来 i2v 手写的 JSONL 解析器删掉了——它重复了 `ImageCaptionPromptDataset`。`compile_conflicts` 返回结构化的 `CompileConflict(feature, message)`，
 `activation_checkpointing.validate_compile_checkpointing_compatible` 改为按
 `feature == "gradient_checkpointing"` 复用矩阵，删掉重复文案。`RewardConfig` 转口
 删除，importer 改从 `schema` 取。

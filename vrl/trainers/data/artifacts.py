@@ -91,7 +91,39 @@ class ArtifactManifestReport:
         """
 
         path = Path(manifest_path)
-        examples = load_prompt_manifest(path)
+        return cls.from_examples(
+            load_prompt_manifest(path),
+            manifest_path=path,
+            eval_examples=None if eval_manifest is None else load_prompt_manifest(eval_manifest),
+            eval_manifest_path=eval_manifest,
+            data_root=data_root,
+            artifact_fields=artifact_fields,
+            required_artifact_fields=required_artifact_fields,
+            required_metadata_fields=required_metadata_fields,
+        )
+
+    @classmethod
+    def from_examples(
+        cls,
+        examples: Sequence[PromptExample],
+        *,
+        manifest_path: str | Path,
+        eval_examples: Sequence[PromptExample] | None = None,
+        eval_manifest_path: str | Path | None = None,
+        data_root: str | Path | None = None,
+        artifact_fields: Sequence[str] = DEFAULT_ARTIFACT_FIELDS,
+        required_artifact_fields: Sequence[str] = (),
+        required_metadata_fields: Sequence[str] = (),
+    ) -> ArtifactManifestReport:
+        """Build the report for already-loaded examples.
+
+        The loader is the caller's choice (a native prompt manifest, an
+        image-caption manifest, a mixture); the artifact and provenance checks
+        are the same whichever produced the rows. ``manifest_path`` only names
+        the rows in errors.
+        """
+
+        path = Path(manifest_path)
         root = coerce_data_root(data_root)
         resolved: list[ResolvedArtifact] = []
         warnings: list[str] = []
@@ -136,7 +168,7 @@ class ArtifactManifestReport:
         source_episodes = tuple(sorted(_source_episodes(examples)))
         if not examples:
             warnings.append(f"{path}: manifest is empty")
-        if eval_manifest is None:
+        if eval_examples is None:
             return cls(
                 manifest_path=path,
                 data_root=root,
@@ -147,8 +179,11 @@ class ArtifactManifestReport:
                 source_episodes=source_episodes,
             )
 
-        eval_report = cls.from_manifest(
-            eval_manifest,
+        if eval_manifest_path is None:
+            raise ValueError("eval_examples require eval_manifest_path to name them in errors")
+        eval_report = cls.from_examples(
+            eval_examples,
+            manifest_path=eval_manifest_path,
             data_root=data_root,
             artifact_fields=artifact_fields,
             required_artifact_fields=required_artifact_fields,

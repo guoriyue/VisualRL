@@ -208,18 +208,19 @@ def gate_compile_compatible(root: RootConfig, precision: PrecisionPolicy) -> Non
     validate_compile_compatible(root)
 
 
-def gate_production_kling_video_reward(root: RootConfig, precision: PrecisionPolicy) -> None:
+def gate_production(root: RootConfig, precision: PrecisionPolicy) -> None:
+    # Reward-owned contracts plus the data layer's provenance check, for every
+    # ``production.<reward>.enabled`` entry (vrl/config/production.py).
     del precision
-    if root.production is not None and root.production.kling_video_reward.enabled:
-        from vrl.config.production import validate_production_kling_video_reward_config
+    from vrl.config.production import validate_production_gates
 
-        validate_production_kling_video_reward_config(root)
+    validate_production_gates(root)
 
 
 TRAINING_GATES: tuple[TrainingGate, ...] = (
     gate_compile_compatible,
     validate_guarded_rollout_drift,
-    gate_production_kling_video_reward,
+    gate_production,
 )
 
 

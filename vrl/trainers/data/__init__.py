@@ -55,6 +55,10 @@ _PUBLIC_EXPORTS = {
     ),
     "load_prompt_image_manifest": ("vrl.trainers.data.prompts", "load_prompt_image_manifest"),
     "load_prompt_manifest": ("vrl.trainers.data.prompts", "load_prompt_manifest"),
+    "validate_dataset_provenance": (
+        "vrl.trainers.data.provenance",
+        "validate_dataset_provenance",
+    ),
     "resolve_prompt_example_artifacts": (
         "vrl.trainers.data.artifacts",
         "resolve_prompt_example_artifacts",

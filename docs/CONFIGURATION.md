@@ -64,7 +64,7 @@ registry each. Where a new check goes is decided by what it needs:
 | --- | --- | --- | --- | --- |
 | 1. Section shape | `vrl/config/schema.py` (pydantic) | `parse_config` | the section itself | closed keys, types, `rollout.sde.type` membership, `data.manifest` required by loader |
 | 2. Cross-section rules | `vrl/config/rules.py`, `CROSS_SECTION_RULES` | `RootConfig`'s validator (so also `parse_config`) | two or more parsed sections, nothing else | `algorithm.kind` needs `rollout.sde`; `janus_pro_r1` pairs with `token_grpo_multisegment`; offline DPO's consumed surface |
-| 3. Launch gates | `vrl/config/validation.py`, `TRAINING_GATES` | `require_training_config` (training launches only) | the precision policy, a runtime module, or the filesystem | torch.compile compatibility matrix, unguarded rollout drift, the production Kling gate (`vrl/config/production.py`, reads manifests) |
+| 3. Launch gates | `vrl/config/validation.py`, `TRAINING_GATES` | `require_training_config` (training launches only) | the precision policy, a runtime module, or the filesystem | torch.compile compatibility matrix, unguarded rollout drift, the production gates (`vrl/config/production.py`: each enabled reward's own contract plus the data layer's dataset provenance, `vrl/trainers/data/provenance.py`) |
 
 Tier 2 must stay import-light because eval and perf tools pay for it on every
 parse; a check that needs `vrl.trainers` or `vrl.models.interfaces` is a tier 3

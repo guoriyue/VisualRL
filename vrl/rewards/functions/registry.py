@@ -32,7 +32,14 @@ _REWARD_REGISTRY: dict[str, type[RewardFunction]] = {}
 
 
 def get_reward(name: str) -> type[RewardFunction]:
-    """Look up a registered reward function class by name."""
+    """Look up a registered reward function class by name.
+
+    The builtins register lazily (importing every reward module is the cost),
+    so a first lookup from a config gate populates the registry itself instead
+    of depending on ``MultiReward.from_dict`` having run earlier.
+    """
+    if not _REWARD_REGISTRY:
+        _register_builtins()
     if name not in _REWARD_REGISTRY:
         raise KeyError(f"Unknown reward function: {name!r}. Available: {list(_REWARD_REGISTRY)}")
     return _REWARD_REGISTRY[name]

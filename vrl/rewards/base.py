@@ -65,6 +65,10 @@ class RewardFunction:
     # Most reward constructors expose the selected device as ``device``;
     # exceptional schemas (for example NSFW's classifier_device) override it.
     device_config_key: ClassVar[str] = "device"
+    # Prompt-manifest artifact fields this reward reads off every example
+    # (``metadata['target_video']`` for the DINO target similarity). The dataset
+    # provenance gate turns them into hard manifest requirements.
+    required_prompt_artifacts: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
     def resolve_execution_device(
@@ -467,6 +471,49 @@ class DiskArtifactRewardFunction(CumemRewardFunction):
     default_score_key: ClassVar[str]
     default_artifact_format: ClassVar[str] = "mp4"
     default_media_type: ClassVar[MediaType] = "video"
+    # Production contract (``production.<reward>.enabled``): the prompt task
+    # types the reward is validated for, and the worker_config loader keys a
+    # production config must not carry (it names the reward model directly;
+    # ``model_factory`` / ``import_path`` are live reader machinery).
+    production_task_types: ClassVar[frozenset[str]] = frozenset()
+    production_locked_worker_config_keys: ClassVar[frozenset[str]] = frozenset(
+        {"model_factory", "import_path"}
+    )
+
+    @classmethod
+    def validate_production_kwargs(
+        cls,
+        name: str,
+        kwargs: Mapping[str, Any],
+        *,
+        task_type: str,
+    ) -> None:
+        """The structural production contract for one configured component.
+
+        Reads the reward's kwargs mapping directly: per-reward config knowledge
+        lives with the reward, not in the config schema. Exists because a
+        production misconfiguration is unrecoverable mid-run.
+        """
+
+        prefix = f"production.{name} requires"
+        if str(kwargs.get("media_type", "")) != str(cls.default_media_type):
+            raise ValueError(f"{prefix} reward.kwargs.{name}.media_type={cls.default_media_type}")
+        if str(kwargs.get("artifact_format", "")) != str(cls.default_artifact_format):
+            raise ValueError(f"{prefix} artifact_format={cls.default_artifact_format}")
+        if not str(kwargs.get("reward_name", "")).strip():
+            raise ValueError(f"{prefix} reward.kwargs.{name}.reward_name")
+        worker_config = kwargs.get("worker_config") or {}
+        forbidden = sorted(
+            key for key in cls.production_locked_worker_config_keys if key in worker_config
+        )
+        if forbidden:
+            raise ValueError(
+                f"production.{name} worker_config should name the reward model directly; "
+                f"remove extra loader fields: {', '.join(forbidden)}",
+            )
+        if task_type not in cls.production_task_types:
+            expected = ", ".join(sorted(cls.production_task_types)) or "<none>"
+            raise ValueError(f"{prefix} data.task_type={expected}")
 
     def __init__(
         self,
