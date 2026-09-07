@@ -64,7 +64,9 @@ def test_r1_train_segments_derive_from_algorithm_config() -> None:
 
 
 def test_r1_collector_uses_r1_task_request_and_trajectory_batch() -> None:
-    """Checks R1 collector uses R1 task request and trajectory batch."""
+    """A collector built for ``janus_pro_r1`` issues requests with the R1 family and the
+    registry's R1 task, carrying the reflect length through sampling.
+    """
     rollout_config = RolloutCollectorConfig(
         request_sampling={
             "guidance_scale": 5.0,
@@ -95,7 +97,9 @@ def test_r1_collector_uses_r1_task_request_and_trajectory_batch() -> None:
 
 
 def test_r1_trajectory_batch_keeps_segments_separate() -> None:
-    """Checks R1 trajectory batch keeps segments separate."""
+    """The multisegment layout keeps the three R1 segments as separate trajectory segments with
+    their own token lengths; nothing is flattened into ``extras``.
+    """
     batch_size = 2
     final_images = torch.zeros(batch_size, 3, 2, 2)
     request = GenerationRequest(

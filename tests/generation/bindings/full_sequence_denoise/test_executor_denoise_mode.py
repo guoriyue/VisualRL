@@ -19,7 +19,10 @@ def test_diffusion_executor_base_satisfies_probe_protocol() -> None:
 
 
 def test_native_denoise_mode_uses_scheduler_step() -> None:
-    """Checks native denoise mode uses scheduler step."""
+    """``denoise_mode="native"`` steps through the scheduler's own ``step`` (one call per step)
+    and records the stepped latents as the action, so the trajectory still carries a log-prob
+    column without an SDE.
+    """
     scheduler = _Scheduler()
     state = _State(
         latents=torch.ones(1, 1),

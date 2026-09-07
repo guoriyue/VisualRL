@@ -42,7 +42,6 @@ async def test_geneval_reward_uses_injected_scorer_metadata() -> None:
 
 @pytest.mark.asyncio
 async def test_geneval_reward_requires_metadata() -> None:
-    """Checks GenEval reward requires metadata."""
     with pytest.raises(ValueError, match=r"metadata\.geneval"):
         GenEvalReward._extract_geneval_metadata(_sample({}))
 
@@ -61,7 +60,9 @@ async def test_geneval_reward_rejects_unknown_kwarg() -> None:
 
 @pytest.mark.asyncio
 async def test_geneval_reward_registered_in_multi_reward() -> None:
-    """Checks GenEval reward registered in multi reward."""
+    """A ``geneval`` component built through ``MultiReward.from_dict`` hands the sample's geneval
+    metadata to its ``score_fn`` as keyword arguments.
+    """
 
     def score_fn(**kwargs):
         assert kwargs["geneval"]["tag"] == "colors"

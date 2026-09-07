@@ -19,7 +19,7 @@ def test_unknown_backend_error_lists_available_names() -> None:
 
 
 def test_attention_backend_name_reads_explicit_name_with_paged_default() -> None:
-    """Checks attention backend name reads explicit name with paged default."""
+    """``attention_backend_name`` reads the explicit sampling key and defaults to ``vllm_paged``."""
 
     assert backends.attention_backend_name({"attention_backend": "torch_native"}) == "torch_native"
     assert backends.attention_backend_name({"attention_backend": "vllm_paged"}) == "vllm_paged"

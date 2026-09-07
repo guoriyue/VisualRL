@@ -15,7 +15,9 @@ from vrl.scripts.data.videophy_i2v import (
 
 
 def test_select_videophy_videos_prefers_aligned_physical_candidate() -> None:
-    """Checks select VideoPhy videos prefers aligned physical candidate."""
+    """Among candidates for one caption the selection prefers the one with both semantic alignment
+    and physical commonsense (sa=1, pc=1), matching captions after whitespace trimming.
+    """
     candidates = [
         VideoPhyVideoRow(
             caption="A wheel steadily rolls across a cement path.",
@@ -51,7 +53,10 @@ def test_select_videophy_videos_prefers_aligned_physical_candidate() -> None:
 
 
 def test_prepare_videophy_i2v_dataset_writes_source_backed_manifest(tmp_path: Path) -> None:
-    """Checks prepare VideoPhy I2V dataset writes source-backed manifest."""
+    """Preparation fetches each split's video, extracts its first frame resized to 832x480, writes
+    source-backed manifest rows (URL, decode method, frame sizes) plus a report, and does not
+    keep the videos.
+    """
     csv_path = tmp_path / "videophy_test_public.csv"
     csv_path.write_text(
         "\n".join(
@@ -116,7 +121,9 @@ def test_prepare_videophy_i2v_dataset_writes_source_backed_manifest(tmp_path: Pa
 
 
 def test_for_experiment_flags_videophy_i2v_population_command(tmp_path: Path) -> None:
-    """Checks for experiment flags VideoPhy I2V population command."""
+    """Missing VideoPhy I2V manifests leave the plan not ready and point every step at the
+    ``videophy-i2v`` command.
+    """
     plan = bootstrap.resolve_experiment_dataset_plan(
         {
             "loader": "prompt_image_manifest",
@@ -131,7 +138,9 @@ def test_for_experiment_flags_videophy_i2v_population_command(tmp_path: Path) ->
 
 
 def test_for_experiment_rejects_partial_videophy_i2v_smoke_data(tmp_path: Path) -> None:
-    """Checks for experiment rejects partial VideoPhy I2V smoke data."""
+    """A manifest with fewer rows than its prompt file is incomplete: the plan stays not ready
+    with the shortfall reported, while the complete eval split passes.
+    """
     split_root = tmp_path / "datasets" / "videophy"
     split_root.mkdir(parents=True)
     (split_root / "train.txt").write_text("prompt a\nprompt b\n", encoding="utf-8")

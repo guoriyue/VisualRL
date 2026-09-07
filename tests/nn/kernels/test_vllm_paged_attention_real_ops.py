@@ -14,12 +14,11 @@ from vrl.nn.layers.attention.paged import VllmPagedAttentionConfig
 
 @pytest.mark.gpu
 def test_vllm_paged_attention_writes_real_cuda_kv_cache() -> None:
-    """Checks vLLM paged attention writes real cuda KV cache.
-
-    Only a missing vLLM is a capability gap worth skipping. An installed vLLM whose
-    internal API does not import (``pip install --no-deps`` leaves its declared
-    dependencies out) is a broken environment, and the only real kernel test in the
-    repo must say so instead of silently skipping.
+    """Real vLLM kernels write a KV cache on CUDA through the block table and slot mapping. Only a
+    missing vLLM is a capability gap worth skipping: an installed vLLM whose internal API does
+    not import (``pip install --no-deps`` leaves its declared dependencies out) is a broken
+    environment, and the only real kernel test in the repo must say so instead of silently
+    skipping.
     """
     if importlib.util.find_spec("vllm") is None:
         pytest.skip("vLLM is not installed")

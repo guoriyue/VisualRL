@@ -309,7 +309,6 @@ def test_nft_returns_only_objective_owned_step_metrics() -> None:
 def test_positive_advantage_trains_toward_reconstruction() -> None:
     # A good sample (high positive advantage) must pull the forward prediction
     # TOWARD the velocity that reconstructs the clean latent.
-    """Checks positive advantage trains toward reconstruction."""
     before, after, grad = _step_distances(advantage=5.0)
     assert grad.abs().sum() > 0  # non-degenerate gradient through real LoRA params
     assert after < before
@@ -318,13 +317,11 @@ def test_positive_advantage_trains_toward_reconstruction() -> None:
 def test_negative_advantage_trains_away_from_reconstruction() -> None:
     # A bad sample (negative advantage) must push the forward prediction AWAY
     # from the reconstruction target — the opposite sign.
-    """Checks negative advantage trains away from reconstruction."""
     before, after, _ = _step_distances(advantage=-5.0)
     assert after > before
 
 
 def test_nft_beta_must_be_positive() -> None:
-    """Checks NFT beta must be positive."""
     cfg = DiffusionNFTConfig(nft_beta=0.0)
     model = _build_model()
     batch = _build_batch(
@@ -365,7 +362,6 @@ def test_advantage_scale_must_be_positive() -> None:
 def test_after_optimizer_step_syncs_previous_adapter() -> None:
     # after_optimizer_step must refresh the previous adapter from the trainable
     # one. With decay=0 the previous weights become an exact copy of default.
-    """Checks after optimizer step syncs previous adapter."""
     model = _build_model()
     named = dict(model.transformer.named_parameters())
     a_name = next(n for n in named if ".previous." in n and "lora_A" in n)

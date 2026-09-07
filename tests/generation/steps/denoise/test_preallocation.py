@@ -17,7 +17,9 @@ from vrl.trajectory import TrajectoryStoragePolicy
 
 
 def test_preallocate_denoise_buffers_matches_latent_shape_dtype_and_device() -> None:
-    """Checks preallocate denoise buffers matches latent shape dtype and device."""
+    """Preallocated buffers take the latent's shape, dtype and device for observations and
+    actions, fp32 for log-probs and KL, and the state's timestep dtype.
+    """
     state = _state(batch=2, steps=3, latent_shape=(4, 5), dtype=torch.float16)
 
     buffers = preallocate_denoise_buffers(state=state, config=_config(sample_count=2))
@@ -36,7 +38,6 @@ def test_preallocate_denoise_buffers_matches_latent_shape_dtype_and_device() -> 
 
 
 def test_preallocate_denoise_buffers_rejects_sample_count_mismatch() -> None:
-    """Checks preallocate denoise buffers rejects sample count mismatch."""
     with pytest.raises(ValueError, match="expected 3"):
         preallocate_denoise_buffers(
             state=_state(batch=2, steps=1),
@@ -46,7 +47,10 @@ def test_preallocate_denoise_buffers_rejects_sample_count_mismatch() -> None:
 
 @pytest.mark.parametrize("return_kl", [False, True])
 def test_run_denoise_steps_writes_preallocated_buffers(return_kl: bool) -> None:
-    """Checks run denoise steps writes preallocated buffers."""
+    """``run_denoise_steps`` fills the preallocated buffers in place: per-step timesteps, KL only
+    when requested (zeros otherwise), and engine counters for steps, batch width and
+    observation bytes.
+    """
     executor = _Executor()
     config = _config(sample_count=2, return_kl=return_kl)
 

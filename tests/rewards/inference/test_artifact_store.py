@@ -48,7 +48,9 @@ def test_video_artifact_store_writes_tensor_with_provenance(tmp_path: Path) -> N
 
 
 def test_video_artifact_store_writes_mp4_for_reward_models(tmp_path: Path) -> None:
-    """Checks video artifact store writes mp4 for reward models."""
+    """``artifact_format="mp4"`` materializes a video sample as an absolute, existing ``.mp4``
+    path.
+    """
     store = DiskRewardArtifactStore(tmp_path, media_type="video", artifact_format="mp4")
 
     artifacts = store.materialize([_sample(torch.ones(3, 2, 4, 4))])
@@ -67,7 +69,6 @@ def test_video_artifact_store_rejects_mp4_for_non_video_media_type(tmp_path: Pat
 
 
 def test_video_artifact_store_rejects_bad_shape(tmp_path: Path) -> None:
-    """Checks video artifact store rejects bad shape."""
     store = DiskRewardArtifactStore(tmp_path, media_type="video")
 
     with pytest.raises(ValueError, match="video reward artifact expects"):

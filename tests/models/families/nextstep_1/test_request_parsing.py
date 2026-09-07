@@ -123,7 +123,9 @@ def test_nextstep_layout_resolves_scheduler_batch_size_separately_from_sampling(
 
 
 def test_ar_layout_requires_shape_sampling_fields() -> None:
-    """Checks AR layout requires shape sampling fields."""
+    """image_token_num, image_size and max_text_length are each required: dropping any one fails
+    naming that key, never silently defaulting a geometry field.
+    """
     for missing_key in ("image_token_num", "image_size", "max_text_length"):
         sampling = {
             "image_token_num": 8,

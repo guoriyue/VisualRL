@@ -18,7 +18,9 @@ from vrl.nn.modules.ar_attention_backends import build_vllm_attention_backend
 
 @pytest.mark.gpu
 def test_janus_vllm_paged_attention_matches_hf_llama_one_step() -> None:
-    """Checks Janus vLLM paged attention matches HF Llama one step."""
+    """One prefill plus one cached step through the vLLM paged backend reproduce HF Llama's hidden
+    states for the same embeds and masks (real CUDA kernels).
+    """
     torch.manual_seed(0)
     trunk = _tiny_llama_trunk()
     try:

@@ -25,7 +25,9 @@ def test_sample_batch_plan_prompt_major() -> None:
 
 
 def test_run_sample_batches_with_oom_retry_splits_until_success() -> None:
-    """Checks run sample batches with oom retry splits until success."""
+    """An OOM on a 5-sample batch halves recursively (2, then 3 -> 1 + 2) and the results come
+    back in sample order.
+    """
     from vrl.generation.execution.sample_batches import (
         GenerationSampleBatch,
         run_sample_batches_with_oom_retry,

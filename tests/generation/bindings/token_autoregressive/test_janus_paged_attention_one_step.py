@@ -121,7 +121,10 @@ class _RecordingLM(nn.Module):
 
 
 def test_janus_runner_can_drive_one_paged_attention_image_step() -> None:
-    """Checks Janus runner can drive one paged attention image step."""
+    """With a paged backend installed the HF language model is never called: prefill goes through
+    the backend once per branch (cond, uncond) and one [4,1,H] step follows, yielding the same
+    first- and second-token hidden rows as the KV-cache path.
+    """
     torch.manual_seed(0)
     model = _model()
     backend = _RecordingPagedBackend()
@@ -182,7 +185,9 @@ def test_janus_zero_image_token_count_fails_before_prefill() -> None:
 
 
 def test_janus_runtime_uses_vllm_paged_attention_by_default(monkeypatch) -> None:
-    """Checks Janus runtime uses vLLM paged attention by default."""
+    """Without an explicit backend, ``ar_paged_block_size`` in sampling selects the vLLM paged
+    backend built for the model's family with that block size and the default cache dtype.
+    """
     model = _model()
     backend = _RecordingPagedBackend()
 

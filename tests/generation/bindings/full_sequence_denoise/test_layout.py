@@ -74,7 +74,9 @@ def test_denoise_options_reject_unknown_denoise_mode() -> None:
 
 
 def test_diffusion_layout_repeat_batch_rejects_unexpected_batch_size() -> None:
-    """Checks diffusion layout repeat batch rejects unexpected batch size."""
+    """``repeat_batch`` broadcasts a batch-1 tensor to the sample count, returns an already-sized
+    tensor as the same object, and refuses any other batch size.
+    """
     layout = _layout()
 
     repeated = layout.repeat_batch(torch.ones(1, 2), 3)

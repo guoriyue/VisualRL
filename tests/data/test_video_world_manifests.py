@@ -35,7 +35,9 @@ def _source_backed_metadata(episode: str) -> dict:
 
 
 def test_video_world_manifests_validate_reference_artifacts(tmp_path: Path) -> None:
-    """Checks video world manifests validate reference artifacts."""
+    """A train / eval pair with resolvable references and distinct source episodes reports one
+    row, no overlap and no warnings.
+    """
     data_root = tmp_path / "external"
     _write_ppm(data_root / "video_world" / "references" / "ref.ppm")
     train_manifest = tmp_path / "v2w_train.jsonl"
@@ -72,7 +74,9 @@ def test_video_world_manifests_validate_reference_artifacts(tmp_path: Path) -> N
 
 
 def test_source_backed_video_world_manifest_requires_provenance(tmp_path: Path) -> None:
-    """Checks source-backed video world manifest requires provenance."""
+    """The source-backed loader accepts rows whose metadata carries full provenance and reports no
+    episode overlap.
+    """
     data_root = tmp_path / "external"
     _write_ppm(data_root / "video_world" / "references" / "ref.ppm")
     train_manifest = tmp_path / "v2w_train.jsonl"
@@ -168,7 +172,7 @@ def test_source_backed_video_world_manifest_rejects_missing_required_target_vide
 
 
 def test_source_backed_video_world_manifest_rejects_placeholder_rows(tmp_path: Path) -> None:
-    """Checks source-backed video world manifest rejects placeholder rows."""
+    """Source-backed rows without ``metadata.source_repo`` are placeholders and are rejected."""
     data_root = tmp_path / "external"
     _write_ppm(data_root / "video_world" / "references" / "ref.ppm")
     train_manifest = tmp_path / "v2w_train.jsonl"
@@ -190,7 +194,9 @@ def test_source_backed_video_world_manifest_rejects_placeholder_rows(tmp_path: P
 
 
 def test_video_world_source_episode_overlap_is_reported(tmp_path: Path) -> None:
-    """Checks video world source episode overlap is reported."""
+    """The same ``source_episode`` in train and eval is reported as overlap and surfaced as a
+    warning.
+    """
     reference = tmp_path / "video_world" / "references" / "ref.ppm"
     _write_ppm(reference)
     train = tmp_path / "train.jsonl"
@@ -215,7 +221,6 @@ def test_video_world_source_episode_overlap_is_reported(tmp_path: Path) -> None:
 
 
 def test_video_world_v2w_manifest_requires_reference_image(tmp_path: Path) -> None:
-    """Checks video world V2W manifest requires reference image."""
     manifest = tmp_path / "missing_reference.jsonl"
     manifest.write_text(json.dumps({"prompt": "no reference"}) + "\n", encoding="utf-8")
 

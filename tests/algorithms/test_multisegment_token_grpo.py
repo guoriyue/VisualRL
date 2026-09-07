@@ -47,7 +47,9 @@ def _inputs(
 
 
 def test_weighted_mean_matches_token_grpo_per_segment() -> None:
-    """Checks weighted mean matches token GRPO per segment."""
+    """The multi-segment loss is the weighted mean of per-segment TokenGRPO losses and metrics
+    under ``segment_weights``, with zero-weight segments excluded from the denominator.
+    """
     adv = torch.ones(2)
     old_initial = torch.zeros(2, 2)
     old_final = torch.zeros(2, 3)
@@ -86,7 +88,9 @@ def test_weighted_mean_matches_token_grpo_per_segment() -> None:
 
 
 def test_default_selfcheck_weight_zero_does_not_affect_loss() -> None:
-    """Checks default selfcheck weight zero does not affect loss."""
+    """The default ``selfcheck_text`` weight is 0, so an absurd selfcheck signal cannot move the
+    loss.
+    """
     adv = torch.ones(1)
     image_old = torch.zeros(1, 2)
     image_signal = _segment_signal("initial_image", torch.zeros(1, 2), image_old)
@@ -112,7 +116,6 @@ def test_default_selfcheck_weight_zero_does_not_affect_loss() -> None:
 
 
 def test_nonzero_missing_segment_raises() -> None:
-    """Checks nonzero missing segment raises."""
     inputs = _inputs(
         {
             "initial_image": _segment_signal(

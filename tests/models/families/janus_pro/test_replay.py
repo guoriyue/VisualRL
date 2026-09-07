@@ -109,7 +109,10 @@ def _discrete_batch() -> RolloutBatch:
 
 
 def test_janus_model_replay_forward_returns_typed_replay_result() -> None:
-    """Checks Janus model replay forward returns typed replay result."""
+    """Replay returns the fused vocab-head payload (hidden, weight, bias, token ids) instead of
+    materialized logits, and its ``logprobs(actions)`` agrees with the eager
+    ``forward_image_logits`` gather.
+    """
     model = _build_stub_model()
     batch = _discrete_batch()
 

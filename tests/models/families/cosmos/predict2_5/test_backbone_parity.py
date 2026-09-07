@@ -54,7 +54,10 @@ def _state() -> CosmosPredict25SamplingState:
 
 
 def test_cosmos_predict25_forward_step_runs_real_unbatched_cfg() -> None:
-    """Checks Cosmos predict25 forward step runs real unbatched CFG."""
+    """Two separate real forwards; predict2.5 keeps predict2's ``cond + g*(cond - uncond)``
+    combine but emits it as-is (no EDM sigma conversion), and the prompt still shows through
+    the cond_mask blend.
+    """
     transformer = build_tiny_cosmos_transformer()
     calls = record_forward_calls(transformer)
     model = CosmosPredict25Model(

@@ -10,7 +10,9 @@ from vrl.models.steps.denoise.common import (
 
 
 def test_expand_batch_timestep_handles_rollout_scalar_and_eval_vector() -> None:
-    """Checks expand batch timestep handles rollout scalar and eval vector."""
+    """A rollout scalar timestep expands to a [B] vector on the scalar's dtype and device; an
+    eval-time vector passes through as the same object.
+    """
     scalar = torch.tensor(7.0, dtype=torch.float32)
     expanded = expand_batch_timestep(scalar, 3)
     assert expanded.shape == (3,)
@@ -23,7 +25,9 @@ def test_expand_batch_timestep_handles_rollout_scalar_and_eval_vector() -> None:
 
 
 def test_pack_eval_timestep_matches_forward_step_index_zero_convention() -> None:
-    """Checks pack eval timestep matches forward step index zero convention."""
+    """``pack_eval_timestep`` selects one column of a [B,T] timestep table as a [1,B] row, the
+    forward-step index-0 convention the eval path relies on.
+    """
     timesteps = torch.tensor([[10, 11], [20, 21], [30, 31]])
 
     packed = pack_eval_timestep(timesteps, 1)
@@ -33,7 +37,7 @@ def test_pack_eval_timestep_matches_forward_step_index_zero_convention() -> None
 
 
 def test_broadcast_spatial_timestep_returns_cosmos_shape() -> None:
-    """Checks broadcast spatial timestep returns Cosmos shape."""
+    """Cosmos takes a per-frame timestep of shape [B,1,T,1,1] broadcast from one scalar."""
     timestep = torch.tensor(0.25)
 
     spatial = broadcast_spatial_timestep(timestep, batch_size=2, frames=4)

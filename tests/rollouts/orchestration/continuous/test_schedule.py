@@ -335,7 +335,10 @@ def test_continuous_rejects_zero_window_before_algorithm_gate() -> None:
 
 @pytest.mark.asyncio
 async def test_continuous_drains_full_homogeneous_iteration() -> None:
-    """Checks continuous drains full homogeneous iteration."""
+    """A homogeneous continuous iteration drains the full set: one policy version for rollout and
+    consume, zero staleness, distinct group ids, and the item-age / ready-groups / queue-wait
+    phases all reported.
+    """
     runtime = _Runtime()
     collector = _Collector(runtime)
     syncer = _Syncer(runtime)
@@ -362,7 +365,10 @@ async def test_continuous_drains_full_homogeneous_iteration() -> None:
 
 @pytest.mark.asyncio
 async def test_weight_sync_barrier_advances_version_and_resumes() -> None:
-    """Checks weight sync barrier advances version and resumes."""
+    """``after_train_step`` performs exactly one weight sync, bumps the runtime policy version and
+    unpauses admission; the next iteration is produced and consumed at the new version with
+    zero staleness.
+    """
     runtime = _Runtime()
     collector = _Collector(runtime)
     syncer = _Syncer(runtime)
@@ -511,7 +517,6 @@ class _FailingCollector(_Collector):
 async def test_persistent_producer_failure_fails_fast_with_root_cause() -> None:
     # Every generation fails. The consumer must surface the producer's root
     # cause well before the (long) wait timeout, not an opaque timeout.
-    """Checks persistent producer failure fails fast with root cause."""
     runtime = _Runtime()
     collector = _FailingCollector(runtime, message="reward model OOM")
     syncer = _Syncer(runtime)
@@ -540,7 +545,6 @@ class _RewardFailingCollector(_Collector):
 async def test_reward_failure_fails_fast_and_never_reaches_queue() -> None:
     # Reward scoring (not generation) fails persistently: the consumer must
     # surface that root cause and the ready queue must stay empty.
-    """Checks reward failure fails fast and never reaches queue."""
     runtime = _Runtime()
     collector = _RewardFailingCollector(runtime)
     syncer = _Syncer(runtime)

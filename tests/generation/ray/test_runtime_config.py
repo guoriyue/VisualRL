@@ -1012,7 +1012,9 @@ def test_ray_backend_rejects_unapproved_driver_cuda_overlap() -> None:
 
 @pytest.mark.gpu
 def test_ray_backend_detects_cuda_trainable_module_when_policy_has_no_device() -> None:
-    """Checks Ray backend detects cuda trainable module when policy has no device."""
+    """When the policy exposes no device, the driver's CUDA device is read off its trainable
+    modules, so an overlap with the rollout GPUs is still caught.
+    """
     bundle = _Bundle(
         model=object(),
         trainable_modules={"transformer": torch.nn.Linear(1, 1).to("cuda:0")},
@@ -1033,10 +1035,8 @@ def test_ray_backend_detects_cuda_trainable_module_when_policy_has_no_device() -
 
 
 def test_ray_backend_allows_driver_cuda_policy_with_explicit_overlap() -> None:
-    """Checks Ray backend allows driver cuda policy with explicit overlap.
-
-    A colocated single-GPU topology derives on-demand rollout activation, so the
-    driver CUDA policy overlapping the rollout GPU is allowed.
+    """A colocated single-GPU topology derives on-demand rollout activation, so a driver CUDA
+    policy overlapping the rollout GPU is allowed.
     """
     config = _ray_config(
         _resource_cfg(
@@ -1052,7 +1052,7 @@ def test_ray_backend_allows_driver_cuda_policy_with_explicit_overlap() -> None:
 
 
 def test_ray_backend_allows_split_driver_cuda_when_devices_do_not_overlap() -> None:
-    """Checks Ray backend allows split driver cuda when devices do not overlap."""
+    """Disjoint trainer and rollout devices are accepted as-is and reported as not colocated."""
     config = _ray_config(
         _resource_cfg(trainer_devices=[0], rollout_devices=[1]),
     ).validate_driver_state(

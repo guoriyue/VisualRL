@@ -149,7 +149,6 @@ def test_sampling_scheduler_batch_size_rejects_coercible_or_non_positive_values(
 
 
 def test_unknown_algorithm_kind_raises() -> None:
-    """Checks unknown algorithm kind raises."""
     cfg = _minimal_grpo_cfg()
     cfg.algorithm.kind = "qpo"
     with pytest.raises(ValueError, match=r"unknown algorithm\.kind"):
@@ -1000,7 +999,6 @@ def test_valid_data_loaders_are_accepted(loader: str) -> None:
 
 
 def test_unknown_data_loader_raises() -> None:
-    """Checks unknown data loader raises."""
     cfg = _minimal_grpo_cfg()
     cfg.data.loader = "s3_loader"
     with pytest.raises(ValueError, match=r"unknown data\.loader"):
@@ -1074,7 +1072,6 @@ def test_explicit_data_loader_rejects_preprocessing_format_conflict(
 
 
 def test_prompt_image_manifest_requires_image_caption_fields() -> None:
-    """Checks prompt image manifest requires image caption fields."""
     with pytest.raises(ValueError, match=r"data\.preprocessing\.caption_field"):
         DataConfig(
             loader="prompt_image_manifest",
@@ -1149,7 +1146,7 @@ def test_prompt_image_manifest_rejects_mixture() -> None:
     ["random_without_replacement", "sequential_window"],
 )
 def test_valid_sampler_types_are_accepted(sampler_type: str) -> None:
-    """Checks valid sampler types are accepted."""
+    """Every sampler type in the registered set is accepted as-is."""
     data = DataConfig(
         loader="prompt_manifest",
         manifest="x",
@@ -1160,7 +1157,6 @@ def test_valid_sampler_types_are_accepted(sampler_type: str) -> None:
 
 
 def test_unknown_sampler_type_raises() -> None:
-    """Checks unknown sampler type raises."""
     with pytest.raises(ValueError, match=r"unknown data\.sampler\.type"):
         DataConfig(
             loader="prompt_manifest",
@@ -1180,7 +1176,6 @@ def test_zero_weight_observation_component_is_valid() -> None:
 
 
 def test_non_numeric_reward_weight_raises() -> None:
-    """Checks non numeric reward weight raises."""
     with pytest.raises(ValueError, match="must be numeric"):
         RewardConfig.model_validate({"components": {"aesthetic": "heavy"}, "kwargs": {}})
 
@@ -1239,7 +1234,6 @@ def test_reward_inference_rejects_unknown_component() -> None:
 
 
 def test_grpo_requires_valid_sde_type() -> None:
-    """Checks GRPO requires valid SDE type."""
     cfg = _minimal_grpo_cfg()
     cfg.rollout.sde.type = "euler"
     with pytest.raises(ValueError, match=r"unknown rollout\.sde\.type"):
@@ -1247,7 +1241,7 @@ def test_grpo_requires_valid_sde_type() -> None:
 
 
 def test_grpo_accepts_cps_sde_type() -> None:
-    """Checks GRPO accepts cps SDE type."""
+    """``cps`` is a valid ``rollout.sde.type`` for GRPO."""
     cfg = _minimal_grpo_cfg()
     cfg.rollout.sde.type = "cps"
     parsed = parse_config(cfg)
@@ -1293,7 +1287,9 @@ def test_janus_r1_family_requires_multisegment_algorithm() -> None:
 
 
 def test_production_video_reward_structural_rules() -> None:
-    """Checks production video reward structural rules."""
+    """A production Kling video-reward config with sleep_offload, a hub reward name, mp4 video
+    artifacts and a text-to-video task passes the production reward contract.
+    """
     cfg = OmegaConf.create(
         {
             "algorithm": {"kind": "grpo"},
@@ -1327,7 +1323,9 @@ def test_production_video_reward_structural_rules() -> None:
 
 
 def test_production_video_reward_accepts_image_to_video_task_type() -> None:
-    """Checks production video reward accepts image to video task type."""
+    """The production contract also accepts ``image_to_video`` with an image-caption manifest and
+    reference-image conditioning.
+    """
     cfg = OmegaConf.create(
         {
             "algorithm": {"kind": "grpo"},
@@ -1381,7 +1379,9 @@ def test_production_gate_defaults_to_disabled_and_accepts_enabled() -> None:
 
 
 def test_missing_mandatory_value_produces_repo_standard_message() -> None:
-    """Checks missing mandatory value produces repo standard message."""
+    """An OmegaConf ``???`` marker surfaces as the repo-standard 'config missing required field'
+    error.
+    """
     cfg = _minimal_grpo_cfg()
     cfg.rollout.sde.type = "flow_grpo"
     # Inject an OmegaConf mandatory-missing marker

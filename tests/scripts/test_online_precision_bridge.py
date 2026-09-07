@@ -43,7 +43,9 @@ def test_bridge_uses_aligned_public_precision(experiment):
 
 
 def test_precision_block_drives_trainer():
-    """Checks precision block drives trainer."""
+    """``precision.training.dtype`` is what the trainer's ``train_precision`` resolves to; fp32
+    and bf16 both round-trip through the dtype resolver.
+    """
     cfg = load_config("experiment/sd3_5/online_grpo_ocr")
     cfg = _with_precision("sd3_5/online_grpo_ocr", _plain_policy("fp32"))
     assert resolve_torch_dtype(build_configs(cfg).trainer.train_precision) is torch.float32
@@ -181,7 +183,6 @@ def _rollout_quantization_policy(format_name: str) -> dict:
 @pytest.mark.parametrize("math,expected", [("fp32", torch.float32), ("bf16", torch.bfloat16)])
 def test_math_axis_resolves_to_dtype(math, expected):
     # P2: the `math` axis resolves to the evaluator's log-prob math dtype.
-    """Checks math axis resolves to dtype."""
     from vrl.config.precision import PrecisionPolicy
     from vrl.models.dtypes import resolve_torch_dtype
 

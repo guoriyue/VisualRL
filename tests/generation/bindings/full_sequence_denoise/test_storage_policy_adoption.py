@@ -18,7 +18,10 @@ from vrl.trajectory import TrajectoryResolver, TrajectoryStoragePolicy
 
 
 def test_diffusion_rollout_batch_builder_applies_storage_policy() -> None:
-    """Checks diffusion rollout batch builder applies storage policy."""
+    """The trajectory storage policy (device, dtype) is applied to the denoise observations and
+    actions when the batch is built, while the trajectory object stays the gatherer's, not a
+    copy.
+    """
     request = GenerationRequest(
         request_id="req",
         family="sd3_5",

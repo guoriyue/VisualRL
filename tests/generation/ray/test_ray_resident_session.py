@@ -165,7 +165,9 @@ def _launch_inputs() -> RayGenerationLaunchInputs:
 def test_ray_generation_worker_load_policy_is_idempotent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks Ray generation worker load policy is idempotent."""
+    """A second ``load_policy`` is a no-op: the executor is built once and keeps the launch
+    inputs' gatherer.
+    """
     _install_tiny_family(monkeypatch)
     _TinyChunkExecutor.build_count = 0
     launch_inputs = _launch_inputs()
@@ -185,7 +187,6 @@ def test_ray_generation_worker_rebuilds_executor_after_release(
 ) -> None:
     # The resident-session contract: a released worker tears down its executor and
     # rebuilds a fresh one on the next load_policy (not the cached idempotent path).
-    """Checks Ray generation worker rebuilds executor after release."""
     _install_tiny_family(monkeypatch)
     _TinyChunkExecutor.build_count = 0
     worker = RayGenerationWorker("rollout-0", _launch_inputs())

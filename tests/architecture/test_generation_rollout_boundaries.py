@@ -18,7 +18,9 @@ _GENERATION_MODEL_IMPORT_FLOOR = (
 
 
 def test_generation_layer_does_not_import_rollout_or_training_layers() -> None:
-    """Checks generation layer does not import rollout or training layers."""
+    """``vrl.generation`` must not import the algorithm, reward, rollout, script or trainer
+    layers: generation is the bottom of the stack.
+    """
     violations = _forbidden_imports(
         VRL_ROOT / "generation",
         forbidden=(
@@ -175,7 +177,9 @@ def test_ray_ignore_excludes_submodule_git_pointer_files(tmp_path: Path) -> None
 
 
 def test_trajectory_layer_stays_family_neutral() -> None:
-    """Checks trajectory layer stays family neutral."""
+    """``vrl.trajectory`` stays family- and runtime-neutral: no imports from the generation
+    bindings, the Ray runtime, rewards, rollouts, algorithms or trainers.
+    """
     violations = _forbidden_imports(
         VRL_ROOT / "trajectory",
         forbidden=(
@@ -234,7 +238,9 @@ def test_model_family_registry_stays_import_light() -> None:
 
 
 def test_shared_ray_substrate_stays_domain_neutral() -> None:
-    """Checks shared Ray substrate stays domain neutral."""
+    """``vrl.ray`` is shared substrate and must not know generation, rewards, rollouts or
+    trainers.
+    """
     violations = _forbidden_imports(
         VRL_ROOT / "ray",
         forbidden=(
@@ -260,7 +266,9 @@ def test_reward_models_live_under_models() -> None:
 
 
 def test_reward_function_implementations_live_under_functions() -> None:
-    """Checks reward function implementations live under functions."""
+    """Every registered reward function module lives under ``vrl/rewards/functions``, the package
+    root keeps its fixed scaffolding files, and no unregistered module hides in ``functions/``.
+    """
     rewards_root = VRL_ROOT / "rewards"
     required_root = {
         "__init__.py",
@@ -281,7 +289,9 @@ def test_reward_function_implementations_live_under_functions() -> None:
 
 
 def test_generation_execution_core_stays_ray_neutral() -> None:
-    """Checks generation execution core stays Ray neutral."""
+    """``vrl.generation.execution`` is the Ray-free core: neither ``vrl.generation.ray`` nor
+    ``vrl.ray`` may be imported there.
+    """
     violations = _forbidden_imports(
         VRL_ROOT / "generation" / "execution",
         forbidden=("vrl.generation.ray", "vrl.ray"),

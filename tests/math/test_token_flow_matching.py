@@ -118,7 +118,9 @@ def test_cfg_scale_two_matches_upstream_unconditional_base_formula() -> None:
 
 
 def test_sample_and_replay_go_through_net_and_agree() -> None:
-    """Checks sample and replay go through net and agree."""
+    """Sampling through the head and replaying the sampled token with the saved prior reproduce
+    the collection-time log-prob exactly: the GRPO ratio == 1 invariant.
+    """
     b, token_dim, hidden = 2, 4, 6
     head = _FakeHead(token_dim)
     cond = torch.randn(b, hidden)

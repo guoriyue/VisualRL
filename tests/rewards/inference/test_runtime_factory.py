@@ -51,7 +51,9 @@ def test_runtime_requires_model_factory() -> None:
 
 
 def test_video_reward_derives_internal_model_factory_from_reward_name(tmp_path) -> None:
-    """Checks video reward derives internal model factory from reward name."""
+    """A hub-style ``reward_name`` becomes both ``reward_model_name`` and ``reward_model_version``
+    in the scorer's worker config, next to the class's own ``model_factory``.
+    """
     reward = KlingVideoReward(
         reward_name="KlingTeam/VideoReward@main",
         score_key="overall_reward",

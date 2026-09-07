@@ -42,7 +42,10 @@ def _sample() -> RewardSample:
 
 @pytest.mark.asyncio
 async def test_video_reward_debug_records_versions_and_latency(tmp_path: Path) -> None:
-    """Checks video reward debug records versions and latency."""
+    """Debug rows record the score key and the materialization / inference / total latencies on
+    the request row, and the scorer's reward_model_version plus per-artifact timing on the
+    result row.
+    """
     reward = KlingVideoReward(
         reward_name="KlingTeam/VideoReward@main",
         score_key="overall_reward",

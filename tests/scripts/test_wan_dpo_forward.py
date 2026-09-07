@@ -60,7 +60,6 @@ def _real_backbone_output(transformer, noisy, timesteps, encoder_hidden_states):
 
 
 def test_wan_forward_unwraps_model_transformer() -> None:
-    """Checks Wan forward unwraps model transformer."""
     transformer = build_tiny_wan_transformer().eval()
     noisy, timesteps, encoder = _wan_backbone_inputs()
     # Pin against the real backbone's own output, computed BEFORE the recorder is
@@ -81,7 +80,9 @@ def test_wan_forward_unwraps_model_transformer() -> None:
 
 
 def test_wan_forward_still_accepts_raw_transformer() -> None:
-    """Checks Wan forward still accepts raw transformer."""
+    """``wan_forward`` also accepts a bare transformer (no policy wrapper) and calls it exactly
+    once.
+    """
     transformer = build_tiny_wan_transformer().eval()
     noisy, timesteps, encoder = _wan_backbone_inputs(batch=1)
     expected = _real_backbone_output(transformer, noisy, timesteps, encoder)

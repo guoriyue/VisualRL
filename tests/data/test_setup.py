@@ -185,7 +185,10 @@ def test_video_world_bridge_rows_match_cosmos_consumer(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    """Checks video world bridge rows match Cosmos consumer."""
+    """Bridge episodes become video-world rows with a data-root-relative reference image,
+    ``video2world`` task type and first-frame conditioning, and load back through the Cosmos
+    consumer's manifest path with the reference resolved.
+    """
     episodes = [
         {
             "image": Image.new("RGB", (4, 4), (10, 20, 30)),
@@ -368,7 +371,9 @@ def test_anime_positives_prepares_both_manifests_end_to_end(monkeypatch, tmp_pat
 
 
 def test_for_experiment_plan_marks_committed_manifest_ready(tmp_path: Path) -> None:
-    """Checks for experiment plan marks committed manifest ready."""
+    """A committed prompt manifest marks the experiment's dataset plan ready, with its row count
+    and no fetch command.
+    """
     manifest_dir = tmp_path / "datasets" / "pickscore_sfw"
     manifest_dir.mkdir(parents=True)
     (manifest_dir / "train.txt").write_text("a\nb\nc\n", encoding="utf-8")
@@ -396,7 +401,9 @@ def test_for_experiment_plan_flags_pickapic_download(tmp_path: Path) -> None:
 
 
 def test_for_experiment_plan_flags_missing_manifest_with_command(tmp_path: Path) -> None:
-    """Checks for experiment plan flags missing manifest with command."""
+    """A missing Danbooru manifest leaves the plan not ready and names the ``anime-prompts``
+    command that produces it.
+    """
     plan = bootstrap.resolve_experiment_dataset_plan(
         {
             "loader": "prompt_manifest",
@@ -410,7 +417,9 @@ def test_for_experiment_plan_flags_missing_manifest_with_command(tmp_path: Path)
 
 
 def test_for_experiment_resolves_real_wan_experiment(capsys) -> None:
-    """Checks for experiment resolves real Wan experiment."""
+    """``for-experiment`` on the real Wan Kling experiment reports the config's loader and
+    manifest and finds every step present and complete.
+    """
     from vrl.config.loading import load_config
 
     experiment = "wan_2_1/online_grpo_kling_video_reward"

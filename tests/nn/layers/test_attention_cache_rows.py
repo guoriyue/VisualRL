@@ -15,7 +15,9 @@ from vrl.nn.layers.attention.cache_rows import (
 
 
 def test_ar_split_and_concat_rows_preserve_nested_kv_order() -> None:
-    """Checks AR split and concat rows preserve nested KV order."""
+    """Splitting a batched cache into rows and concatenating rows back preserves the nested
+    past_key_values structure and lets rows be reordered.
+    """
     key = torch.arange(3 * 2 * 4, dtype=torch.float32).reshape(3, 2, 4)
     value = key + 100
     cache = {
@@ -37,13 +39,14 @@ def test_ar_split_and_concat_rows_preserve_nested_kv_order() -> None:
 
 
 def test_ar_split_rows_rejects_wrong_batch_size() -> None:
-    """Checks AR split rows rejects wrong batch size."""
     with pytest.raises(ValueError, match="cannot split tensor"):
         ar_split_rows(torch.zeros(2, 4), 3)
 
 
 def test_ar_cache_rows_gather_and_scatter_nested_values() -> None:
-    """Checks AR cache rows gather and scatter nested values."""
+    """``ARCacheRows`` gathers rows in the requested order, scatters replacements into nested
+    values, and copies one row over another through ``select_rows`` / ``scatter_rows``.
+    """
     key = torch.arange(3 * 2 * 4, dtype=torch.float32).reshape(3, 2, 4)
     value = key + 100
     cache = {
@@ -80,7 +83,6 @@ def test_ar_cache_rows_gather_and_scatter_nested_values() -> None:
 
 
 def test_ar_cache_rows_rejects_invalid_indices() -> None:
-    """Checks AR cache rows rejects invalid indices."""
     rows = ARCacheRows.from_batched(torch.zeros(2, 4), 2, owner="test.cache")
 
     with pytest.raises(IndexError, match=r"test\.cache"):
@@ -91,7 +93,9 @@ def test_ar_cache_rows_rejects_invalid_indices() -> None:
 
 
 def test_ar_cache_helpers_preserve_transformers_dynamic_cache_objects() -> None:
-    """Checks AR cache helpers preserve transformers dynamic cache objects."""
+    """Row split / concat keep ``DynamicCache`` objects as ``DynamicCache`` (transformers 5 has no
+    legacy-tuple conversion) with the K/V content preserved.
+    """
     key = torch.arange(2 * 3 * 4 * 5, dtype=torch.float32).reshape(2, 3, 4, 5)
     value = key + 100
     cache = DynamicCache()

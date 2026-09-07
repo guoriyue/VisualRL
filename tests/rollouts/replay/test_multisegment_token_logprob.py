@@ -157,7 +157,9 @@ class _SegmentReplayModel:
 
 
 def test_evaluator_can_replay_text_segment_without_using_image_path() -> None:
-    """Checks evaluator can replay text segment without using image path."""
+    """Enabling only the text segment replays only it (the image path is never touched) and makes
+    it the primary segment.
+    """
     batch = _trajectory_batch()
     assert batch.trajectory is not None
     model = _SegmentReplayModel()
@@ -198,7 +200,10 @@ def test_evaluator_applies_rollout_temperature_to_all_segments() -> None:
 
 
 def test_evaluator_reads_r1_segments_from_canonical_trajectory_fields() -> None:
-    """Checks evaluator reads R1 segments from canonical trajectory fields."""
+    """With both R1 segments enabled, replay reads them from the canonical trajectory segments in
+    enabled order, the last enabled segment is primary, and no segment bookkeeping leaks into
+    the signal context.
+    """
     batch = _trajectory_batch()
     model = _SegmentReplayModel()
     evaluator = MultiSegmentTokenLogProbEvaluator(

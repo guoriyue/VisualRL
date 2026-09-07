@@ -555,7 +555,10 @@ def test_wan_dual_stage_replay_builder_loads_low_noise_transformer(
 def test_cosmos_predict25_replay_builder_keeps_diffusion_nft_surface(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks Cosmos predict25 replay builder keeps diffusion NFT surface."""
+    """The predict2.5 replay bundle is minimal (no pipeline, no raw handle) yet still exposes
+    ``diffusion_nft_prepare_transformer_input``, the surface DiffusionNFT needs from a replay
+    model.
+    """
     from vrl.models.families.cosmos.predict2_5 import model as predict25_model
     from vrl.models.families.registry import get_model_family_entry
     from vrl.models.steps.denoise import build as _shared_build
@@ -592,7 +595,10 @@ def test_cosmos_predict25_replay_builder_keeps_diffusion_nft_surface(
 def test_anima_replay_builder_uses_only_transformer_checkpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks Anima replay builder uses only transformer checkpoint."""
+    """Anima's replay bundle loads only the transformer checkpoint: no pipeline, no raw handle,
+    the transformer as sole trainable module, and prompt encoding refused because no text
+    encoder exists.
+    """
     from vrl.models.families.cosmos.anima import runtime
 
     monkeypatch.setattr(
@@ -621,14 +627,19 @@ def test_anima_replay_builder_uses_only_transformer_checkpoint(
 
 
 def test_anima_empty_prompts_are_replaced_before_tokenization() -> None:
-    """Checks Anima empty prompts are replaced before tokenization."""
+    """Empty or whitespace-only prompts become "." before tokenization so the tokenizer never sees
+    an empty string.
+    """
     from vrl.models.families.cosmos.anima.model import _non_empty_prompts
 
     assert _non_empty_prompts(["", "  ", "anime"]) == [".", ".", "anime"]
 
 
 def test_anima_model_build_uses_explicit_local_paths() -> None:
-    """Checks the Anima model build uses explicit local paths."""
+    """Every explicit local path in the anima model section (transformer, text encoder, VAE, both
+    tokenizers) reaches ``model_config`` unchanged for both the rollout and the replay build;
+    only the rollout build carries ``RolloutBuildOptions``.
+    """
     from vrl.config.loading import load_config
     from vrl.models.families.registry import get_model_family_entry
 
@@ -745,7 +756,9 @@ def test_ar_replay_builders_return_minimal_bundles(
     model_attr: str,
     use_lora: bool,
 ) -> None:
-    """Checks AR replay builders return minimal bundles."""
+    """Every AR family's replay bundle is minimal: full generation modules not loaded, no raw
+    handle, and ``model`` as the single trainable module, with or without LoRA.
+    """
     from vrl.models.families.registry import get_model_family_entry
 
     model_module = __import__(model_module_path, fromlist=[model_attr])

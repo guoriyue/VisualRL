@@ -93,7 +93,9 @@ def test_nonstrict_resume_clears_the_warm_start_adapter_path() -> None:
 
 
 def test_training_checkpoint_round_trips_trainer_and_owned_state(tmp_path) -> None:
-    """Checks training checkpoint round trips trainer and checkpoint-owned state."""
+    """Save then restore round-trips trainer progress (step, global_step) and checkpoint-owned
+    module state; ``next_epoch`` comes from the saved progress.
+    """
     trainer = _Trainer()
     source = _Bundle()
     with torch.no_grad():
@@ -1416,7 +1418,6 @@ def test_adapter_export_selects_default_and_excludes_frozen_previous(tmp_path) -
 
 
 def test_load_training_checkpoint_requires_checkpoint_pt(tmp_path) -> None:
-    """Checks load training checkpoint requires checkpoint pt."""
     ckpt = tmp_path / "checkpoint-1"
     ckpt.mkdir()
 
@@ -1425,7 +1426,6 @@ def test_load_training_checkpoint_requires_checkpoint_pt(tmp_path) -> None:
 
 
 def test_load_training_checkpoint_rejects_bad_schema(tmp_path) -> None:
-    """Checks load training checkpoint rejects bad schema."""
     ckpt = tmp_path / "checkpoint-1"
     ckpt.mkdir()
     torch.save({"schema_version": 999}, ckpt / TRAINING_CHECKPOINT_NAME)
@@ -1550,13 +1550,14 @@ def test_save_training_checkpoint_requires_canonical_family(tmp_path, family) ->
 
 
 def test_load_checkpoint_state_strict_rejects_key_mismatch() -> None:
-    """Checks load checkpoint state strict rejects key mismatch."""
     with pytest.raises(ValueError, match="missing"):
         load_checkpoint_state(_Bundle(), {}, strict=True)
 
 
 def test_infer_next_epoch_falls_back_to_trainer_step_for_checkpoint_final(tmp_path) -> None:
-    """Checks infer next epoch falls back to trainer step for checkpoint final."""
+    """``checkpoint-final`` carries no epoch in its name, so the next epoch falls back to the
+    saved trainer step.
+    """
     ckpt = tmp_path / "checkpoint-final"
     ckpt.mkdir()
 
@@ -1564,7 +1565,9 @@ def test_infer_next_epoch_falls_back_to_trainer_step_for_checkpoint_final(tmp_pa
 
 
 def test_infer_next_epoch_falls_back_to_numeric_checkpoint_suffix(tmp_path) -> None:
-    """Checks infer next epoch falls back to numeric checkpoint suffix."""
+    """With no trainer state the next epoch is parsed from the ``checkpoint-<N>`` directory
+    suffix.
+    """
     ckpt = tmp_path / "checkpoint-42"
     ckpt.mkdir()
 
@@ -1572,7 +1575,6 @@ def test_infer_next_epoch_falls_back_to_numeric_checkpoint_suffix(tmp_path) -> N
 
 
 def test_load_training_checkpoint_rejects_non_object_meta(tmp_path) -> None:
-    """Checks load training checkpoint rejects non object meta."""
     ckpt = tmp_path / "checkpoint-1"
     ckpt.mkdir()
     torch.save(

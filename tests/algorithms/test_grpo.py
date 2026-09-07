@@ -80,7 +80,9 @@ class TestGRPOFlowMatchingKL:
     """Groups tests for grpoflow matching KL."""
 
     def test_flow_kl_ignores_dt_by_default_to_match_flow_grpo(self) -> None:
-        """Checks flow KL ignores dt by default to match flow GRPO."""
+        """Flow KL defaults to ``0.5 * ||mean - ref_mean||^2 / std^2`` without the ``dt`` factor,
+        matching Flow-GRPO (kl 0.5 -> loss 0.02 at coef 0.04).
+        """
         grpo = GRPO(GRPOConfig(kl_coef=0.04))
         signals = _flow_signals(
             log_prob=torch.zeros(2),
@@ -104,7 +106,7 @@ class TestGRPOFlowMatchingKL:
         assert metrics.weighted_kl_loss == pytest.approx(0.02)
 
     def test_flow_kl_can_use_dt_when_explicitly_configured(self) -> None:
-        """Checks flow KL can use dt when explicitly configured."""
+        """``flow_kl_use_dt=True`` scales the flow KL by the step size (kl 0.5 -> 50 at dt=0.1)."""
         grpo = GRPO(GRPOConfig(kl_coef=1.0, flow_kl_use_dt=True))
         signals = _flow_signals(
             log_prob=torch.zeros(2),

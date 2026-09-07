@@ -116,7 +116,9 @@ def test_trainer_config_from_cfg_reports_all_missing_required_keys() -> None:
 
 
 def test_config_groups_are_not_flattened() -> None:
-    """Checks config groups are not flattened."""
+    """Bundled config groups keep their nested layout: no experiment / model / sampling entry sits
+    flat at the group root, and the retired ``task`` and ``profiling`` groups are empty.
+    """
     flattened = [
         name
         for group in ("experiment", "model", "sampling")
@@ -232,7 +234,9 @@ def test_experiments_use_dataset_groups_and_only_override_reward_weights() -> No
 
 
 def test_reward_configs_are_single_reward_building_blocks() -> None:
-    """Checks reward configs are single reward building blocks."""
+    """Every bundled ``reward/`` preset defines exactly one component, so presets compose by
+    addition.
+    """
     offenders = []
     for name in list_bundled_configs("reward"):
         raw = _load_bundled_raw(name)
@@ -244,7 +248,10 @@ def test_reward_configs_are_single_reward_building_blocks() -> None:
 
 
 def test_all_experiments_load_and_validate() -> None:
-    """Checks all experiments load and validate."""
+    """Every bundled experiment loads, carries the required top-level sections and keys, has
+    migrated off ``adv_estimator``, and its raw ``model`` block survives typed parsing key-for-
+    key.
+    """
     for name in _experiment_names():
         cfg = _load_experiment_for_static_validation(name)
         assert "model" in cfg, f"{name} missing model.*"
@@ -355,7 +362,9 @@ def test_validate_rejects_compile_with_gradient_checkpointing() -> None:
 
 
 def test_rollout_orchestration_group_override_uses_rollout_namespace() -> None:
-    """Checks rollout orchestration group override uses rollout namespace."""
+    """``/base/rollout/orchestration=continuous`` lands under ``trainer.rollout_orchestration``
+    and types into a continuous schedule with a positive staleness bound.
+    """
     cfg = load_config(
         "experiment/sd3_5/online_grpo_ocr",
         overrides=["/base/rollout/orchestration=continuous"],
@@ -606,7 +615,9 @@ def test_masked_physical_ordinal_comes_from_the_config_knob_not_the_auto_path() 
 
 
 def test_algorithm_config_dispatches_representative_kinds() -> None:
-    """Checks algorithm config dispatches representative kinds."""
+    """``algorithm.kind`` dispatches to the matching hyperparameter dataclass across
+    representative experiments (GRPO, token GRPO, multi-segment token GRPO, DPO, NFT).
+    """
     examples = {
         "sd3_5/online_grpo_ocr": GRPOConfig,
         "janus_pro/online_grpo_ocr": TokenGRPOConfig,
@@ -623,7 +634,10 @@ def test_algorithm_config_dispatches_representative_kinds() -> None:
 def test_cosmos_v2w_production_validation_accepts_source_backed_data(
     tmp_path: Path,
 ) -> None:
-    """Checks Cosmos V2W production validation accepts source-backed data."""
+    """Cosmos V2W production validation accepts a source-backed manifest pair whose metadata
+    carries the full DROID provenance (repo, split, episode, video, frame, decode method,
+    conditioning).
+    """
     data_root = tmp_path / "external"
     reference = data_root / "video_world" / "references" / "ref.ppm"
     reference.parent.mkdir(parents=True, exist_ok=True)
@@ -782,7 +796,9 @@ def test_cosmos_target_v2w_production_validation_requires_target_clip(
 
 
 def test_wan_i2v_production_validation_accepts_source_backed_data(tmp_path: Path) -> None:
-    """Checks Wan I2V production validation accepts source-backed data."""
+    """Wan I2V production validation accepts source-backed VideoPhy manifests: image, caption,
+    task type, and the CSV / video-URL / decode provenance in metadata.
+    """
     data_root = tmp_path / "videophy_i2v"
     train_image = data_root / "images" / "train" / "000.ppm"
     eval_image = data_root / "images" / "eval" / "000.ppm"
@@ -883,7 +899,6 @@ def test_wan_i2v_fsdp_2x_l4_resolves_bounded_shared_topology(cuda_devices) -> No
 
 
 def test_wan_video_reward_production_config_requires_reward_name() -> None:
-    """Checks Wan video reward production config requires reward name."""
     cfg = load_config("experiment/wan_2_1/online_grpo_kling_video_reward")
     cfg.reward.kwargs.kling_video_reward.reward_name = ""
 
@@ -892,7 +907,9 @@ def test_wan_video_reward_production_config_requires_reward_name() -> None:
 
 
 def test_wan_video_reward_production_rejects_extra_loader_fields() -> None:
-    """Checks Wan video reward production rejects extra loader fields."""
+    """Production Kling configs reject loader-level keys (``import_path``, ``model_factory``)
+    inside ``worker_config``.
+    """
     cfg = load_config("experiment/wan_2_1/online_grpo_kling_video_reward")
     cfg.reward.kwargs.kling_video_reward.worker_config.import_path = "fake:thing"
 
@@ -907,7 +924,9 @@ def test_wan_video_reward_production_rejects_extra_loader_fields() -> None:
 
 
 def test_unified_train_entrypoint_reads_yaml_entrypoint() -> None:
-    """Checks unified train entrypoint reads YAML entrypoint."""
+    """``resolve_train_target`` returns the YAML ``trainer.entrypoint`` and that dotted path
+    imports to a callable.
+    """
     from vrl.scripts.train import resolve_train_target
     from vrl.utils.config import import_from_path
 
@@ -919,7 +938,9 @@ def test_unified_train_entrypoint_reads_yaml_entrypoint() -> None:
 
 
 def test_cli_overrides_reach_typed_trainer_config() -> None:
-    """Checks CLI overrides reach typed trainer config."""
+    """CLI overrides for resume, torch profiler, drop-zero-advantage and batch width all reach the
+    typed trainer / resume / rollout configs.
+    """
     cfg = load_config(
         "experiment/sd3_5/online_grpo_ocr",
         overrides=[
@@ -1019,7 +1040,6 @@ def test_generation_chunk_rejects_non_positive_or_non_integer_values(value: str)
 
 
 def test_negative_reward_component_weights_are_rejected() -> None:
-    """Checks negative reward component weights are rejected."""
     cfg = load_config(
         "experiment/anima_preview3/online_grpo",
         overrides=[
@@ -1046,7 +1066,6 @@ def test_public_reward_builder_validates_its_input() -> None:
 
 
 def test_required_training_fields_fail_fast() -> None:
-    """Checks required training fields fail fast."""
     cfg = load_config("experiment/wan_2_1/online_grpo_ocr")
     cfg.trainer.output_dir = "???"
     with pytest.raises(ValueError, match=r"trainer\.output_dir"):
@@ -1054,7 +1073,7 @@ def test_required_training_fields_fail_fast() -> None:
 
 
 def test_dpo_allows_explicit_null_max_train_samples() -> None:
-    """Checks DPO allows explicit null max train samples."""
+    """An explicit ``data.max_train_samples=null`` is a valid DPO setting, not a missing field."""
     cfg = load_config("experiment/wan_2_1/offline_dpo_pickapic")
     cfg.data.max_train_samples = None
 

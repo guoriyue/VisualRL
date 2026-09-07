@@ -1061,7 +1061,9 @@ def test_host_memory_budget_fail_fast(monkeypatch) -> None:
 
 
 def test_select_move_and_remap_preserve_rollout_trajectory_fields() -> None:
-    """Checks select move and remap preserve rollout trajectory fields."""
+    """Selecting, moving and remapping a batch keep every rollout trajectory field (token ids,
+    log-probs, masks, prompt and uncond ids) attached and consistent with the selected rows.
+    """
     import torch
 
     from vrl.generation import GenerationRequest, GenerationSampleRow

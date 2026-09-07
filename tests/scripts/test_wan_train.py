@@ -9,7 +9,9 @@ from vrl.scripts.common.online import _preflight_production_video_reward
 def test_production_preflight_fails_when_inference_code_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks production preflight fails when inference code missing."""
+    """With production Kling enabled, a missing inference backend fails the preflight naming the
+    repo-owned backend.
+    """
 
     def _raise() -> None:
         raise ImportError("missing Kling inference backend")
@@ -27,7 +29,9 @@ def test_production_preflight_fails_when_inference_code_missing(
 def test_production_preflight_skipped_when_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks production preflight skipped when disabled."""
+    """With production Kling disabled the preflight never imports the backend, so a missing
+    backend is not an error.
+    """
 
     def _raise() -> None:
         raise ImportError("missing Kling inference backend")

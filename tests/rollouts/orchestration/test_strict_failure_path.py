@@ -117,7 +117,6 @@ def _schedule(
 
 @pytest.mark.asyncio
 async def test_cleanup_runs_when_collect_raises() -> None:
-    """Checks cleanup runs when collect raises."""
     calls: list[str] = []
     schedule = _schedule(_Collector(calls), _Strategy(calls), calls=calls)
 

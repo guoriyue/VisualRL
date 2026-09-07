@@ -26,7 +26,9 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 
 
 def test_build_prompt_rows_tracks_provenance_and_buckets(tmp_path: Path) -> None:
-    """Checks build prompt rows tracks provenance and buckets."""
+    """Prompt rows carry domain / template / prompt-style provenance and a bucket, mix tag-style
+    and language-style prompts, and split into train and eval by the requested limits.
+    """
     metadata = tmp_path / "posts.jsonl"
     _write_jsonl(
         metadata,
@@ -68,7 +70,9 @@ def test_build_prompt_rows_tracks_provenance_and_buckets(tmp_path: Path) -> None
 
 
 def test_build_prompt_rows_reads_danbooru_json_and_tar_gz(tmp_path: Path) -> None:
-    """Checks build prompt rows reads Danbooru JSON and tar gz."""
+    """Metadata is read from a JSON-lines file or from a ``.tar.gz`` holding one, with tags taken
+    from ``tag_string``.
+    """
     rows = [
         {
             "id": 1,
@@ -100,7 +104,9 @@ def test_build_prompt_rows_reads_danbooru_json_and_tar_gz(tmp_path: Path) -> Non
 
 
 def test_build_prompt_rows_uses_bucket_quotas_with_score_fallback(tmp_path: Path) -> None:
-    """Checks build prompt rows uses bucket quotas with score fallback."""
+    """Equal bucket weights with ``limit=6`` give each bucket two rows; a bucket short of posts
+    above ``preferred_min_score`` falls back to posts down to ``min_score``.
+    """
     metadata = tmp_path / "posts.jsonl"
     rows: list[dict] = []
     hair_tags = ["black_hair", "brown_hair", "blonde_hair", "red_hair", "blue_hair", "pink_hair"]
@@ -149,7 +155,7 @@ def test_build_prompt_rows_uses_bucket_quotas_with_score_fallback(tmp_path: Path
 
 
 def test_build_prompt_rows_allows_hand_focus_without_full_body(tmp_path: Path) -> None:
-    """Checks build prompt rows allows hand focus without full body."""
+    """``hand_focus`` posts qualify without ``full_body`` and are framed as ``upper body``."""
     metadata = tmp_path / "posts.jsonl"
     _write_jsonl(
         metadata,
@@ -229,7 +235,9 @@ def test_download_danbooru_images_downloads_only_positive_selection(tmp_path: Pa
 
 
 def test_build_positive_images_prepares_manifests_end_to_end(tmp_path: Path) -> None:
-    """Checks build positive images prepares manifests end-to-end."""
+    """``build_positive_images`` keeps only posts passing the score filter, fetches just their
+    images, and writes the positive and hand-crop manifests with matching report counts.
+    """
     metadata = tmp_path / "posts.jsonl"
     rows = [
         {
@@ -314,7 +322,7 @@ def test_positive_and_hand_crop_rows(tmp_path: Path) -> None:
 
 
 def test_build_safety_prompts_requires_danbooru_metadata(tmp_path: Path) -> None:
-    """Checks build safety prompts requires Danbooru metadata."""
+    """Safety prompts cannot be built without Danbooru metadata."""
     train_output = tmp_path / "train.jsonl"
     eval_output = tmp_path / "eval_baseline.jsonl"
 
@@ -332,7 +340,10 @@ def test_build_safety_prompts_requires_danbooru_metadata(tmp_path: Path) -> None
 def test_build_danbooru_safety_prompt_rows_uses_ratings_and_nsfw_tags(
     tmp_path: Path,
 ) -> None:
-    """Checks build Danbooru safety prompt rows uses ratings and NSFW tags."""
+    """Safety prompt rows come only from explicit / questionable-rated posts, carry their NSFW
+    tags and a ``rating:`` token in the prompt, and drop the dataset-level provenance keys
+    (safety_target, domain, template_id).
+    """
     metadata = tmp_path / "posts.jsonl"
     _write_jsonl(
         metadata,
@@ -384,7 +395,9 @@ def test_build_danbooru_safety_prompt_rows_uses_ratings_and_nsfw_tags(
 
 
 def test_build_safety_prompts_from_danbooru_metadata(tmp_path: Path) -> None:
-    """Checks build safety prompts from Danbooru metadata."""
+    """``build_safety_prompts`` writes train / eval splits balanced across explicit and
+    questionable ratings, plus a report with per-split rating counts and the top NSFW tags.
+    """
     metadata = tmp_path / "posts.jsonl"
     hair_tags = [
         "black_hair",

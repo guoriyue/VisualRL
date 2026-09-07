@@ -68,7 +68,9 @@ async def test_reward_function_in_process_scores_without_disk() -> None:
 
 @pytest.mark.asyncio
 async def test_reward_function_in_process_single_score() -> None:
-    """Checks a single in-process reward score."""
+    """A single in-process ``score`` on an all-zero image returns the model's score for it (0.0
+    for the test model).
+    """
     reward = _reward_function_in_process()
     assert await reward.score(_sample(torch.zeros(1, 3, 2, 2))) == pytest.approx(0.0)
 

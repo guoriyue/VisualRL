@@ -9,7 +9,9 @@ from vrl.models.steps.denoise.common import (
 
 
 def test_chunked_latent_decoder_decodes_in_batch_chunks() -> None:
-    """Checks chunked latent decoder decodes in batch batches."""
+    """With ``decode_batch_size=1`` every latent row is its own VAE call, and prepare -> decode ->
+    postprocess compose in that order (``x*2``, ``+10``, ``-1``).
+    """
     calls: list[torch.Tensor] = []
 
     def decode(batch: torch.Tensor) -> torch.Tensor:
@@ -34,7 +36,9 @@ def test_chunked_latent_decoder_decodes_in_batch_chunks() -> None:
 
 
 def test_chunked_latent_decoder_standardizes_video_layout() -> None:
-    """Checks chunked latent decoder standardizes video layout."""
+    """A ``video_btchw`` plan's postprocess permute is undone by the decoder, so callers always
+    get [B,C,T,H,W] back whatever layout the VAE postprocess emits.
+    """
     decoder = ChunkedLatentDecoder(
         LatentDecodePlan(
             prepare_latents=lambda x: x,

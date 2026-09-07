@@ -39,14 +39,18 @@ def _minimal_generate_config():
 
 
 def test_generate_disables_empty_training_lora_for_inference() -> None:
-    """Checks generate disables empty training LoRA for inference."""
+    """An empty ``lora.path`` with ``use_lora`` on means an untrained adapter: inference turns
+    LoRA off instead of loading nothing.
+    """
     cfg = OmegaConf.create({"model": {"use_lora": True, "lora": {"path": ""}}})
 
     assert generate._lora_overrides(cfg, lora_path="") == ["model.use_lora=false"]
 
 
 def test_generate_accepts_checkpoint_dir_as_lora_path(tmp_path) -> None:
-    """Checks generate accepts checkpoint dir as LoRA path."""
+    """A checkpoint directory is accepted as the LoRA path and resolved to its ``lora_weights``
+    export, switching LoRA on.
+    """
     checkpoint = tmp_path / "checkpoint-final"
     exported = checkpoint / "lora_weights"
     exported.mkdir(parents=True)
@@ -95,7 +99,9 @@ def test_lora_checkpoint_provenance_binds_progress_and_identity(tmp_path) -> Non
 
 
 def test_generate_image_conversion_accepts_chw_float() -> None:
-    """Checks generate image conversion accepts chw float."""
+    """``image_to_uint8_hwc`` turns a float CHW image into uint8 HWC with the [0, 1] range scaled
+    to 255.
+    """
     from vrl.utils.media import image_to_uint8_hwc
 
     image = np.zeros((3, 2, 2), dtype=np.float32)
@@ -109,7 +115,9 @@ def test_generate_image_conversion_accepts_chw_float() -> None:
 
 
 def test_generate_sampling_defaults_follow_config() -> None:
-    """Checks generate sampling defaults follow config."""
+    """With no CLI overrides the generation sampling (size, steps, guidance, sequence length) is
+    taken from the config's sampling section.
+    """
     root = parse_config(
         OmegaConf.create(
             {
@@ -525,7 +533,6 @@ def test_generate_labels_lora_anchors_as_lora_outputs(tmp_path) -> None:
 def test_generate_cuda_device_fails_fast_when_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks generate cuda device fails fast when unavailable."""
     import torch
 
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)

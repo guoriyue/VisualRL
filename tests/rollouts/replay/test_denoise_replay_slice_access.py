@@ -24,7 +24,9 @@ _PRECISION = RolePrecision(
 
 
 def test_diffusion_replay_slices_timestep_before_device_move(monkeypatch) -> None:
-    """Checks diffusion replay slices timestep before device move."""
+    """The SDE evaluator slices the requested timestep out of deferred replay tensors before any
+    device move, so no full-tensor ``.to`` ever happens on the batch.
+    """
 
     batch, sentinels = _batch_with_sentinel_timestep_tensors()
     evaluator = DiffusionSDELogProbEvaluator(_Scheduler())

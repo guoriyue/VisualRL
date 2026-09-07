@@ -34,7 +34,9 @@ class TestOnlineTrainerResumeState:
         assert restored.state.global_step == 5
 
     def test_load_state_dict_initializes_and_restores_optimizer_state(self) -> None:
-        """Checks load state dict initializes and restores optimizer state."""
+        """``load_state_dict`` on a fresh trainer creates the optimizer on demand and restores its
+        Adam moments together with the step counters.
+        """
         import torch
 
         source = _make_resume_trainer()
@@ -70,7 +72,9 @@ class TestOnlineTrainerResumeState:
             _make_resume_trainer().load_state_dict(state, strict=True)
 
     def test_load_state_dict_initializes_and_restores_ema_state(self) -> None:
-        """Checks load state dict initializes and restores EMA state."""
+        """``load_state_dict`` creates the EMA on demand when EMA is enabled and restores its
+        shadow parameters.
+        """
         import torch
 
         source = _make_resume_trainer(ema=True)
@@ -101,7 +105,6 @@ class TestOnlineTrainerResumeState:
         assert restored._ema is not None
 
     def test_load_state_dict_rejects_ema_state_when_ema_is_disabled(self) -> None:
-        """Checks load state dict rejects EMA state when EMA is disabled."""
         source = _make_resume_trainer(ema=True)
         source._ensure_ema()
         state = source.state_dict()
@@ -111,7 +114,9 @@ class TestOnlineTrainerResumeState:
             restored.load_state_dict(state, strict=True)
 
     def test_load_state_dict_resets_rollout_weight_initialization(self) -> None:
-        """Checks load state dict resets rollout weight initialization."""
+        """Loading a checkpoint resets the rollout-weights-initialized and replay-parity flags, so
+        the next step re-pushes weights and re-checks parity against the restored state.
+        """
         trainer = _make_resume_trainer()
         trainer._rollout_weights_initialized = True
         trainer._replay_parity_passed = True
@@ -216,7 +221,9 @@ class TestOnlineTrainerResumeState:
         trainer.load_state_dict({"step": 1, "global_step": 1}, strict=False)
 
     def test_resume_pushes_restored_driver_weights_before_next_collect(self) -> None:
-        """Checks resume pushes restored driver weights before next collect."""
+        """After a resume the restored driver weights are pushed to the rollout before the first
+        collect: the collector observes exactly one sync.
+        """
         import asyncio
 
         syncer = _Syncer()

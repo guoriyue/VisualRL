@@ -17,7 +17,9 @@ from vrl.nn.layers.attention.paged import (
 
 
 def test_vllm_paged_attention_kernels_report_abi_failure() -> None:
-    """Checks vLLM paged attention kernels report abi failure."""
+    """A vLLM whose internal ``block_table`` module fails to import is reported as
+    ``ARAttentionUnavailable`` naming that module.
+    """
 
     def import_module(name: str) -> object:
         if name == "vllm.v1.worker.block_table":
@@ -32,7 +34,10 @@ def test_vllm_paged_attention_kernels_report_abi_failure() -> None:
 
 
 def test_vllm_paged_attention_kernels_call_real_internal_api_boundary() -> None:
-    """Checks vLLM paged attention kernels call real internal API boundary."""
+    """The kernels touch exactly the internal API boundary (block table, attention backend enum,
+    flash-attn backend / impl / metadata), with the KV-cache shape and block size derived from
+    the config.
+    """
 
     def import_module(name: str) -> object:
         if name == "vllm.v1.worker.block_table":

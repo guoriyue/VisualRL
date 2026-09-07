@@ -47,7 +47,9 @@ def _ray_config(*, colocated: bool) -> RayGenerationConfig:
 
 
 def test_format_host_memory_omits_unknown_fields() -> None:
-    """Checks format host memory omits unknown fields."""
+    """``format_host_memory`` prints only the fields the snapshot knows: ``rss`` alone when
+    available/total are unknown.
+    """
     snapshot = HostMemorySnapshot(rss_mb=10.0, available_mb=None, total_mb=None)
 
     assert format_host_memory(snapshot) == "rss=10.0MiB"
@@ -63,7 +65,9 @@ def test_cuda_oom_detection_prefers_the_typed_exception() -> None:
 def test_colocated_full_generation_bundle_can_fail_strict_guard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks colocated full generation bundle can fail strict guard."""
+    """Under ``VRL_STRICT_REPLAY_MEMORY_GUARD`` a colocated driver bundle that loads full
+    generation modules is rejected.
+    """
     monkeypatch.setenv("VRL_STRICT_REPLAY_MEMORY_GUARD", "1")
     bundle = SimpleNamespace(loads_full_generation_modules=True)
     config = _ray_config(colocated=True)
@@ -75,7 +79,9 @@ def test_colocated_full_generation_bundle_can_fail_strict_guard(
 def test_non_colocated_full_generation_bundle_passes_memory_guard(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks non colocated full generation bundle passes memory guard."""
+    """The same bundle passes when trainer and rollout do not share a GPU;
+    ``validate_driver_state`` returns the config for chaining.
+    """
     monkeypatch.setenv("VRL_STRICT_REPLAY_MEMORY_GUARD", "1")
     bundle = SimpleNamespace(loads_full_generation_modules=True)
     config = _ray_config(colocated=False)

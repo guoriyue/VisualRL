@@ -21,7 +21,10 @@ def _sample(output: object, *, sample_id: str = "sample-0") -> RewardSample:
 
 @pytest.mark.asyncio
 async def test_nsfw_safety_reward_only_penalizes_scores_above_threshold() -> None:
-    """Checks NSFW safety reward only penalizes scores above threshold."""
+    """Below the threshold the penalty is 0; above it the penalty is ``-(p - threshold) *
+    penalty_scale`` capped by ``max_penalty`` (0.75 -> -1.333 at scale 2), and no score is ever
+    positive.
+    """
     reward = NSFWSafetyReward(
         model_name="test",
         threshold=0.25,
@@ -42,7 +45,9 @@ async def test_nsfw_safety_reward_only_penalizes_scores_above_threshold() -> Non
 
 @pytest.mark.asyncio
 async def test_nsfw_safety_reward_uses_max_probability_for_image_batches() -> None:
-    """Checks NSFW safety reward uses max probability for image batches."""
+    """For an image batch the reward takes the maximum NSFW probability across the sampled images
+    (0.9 -> -0.8 at threshold 0.5).
+    """
     reward = NSFWSafetyReward(
         model_name="test",
         threshold=0.50,
@@ -58,7 +63,9 @@ async def test_nsfw_safety_reward_uses_max_probability_for_image_batches() -> No
 
 
 def test_nsfw_classifier_result_parsing_prefers_nsfw_labels() -> None:
-    """Checks NSFW classifier result parsing prefers NSFW labels."""
+    """The classifier-result parser reads the NSFW-labelled entry's score ('unsafe'), not the top-
+    scoring label.
+    """
     model = NSFWSafetyRewardModel({"model_name": "test", "threshold": 0.35})
 
     probability = model._probability_from_classifier_result(
@@ -72,6 +79,5 @@ def test_nsfw_classifier_result_parsing_prefers_nsfw_labels() -> None:
 
 
 def test_nsfw_safety_reward_rejects_invalid_reverse_like_config() -> None:
-    """Checks NSFW safety reward rejects invalid reverse like config."""
     with pytest.raises(ValueError, match="penalty_scale"):
         NSFWSafetyReward(model_name="test", penalty_scale=-1.0)

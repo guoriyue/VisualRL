@@ -157,7 +157,9 @@ def test_batch_byte_estimate_counts_trajectory_without_flat_aliases_twice() -> N
 
 
 def test_stats_shape() -> None:
-    """Checks stats shape."""
+    """``stats()`` reports ready items and ready bytes under exactly those keys (the metrics
+    contract), bytes summed from the items' ``nbytes``.
+    """
     queue = ContinuousRolloutQueue(max_items=8)
     queue.put(_item(group_slot=0, version=1, nbytes=4))
     stats = queue.stats()

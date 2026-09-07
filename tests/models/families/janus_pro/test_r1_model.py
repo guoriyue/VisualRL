@@ -190,7 +190,10 @@ def _r1_rollout_batch() -> RolloutBatch:
 
 
 def test_generate_with_refine_returns_three_segments_and_selects_final_image() -> None:
-    """Checks generate with refine returns three segments and selects final image."""
+    """One selfcheck refine round samples twice (initial 10s, regenerated 20s) and returns all
+    three JANUS_R1_SEGMENTS; the final image follows the per-row verdict, Yes keeping the
+    initial candidate and No taking the regenerated one.
+    """
     model = _model()
     sample_calls: list[int] = []
 
@@ -289,7 +292,10 @@ def test_generate_with_refine_returns_three_segments_and_selects_final_image() -
 
 
 def test_r1_model_replay_forward_returns_requested_replay_segments() -> None:
-    """Checks R1 model replay forward returns requested replay segments."""
+    """``ReplayRequest.segment_names`` selects exactly the requested segments: the text segment
+    carries materialized logits, the image segment the fused vocab-head payload, and its token
+    ids equal the trajectory's recorded actions.
+    """
     model = _model()
     batch = _r1_rollout_batch()
 
@@ -434,7 +440,10 @@ def test_r1_executor_uses_request_overrides_then_model_defaults(
 def test_r1_executor_forward_emits_canonical_family_and_segment_schema(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks R1 executor forward emits canonical family and segment schema."""
+    """The R1 executor emits the canonical trajectory: no decoded segment, an image reward view
+    that references ``GenerationOutput.output`` rather than tensor refs, every R1 segment
+    present, and the scheduler batch size threaded to the image sampler.
+    """
     executor = JanusProR1BatchExecutor(
         _ExecutorModel(),
         gatherer=JanusProR1GenerationBatchGatherer(),

@@ -30,7 +30,7 @@ _DEFAULT_CACHE_DTYPE = (
 
 @pytest.mark.gpu
 def test_nextstep_vllm_paged_attention_matches_hf_qwen_one_step() -> None:
-    """Checks NextStep vLLM paged attention matches HF Qwen one step."""
+    """Same parity for NextStep's Qwen trunk: paged prefill plus step match HF's cached forward."""
     torch.manual_seed(0)
     trunk = _tiny_qwen_trunk()
     try:
@@ -78,7 +78,9 @@ def test_nextstep_vllm_paged_attention_matches_hf_qwen_one_step() -> None:
 
 
 def test_nextstep_runtime_uses_vllm_paged_attention_by_default(monkeypatch) -> None:
-    """Checks NextStep runtime uses vLLM paged attention by default."""
+    """``ar_paged_block_size`` in sampling selects the vLLM paged backend for ``nextstep_1`` with
+    that block size and the default cache dtype.
+    """
     model = SimpleNamespace(
         config=SimpleNamespace(model_path="tiny-nextstep"),
         device=torch.device("cuda"),

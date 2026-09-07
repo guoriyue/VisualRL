@@ -60,7 +60,9 @@ def _discrete_batch() -> tuple[RolloutBatch, torch.Tensor, torch.Tensor]:
 
 
 def test_replay_result_supports_single_segment_ar_lookup() -> None:
-    """Checks replay result supports single segment AR lookup."""
+    """``require_segment`` / ``require_value`` hand back the stored tensor object itself for a
+    single AR segment.
+    """
     logits = torch.zeros(2, 2, 8)
     output = ReplayResult(
         segments={
@@ -77,7 +79,9 @@ def test_replay_result_supports_single_segment_ar_lookup() -> None:
 
 
 def test_replay_result_supports_single_segment_diffusion_lookup() -> None:
-    """Checks replay result supports single segment diffusion lookup."""
+    """The same lookup on a single diffusion ``denoise`` segment returns the stored ``noise_pred``
+    object.
+    """
     noise_pred = torch.ones(2, 4, 8, 8)
     output = ReplayResult(
         segments={
@@ -94,7 +98,7 @@ def test_replay_result_supports_single_segment_diffusion_lookup() -> None:
 
 
 def test_replay_result_supports_multi_segment_r1_lookup() -> None:
-    """Checks replay result supports multi-segment R1 lookup."""
+    """With several segments present ``require_segment`` returns the one named, not the first."""
     output = ReplayResult(
         segments={
             "selfcheck_text": ReplaySegmentResult(
@@ -114,7 +118,6 @@ def test_replay_result_supports_multi_segment_r1_lookup() -> None:
 
 
 def test_replay_result_fails_fast_for_missing_ref_segment() -> None:
-    """Checks replay result fails fast for missing ref segment."""
     output = ReplayResult(
         segments={
             "selfcheck_text": ReplaySegmentResult(
@@ -129,7 +132,6 @@ def test_replay_result_fails_fast_for_missing_ref_segment() -> None:
 
 
 def test_replay_segment_result_fails_fast_with_available_keys() -> None:
-    """Checks replay segment result fails fast with available keys."""
     segment = ReplaySegmentResult(
         segment="image_tokens",
         values={"image_logits": torch.zeros(2, 2, 8), "token_ids": torch.ones(2, 2)},
@@ -140,7 +142,10 @@ def test_replay_segment_result_fails_fast_with_available_keys() -> None:
 
 
 def test_segment_signal_reads_old_logprob_mask_and_distribution_from_trajectory() -> None:
-    """Checks segment signal reads old logprob mask and distribution from trajectory."""
+    """The trajectory, not the replay values, is the source of ``old_log_prob`` / ``mask`` /
+    ``distribution``: tensors a model stuffs into the replay segment under those names are
+    ignored.
+    """
     batch, old_log_prob, token_mask = _discrete_batch()
     output = ReplayResult(
         segments={

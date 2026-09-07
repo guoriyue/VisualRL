@@ -36,7 +36,9 @@ def test_kling_video_reward_snapshot_root_keeps_model_config_at_repo_root(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks Kling video reward snapshot root keeps model config at repo root."""
+    """A hub ``reward_model_name`` resolves through ``snapshot_download`` to the snapshot root,
+    where ``model_config.json`` lives.
+    """
     from vrl.rewards.models.kling_video_reward import _resolve_model_root
 
     root = _video_reward_root(tmp_path)
@@ -48,7 +50,9 @@ def test_kling_video_reward_snapshot_root_keeps_model_config_at_repo_root(
 
 
 def test_kling_video_reward_checkpoint_path_resolves_to_repo_root(tmp_path: Path) -> None:
-    """Checks Kling video reward checkpoint path resolves to repo root."""
+    """A ``model_path`` pointing at the ``checkpoint-NNNN`` subdirectory resolves up to the repo
+    root that holds ``model_config.json``.
+    """
     from vrl.rewards.models.kling_video_reward import _resolve_model_root
 
     root = _video_reward_root(tmp_path)
@@ -59,7 +63,9 @@ def test_kling_video_reward_checkpoint_path_resolves_to_repo_root(tmp_path: Path
 
 
 def test_kling_video_reward_requires_materialized_artifact_path() -> None:
-    """Checks Kling video reward requires materialized artifact path."""
+    """An artifact with only in-memory media is refused before any scoring: Kling reads the video
+    from a materialized file path.
+    """
     from vrl.rewards.models.kling_video_reward import KlingVideoRewardModel
 
     def _reward(*args, **kwargs):
@@ -93,7 +99,10 @@ def test_kling_video_reward_builds_repo_owned_model(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks Kling video reward builds repo owned model."""
+    """Construction wires ``_create_model_and_processor`` with the worker's dtype / flash-attn /
+    offline flags, loads the checkpoint from the resolved root, moves the model to the device
+    and puts it in eval mode.
+    """
     from vrl.rewards.models import kling_video_reward as kling_reward
     from vrl.rewards.models.kling_video_reward import KlingVideoRewardModel
 
@@ -303,7 +312,10 @@ def test_kling_video_reward_base_loader_honors_local_files_only(
 
 
 def test_kling_video_reward_remaps_qwen2vl_checkpoint_keys() -> None:
-    """Checks Kling video reward remaps Qwen2vl checkpoint keys."""
+    """Legacy Qwen2-VL keys remap into the transformers 5 layout: ``visual.*`` gains a ``model.``
+    prefix, ``model.layers`` / ``embed_tokens`` move under ``model.language_model``, and
+    ``lm_head`` is untouched.
+    """
     from vrl.rewards.models.kling_video_reward import _remap_qwen2vl_key
 
     assert (

@@ -70,7 +70,9 @@ class TestSampleTimesteps:
     """Groups tests for sample timesteps."""
 
     def test_uses_scheduler_timesteps_when_set(self) -> None:
-        """Checks that uses scheduler timesteps when set."""
+        """When the trainer holds an explicit scheduler timestep table, sampled timesteps are
+        indices into it (0 <= t < len(table)).
+        """
         trainer = _make_trainer(torch.arange(20))
         ts = trainer._sample_timesteps(8)
         assert ts.shape == (8,)
@@ -84,7 +86,9 @@ class TestSampleTimesteps:
 
 
 def test_offline_dpo_state_dict_restores_optimizer_and_global_step() -> None:
-    """Checks offline DPO state dict restores optimizer and global step."""
+    """Offline DPO's ``state_dict`` carries ``global_step`` and the optimizer's Adam moments, and
+    a fresh trainer restores both.
+    """
     source = _make_trainer(torch.arange(20))
     source.global_step = 7
     loss = source.model(torch.ones(1, 4)).sum()
@@ -103,7 +107,9 @@ def test_offline_dpo_state_dict_restores_optimizer_and_global_step() -> None:
 
 
 def test_offline_dpo_accumulation_boundary_ignores_global_step_offset() -> None:
-    """Checks offline DPO accumulation boundary ignores global step offset."""
+    """The gradient-accumulation boundary counts steps taken in this process, not from the resumed
+    ``global_step`` offset: the third call after a resume at 7 is the first boundary.
+    """
     trainer = _make_trainer(torch.arange(20))
     trainer.config.gradient_accumulation_steps = 3
     trainer.global_step = 7

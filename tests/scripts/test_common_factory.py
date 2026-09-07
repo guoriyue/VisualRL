@@ -46,7 +46,10 @@ def _built_reward(
 
 
 def test_diffusion_grpo_evaluator_uses_resolved_rollout_sde_config() -> None:
-    """Checks diffusion GRPO evaluator uses resolved rollout SDE config."""
+    """The evaluator built for a diffusion GRPO run reads noise level and SDE type from the
+    resolved rollout config, the collector's denoise options default to native mode, and the
+    advantage estimator carries the reward weights.
+    """
     cfg = load_config(
         "experiment/wan_2_1/online_grpo_ocr",
         overrides=[
@@ -177,7 +180,9 @@ def test_chunk_autoregressive_factory_rejects_full_sequence_sft_regularizer() ->
 def test_wan_empty_lora_preserves_base_policy_initially(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks Wan empty LoRA preserves base policy initially."""
+    """An empty training LoRA on Wan keeps ``init_lora_weights`` at its True default, so a fresh
+    adapter reproduces the base policy until it is trained.
+    """
     monkeypatch.setattr(
         "diffusers.DiffusionPipeline.load_config",
         lambda *_args, **_kwargs: {

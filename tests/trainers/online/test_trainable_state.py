@@ -17,7 +17,9 @@ class TestTrainableState:
     """Groups tests for trainable state."""
 
     def test_initial_rollout_weight_sync_happens_before_collect(self) -> None:
-        """Checks initial rollout weight sync happens before collect."""
+        """The first step syncs the driver's trainable state to the rollout before collecting; the
+        collector already sees the sync done.
+        """
         import asyncio
 
         import torch
@@ -118,7 +120,9 @@ class TestTrainableState:
         assert len(syncer.calls) == 2
 
     def test_weight_sync_requires_explicit_trainable_state_getter(self) -> None:
-        """Checks weight sync requires explicit trainable state getter."""
+        """A trainer with a weight syncer but no trainable-state getter is refused at
+        construction, before any collect could run.
+        """
         import pytest
         import torch.nn as nn
 

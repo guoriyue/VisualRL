@@ -19,13 +19,11 @@ _REPLAY_MODEL_METHODS = tuple(sorted(ReplayModel.__protocol_attrs__))
 
 
 def test_replay_result_requires_non_empty_segments() -> None:
-    """Checks replay result requires non empty segments."""
     with pytest.raises(ValueError, match="segments must be non-empty"):
         ReplayResult(segments={})
 
 
 def test_replay_result_requires_matching_segment_key() -> None:
-    """Checks replay result requires matching segment key."""
     with pytest.raises(ValueError, match="must match"):
         ReplayResult(
             segments={
@@ -38,7 +36,6 @@ def test_replay_result_requires_matching_segment_key() -> None:
 
 
 def test_replay_request_requires_non_empty_segment_names() -> None:
-    """Checks replay request requires non empty segment names."""
     with pytest.raises(ValueError, match="segment_names"):
         ReplayRequest(segment_names=("",))
 

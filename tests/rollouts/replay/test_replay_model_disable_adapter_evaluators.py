@@ -188,7 +188,9 @@ def test_token_logprob_evaluator_applies_rollout_temperature() -> None:
 
 
 def test_token_logprob_evaluator_uses_replay_model_disable_adapter() -> None:
-    """Checks token logprob evaluator uses replay model disable adapter."""
+    """The token evaluator computes ``ref_log_prob`` inside the replay model's ``disable_adapter``
+    (exactly one call), and that adapter-off reference differs from the policy log-prob.
+    """
     batch = _discrete_batch()
     model = _DiscreteReplayModel()
 
@@ -204,7 +206,9 @@ def test_token_logprob_evaluator_uses_replay_model_disable_adapter() -> None:
 
 
 def test_continuous_logprob_evaluator_uses_replay_model_disable_adapter() -> None:
-    """Checks continuous logprob evaluator uses replay model disable adapter."""
+    """Same contract for the continuous-token evaluator: one ``disable_adapter`` call yields a
+    reference log-prob distinct from the policy's.
+    """
     batch = _continuous_batch()
     model = _ContinuousReplayModel()
 

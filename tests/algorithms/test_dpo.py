@@ -144,13 +144,11 @@ class TestValidation:
     """Groups tests for validation."""
 
     def test_rejects_odd_batch(self) -> None:
-        """Checks that rejects odd batch."""
         x = torch.randn(3, 4, 4, 4)
         with pytest.raises(ValueError, match="2\\*B"):
             diffusion_dpo_loss(x, x, x, beta=1.0)
 
     def test_rejects_shape_mismatch(self) -> None:
-        """Checks that rejects shape mismatch."""
         a = torch.randn(4, 4, 4, 4)
         b = torch.randn(4, 4, 4, 5)
         with pytest.raises(ValueError, match="shape mismatch"):
@@ -163,7 +161,7 @@ class TestValidation:
 
 
 def test_sft_loss_is_winner_mse() -> None:
-    """Checks sft loss is winner mse."""
+    """``diffusion_sft_loss`` is plain MSE between the winner prediction and its target."""
     torch.manual_seed(5)
     pred_w = torch.randn(3, 4, 8, 8)
     target_w = torch.randn(3, 4, 8, 8)

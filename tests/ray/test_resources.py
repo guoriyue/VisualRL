@@ -45,7 +45,9 @@ def _cfg(
 
 
 def test_auto_split_uses_remaining_visible_gpus_for_rollout() -> None:
-    """Checks auto split uses remaining visible gpus for rollout."""
+    """``num_gpus: auto`` gives the rollout every visible GPU the trainer did not take, one engine
+    per GPU, and a trainer reservation on ``cuda:0``.
+    """
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(
@@ -89,7 +91,7 @@ def test_resolved_resource_summaries_are_derived_from_topology() -> None:
 
 
 def test_explicit_split_devices_do_not_overlap() -> None:
-    """Checks explicit split devices do not overlap."""
+    """Explicit disjoint device lists resolve verbatim and are not colocated."""
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(
@@ -353,7 +355,9 @@ def test_single_gpu_dedicated_rollout_pool_requires_a_spare() -> None:
 
 
 def test_cpu_only_rollout_uses_no_gpu_bundles() -> None:
-    """Checks CPU only rollout uses no GPU bundles."""
+    """A GPU-less plan resolves to empty device tuples, keeps the requested engine count, and puts
+    the trainer on CPU.
+    """
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(
@@ -415,7 +419,9 @@ def test_cpu_only_reward_rejects_a_gpu_device_assignment() -> None:
 
 
 def test_trainer_only_plan_allows_zero_rollout_workers() -> None:
-    """Checks trainer only plan allows zero rollout workers."""
+    """A trainer-only plan (zero rollout GPUs and engines) is valid and leaves the rollout device
+    set empty.
+    """
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(
@@ -559,7 +565,6 @@ def test_cross_node_reward_gpu_is_rejected_at_resolution() -> None:
 
 
 def test_resource_plan_formatter_includes_key_fields() -> None:
-    """Checks resource plan formatter includes key fields."""
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(
@@ -585,7 +590,9 @@ def test_resource_plan_formatter_includes_key_fields() -> None:
 
 
 def test_cross_node_rollout_satisfies_budget_from_explicit_counts() -> None:
-    """Checks cross-node rollout satisfies budget from explicit counts."""
+    """``cross_node`` with explicit counts assigns trainer and rollout distinct ordinals, not
+    colocated, with no trainer reservation.
+    """
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(
@@ -609,7 +616,7 @@ def test_cross_node_rollout_satisfies_budget_from_explicit_counts() -> None:
 
 
 def test_cross_node_scales_to_multiple_rollout_workers() -> None:
-    """Checks cross-node scales to multiple rollout workers."""
+    """``cross_node`` scales rollout devices and engines to the explicit count."""
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(
@@ -630,7 +637,6 @@ def test_cross_node_scales_to_multiple_rollout_workers() -> None:
 
 
 def test_cross_node_requires_explicit_rollout_count() -> None:
-    """Checks cross-node requires explicit rollout count."""
     with pytest.raises(ValueError, match="cross_node"):
         ResolvedDistributedResources.from_root(
             parse_config(
@@ -647,7 +653,9 @@ def test_cross_node_requires_explicit_rollout_count() -> None:
 
 
 def test_cross_node_preset_resolves() -> None:
-    """Checks cross-node preset resolves."""
+    """The bundled cross-node preset resolves to one trainer GPU, one rollout GPU and one engine
+    with no reservation.
+    """
     from omegaconf import OmegaConf
 
     from vrl.config.loading import bundled_config_resource
@@ -679,7 +687,9 @@ def test_cross_node_kling_recipe_keeps_the_local_reward_on_the_driver() -> None:
 
 
 def test_reward_role_resolves_after_trainer_and_rollout_devices() -> None:
-    """Checks reward role resolves after trainer and rollout devices."""
+    """The reward role takes a GPU left over after trainer and rollout, disjoint from the rollout
+    pool, so no rollout release is needed before scoring.
+    """
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(
@@ -923,7 +933,9 @@ def test_reward_auto_placement_falls_back_to_shared_pool_on_single_gpu() -> None
 
 
 def test_reward_can_share_rollout_pool_when_phases_release() -> None:
-    """Checks reward can share rollout pool when phases release."""
+    """``gpu_pool: rollout`` puts the reward on the rollout GPU, which requires the rollout to
+    release before scoring and the reward to release after.
+    """
     resolved = ResolvedDistributedResources.from_root(
         parse_config(
             _cfg(

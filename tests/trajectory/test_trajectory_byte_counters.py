@@ -9,7 +9,9 @@ from vrl.trajectory import build_ar_discrete_trajectory, trajectory_tensor_bytes
 
 
 def test_byte_counter_counts_trajectory_tensor_leaves() -> None:
-    """Checks byte counter counts trajectory tensor leaves."""
+    """``trajectory_tensor_bytes`` sums ``numel * element_size`` over every tensor leaf of the
+    trajectory.
+    """
     token_ids = torch.tensor([[1, 2]], dtype=torch.long)
     old_log_prob = torch.zeros(1, 2, dtype=torch.float32)
     token_mask = torch.ones(1, 2, dtype=torch.float32)
@@ -60,7 +62,7 @@ def test_byte_counter_counts_trajectory_tensor_leaves() -> None:
 
 
 def test_byte_counter_deduplicates_shared_references() -> None:
-    """Checks byte counter deduplicates shared references."""
+    """The same tensor referenced twice is counted once."""
     tensor = torch.zeros(4, dtype=torch.float32)
 
     assert trajectory_tensor_bytes({"a": tensor, "b": tensor}) == 16

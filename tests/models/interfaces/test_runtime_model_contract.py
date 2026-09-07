@@ -125,7 +125,9 @@ def test_registered_family_runtime_model_satisfies_contract(family: str) -> None
 
 
 def test_runtime_bundle_exposes_model_contract() -> None:
-    """Checks runtime bundle exposes model contract."""
+    """``RuntimeBundle`` hands the very ``RolePrecision`` object it holds to the model, so bundle
+    precision and ``model.precision`` cannot drift apart.
+    """
     model = _MinimalRuntimeModel()
     bundle = RuntimeBundle(
         model=model,
@@ -142,7 +144,9 @@ def test_runtime_bundle_exposes_model_contract() -> None:
 
 
 def test_diffusion_load_trainable_state_accepts_trainable_only_payload() -> None:
-    """Checks diffusion load trainable state accepts trainable only payload."""
+    """A payload holding exactly the trainable keys loads in place: the transformer weight takes
+    the new values.
+    """
     model = _DiffusionModelBaseStub()
     new_weight = torch.full_like(model.transformer.weight, 3.0)
 
@@ -152,7 +156,6 @@ def test_diffusion_load_trainable_state_accepts_trainable_only_payload() -> None
 
 
 def test_diffusion_load_trainable_state_rejects_frozen_payload() -> None:
-    """Checks diffusion load trainable state rejects frozen payload."""
     model = _DiffusionModelBaseStub()
 
     with pytest.raises(ValueError, match="exactly trainable"):

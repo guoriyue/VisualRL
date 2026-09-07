@@ -35,7 +35,9 @@ def _request(
 
 
 def test_generation_request_validation() -> None:
-    """Checks generation request validation."""
+    """``GenerationRequest`` rejects empty inputs, a non-positive ``samples_per_prompt`` and a
+    negative ``policy_version`` at construction.
+    """
     with pytest.raises(ValueError, match="inputs"):
         GenerationRequest(
             request_id="req",

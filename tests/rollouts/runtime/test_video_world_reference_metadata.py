@@ -31,7 +31,9 @@ def _write_reference_manifest(root: Path) -> Path:
 
 
 def test_resolved_reference_image_flows_to_collector_metadata(tmp_path: Path) -> None:
-    """Checks resolved reference image flows to collector metadata."""
+    """A manifest row's reference image, resolved against the data root, reaches both the request
+    input and the collector metadata.
+    """
     manifest = _write_reference_manifest(tmp_path)
     example = resolve_prompt_example_artifacts(
         load_prompt_manifest(manifest)[0],

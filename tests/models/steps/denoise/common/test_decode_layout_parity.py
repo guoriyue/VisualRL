@@ -57,7 +57,9 @@ class _VideoProcessor:
 
 
 def test_sd3_decode_latents_uses_shared_chunked_decoder_and_keeps_layout() -> None:
-    """Checks SD3 decode latents uses shared chunked decoder and keeps layout."""
+    """SD3 decode runs the shared chunked decoder (one VAE call per ``decode_batch_size`` chunk)
+    and applies ``latents / scaling_factor + shift_factor`` before decoding.
+    """
     vae = _IdentityDecodeVAE(SimpleNamespace(scaling_factor=2.0, shift_factor=0.5))
     pipeline = SimpleNamespace(
         transformer=build_tiny_sd3_transformer(),
@@ -76,7 +78,11 @@ def test_sd3_decode_latents_uses_shared_chunked_decoder_and_keeps_layout() -> No
 
 
 def test_wan_decode_latents_preserves_bcthw_layout() -> None:
-    """Checks Wan decode latents preserves BCHTW layout."""
+    """Wan decode denormalizes with ``latents * latents_std + latents_mean`` and returns
+    [B,C,T,H,W]: the video processor's ``permute(0,2,1,3,4)`` and ``ChunkedLatentDecoder``'s
+    permute cancel, so equal shapes here mean a round-trip identity, not the absence of a
+    layout change.
+    """
     vae = _IdentityDecodeVAE(
         SimpleNamespace(latents_mean=[1.0], latents_std=[2.0], z_dim=1),
     )
@@ -96,7 +102,9 @@ def test_wan_decode_latents_preserves_bcthw_layout() -> None:
 
 
 def test_cosmos_predict2_decode_latents_applies_sigma_data_and_layout() -> None:
-    """Checks Cosmos predict2 decode latents applies sigma data and layout."""
+    """predict2 decode maps latents back with ``latents * (latents_std / sigma_data) +
+    latents_mean`` and keeps the [B,C,T,H,W] layout through the video processor.
+    """
     vae = _IdentityDecodeVAE(
         SimpleNamespace(latents_mean=[1.0], latents_std=[4.0], z_dim=1),
     )
@@ -117,7 +125,10 @@ def test_cosmos_predict2_decode_latents_applies_sigma_data_and_layout() -> None:
 
 
 def test_cosmos_predict25_decode_latents_matches_frames_and_layout() -> None:
-    """Checks Cosmos predict25 decode latents matches frames and layout."""
+    """predict2.5 decode denormalizes with ``latents * latents_std + latents_mean``, asks the
+    pipeline to match ``(latent_t - 1) * vae_scale_factor_temporal + 1`` frames, and keeps the
+    [B,C,T,H,W] layout.
+    """
     vae = _IdentityDecodeVAE(SimpleNamespace())
     matched: list[int] = []
 

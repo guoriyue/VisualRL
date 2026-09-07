@@ -205,7 +205,6 @@ def _collector(
 
 
 def test_collector_requires_runtime_before_collect() -> None:
-    """Checks collector requires runtime before collect."""
     import asyncio
 
     collector = _collector()
@@ -248,7 +247,11 @@ async def test_collector_shutdown_retries_in_safe_runtime_then_reward_order() ->
 
 
 def test_collector_routes_request_through_runtime_reward_and_trajectory_batch() -> None:
-    """Checks collector routes request through runtime reward and trajectory batch."""
+    """One collect call builds one request (prompts, group size as samples_per_prompt, overrides
+    as sampling, policy version), scores every sample through the reward runtime with the
+    collector metadata attached, and returns a batch whose rewards, group ids and sample rows
+    line up prompt-major.
+    """
     import asyncio
 
     runtime = _Runtime()
@@ -324,7 +327,10 @@ async def test_profiled_collector_builds_cpu_batch_without_trainer_cuda_sync(
 
 
 def test_collector_offloads_runtime_memory_before_reward_scoring() -> None:
-    """Checks collector offloads runtime memory before reward scoring."""
+    """Under a lifecycle plan that shares the reward GPU, scoring is bracketed by a rollout
+    offload before the reward model activates and a reward park afterwards, and the phase-final
+    offload repeats both.
+    """
     import asyncio
 
     runtime = _Runtime()
@@ -792,7 +798,9 @@ def test_collect_prompt_groups_folds_reward_timing_into_stats() -> None:
 
 
 def test_reward_view_selection_fails_fast_when_ambiguous() -> None:
-    """Checks reward view selection fails fast when ambiguous."""
+    """Two reward views that both point at ``GenerationOutput.output`` cannot be disambiguated;
+    the builder refuses instead of picking one.
+    """
     import asyncio
 
     request = GenerationRequest(
@@ -960,7 +968,9 @@ def test_nonlatent_gaussian_keeps_autoregressive_packing() -> None:
 
 
 def test_collector_forwards_reference_metadata_to_request() -> None:
-    """Checks collector forwards reference metadata to request."""
+    """A ``GenerationInput.reference_image`` reaches both the request input (for the executor) and
+    the collector metadata (for the reward side).
+    """
     from vrl.models.families.registry import get_model_family_entry
     from vrl.rollouts.collector.config import RolloutCollectorConfig
     from vrl.rollouts.collector.requests import GenerationRequestBuilder

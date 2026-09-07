@@ -98,7 +98,10 @@ def _run_ar_decode(model: JanusProModel) -> None:
 
 
 def test_janus_kv_decode_uses_prompt_prefill_for_first_token_logits() -> None:
-    """Checks Janus KV decode uses prompt prefill for first token logits."""
+    """The first token's logits come from the prompt prefill (two [2,3,H] calls, cond and uncond);
+    every later step is a single [4,1,H] call that reuses ``past_key_values`` instead of re-
+    prefilling.
+    """
     torch.manual_seed(0)
     model = _model()
 

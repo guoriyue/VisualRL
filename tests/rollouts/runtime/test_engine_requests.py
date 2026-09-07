@@ -12,7 +12,10 @@ from vrl.trajectory import TrajectoryStoragePolicy
 
 
 def test_engine_request_builder_reads_resolved_request_sampling() -> None:
-    """Checks engine request builder reads resolved request sampling."""
+    """The builder takes family and task from the registry entry, sampling from the resolved
+    config (tuples serialized as lists) plus overrides, threads policy version and task type,
+    and copies caller metadata into the collector request with the task type added.
+    """
     builder = GenerationRequestBuilder(
         entry=get_model_family_entry("sd3_5"),
         config=RolloutCollectorConfig(
@@ -54,7 +57,7 @@ def test_engine_request_builder_reads_resolved_request_sampling() -> None:
 
 
 def test_engine_request_builder_applies_request_overrides_last() -> None:
-    """Checks engine request builder applies request overrides last."""
+    """Request overrides win over the configured request sampling for the same key."""
     builder = GenerationRequestBuilder(
         entry=get_model_family_entry("sd3_5"),
         config=RolloutCollectorConfig(request_sampling={"num_steps": 1}),

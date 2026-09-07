@@ -65,8 +65,12 @@ def _video_reward_config(**video_kwargs: object):
     kwargs = {
         "reward_name": "kling_video_reward",
         "score_key": "overall_reward",
+        # The shape the shipped preset really passes through
+        # (vrl/config/presets/reward/kling_video_reward.yaml).
         "worker_config": {
-            "reward_model_version": "unit-test",
+            "reward_model_name": "KlingTeam/VideoReward@main",
+            "dtype": "bfloat16",
+            "min_frame_pixels": 200704,
         },
     }
     kwargs.update(video_kwargs)
@@ -84,7 +88,10 @@ def _video_reward_config(**video_kwargs: object):
 async def test_video_reward_materializes_artifacts_and_returns_runtime_scores(
     tmp_path: Path,
 ) -> None:
-    """Checks video reward materializes artifacts and returns runtime scores."""
+    """One ``score_batch`` materializes an artifact per sample, sends it to the scorer, returns
+    the scorer's score, and writes the request and result debug rows carrying the scorer's
+    reward_model_version.
+    """
     runtime = _FakeRuntime()
     reward = KlingVideoReward(
         reward_name="kling_video_reward",
@@ -118,7 +125,9 @@ async def test_video_reward_materializes_artifacts_and_returns_runtime_scores(
 
 @pytest.mark.asyncio
 async def test_video_reward_rejects_missing_runtime_results(tmp_path: Path) -> None:
-    """Checks video reward rejects missing runtime results."""
+    """A scorer returning no result for a materialized artifact is a fail-loud mismatch, and the
+    artifact is released afterwards.
+    """
     reward = KlingVideoReward(
         reward_name="kling_video_reward",
         score_key="overall_reward",
@@ -150,6 +159,16 @@ async def test_video_reward_releases_artifacts_after_success_by_default(
     assert not Path(runtime.requests[0].artifacts[0].path).exists()
 
 
-def test_video_reward_config_accepts_ray_runtime() -> None:
-    """Checks video reward config accepts Ray runtime."""
-    RewardConfig.from_cfg(_video_reward_config())
+def test_reward_schema_passes_through_unvalidated_kling_kwargs() -> None:
+    """``RewardConfig.kwargs`` is open by design (vrl/config/schema.py): a reward's kwargs
+    contract belongs to the reward class at construction, not to the config layer. An
+    arbitrary nested ``worker_config`` must survive validation byte-for-byte; tightening this
+    schema (a sub-model, ``extra="forbid"``) would silently break every reward's kwargs
+    passthrough at once.
+    """
+    cfg = _video_reward_config()
+    worker_config = OmegaConf.to_container(cfg.reward.kwargs.kling_video_reward.worker_config)
+
+    parsed = RewardConfig.from_cfg(cfg)
+
+    assert parsed.kwargs["kling_video_reward"]["worker_config"] == worker_config
