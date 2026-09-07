@@ -20,10 +20,6 @@ from vrl.rewards.runtime import InProcessRewardScorer
 class TargetDinoSimilarityReward(InferenceRewardFunction):
     """Local reward comparing generated video to target media by DINOv2 cosine."""
 
-    # Reads ``metadata['target_video']``: with this reward configured, the
-    # dataset provenance gate makes target clips a hard manifest requirement.
-    required_prompt_artifacts = ("target_video",)
-
     def __init__(
         self,
         device: str = "",

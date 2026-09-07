@@ -177,17 +177,12 @@ class DatasetProvenance:
     report: SourceReport | None
 
     @classmethod
-    def from_config(
-        cls,
-        data: DataConfig,
-        *,
-        extra_artifact_fields: Sequence[str] = (),
-    ) -> DatasetProvenance:
+    def from_config(cls, data: DataConfig) -> DatasetProvenance:
         """Check the manifests and source report a source-backed dataset ships.
 
-        ``extra_artifact_fields`` are artifacts the configured rewards read
-        (``RewardFunction.required_prompt_artifacts``); they become hard row
-        requirements on top of the task type's own.
+        Whether the configured rewards can read these rows (a target clip, a
+        reference) is not decided here: ``python -m vrl.scripts.rewards.preflight``
+        runs the real reward over the rows before training does.
         """
 
         for name in ("manifest", "eval_manifest", "source_report"):
@@ -206,7 +201,7 @@ class DatasetProvenance:
         if spec.requires_data_root and not data_root:
             raise ValueError("config missing required field: data.artifact_data_root")
 
-        artifact_fields = tuple(dict.fromkeys((*spec.artifact_fields, *extra_artifact_fields)))
+        artifact_fields = spec.artifact_fields
         train_examples = spec.load_manifest(data, data.manifest)
         eval_examples = spec.load_manifest(data, str(data.eval_manifest))
         train = ArtifactManifestReport.from_examples(

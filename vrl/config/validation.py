@@ -210,9 +210,11 @@ def gate_compile_compatible(root: RootConfig, precision: PrecisionPolicy) -> Non
 
 def gate_production(root: RootConfig, precision: PrecisionPolicy) -> None:
     """Every ``production.<reward>.enabled`` entry: the reward's own contract
-    (``validate_production_kwargs``), then the dataset provenance the configured
-    rewards need (``DatasetProvenance.from_config``). The gate holds no
-    per-reward or per-dataset knowledge; both owners declare theirs."""
+    (``validate_production_kwargs``), then the dataset's provenance
+    (``DatasetProvenance.from_config``). The gate holds no per-reward or
+    per-dataset knowledge; both owners declare theirs. Whether the rewards can
+    actually score these rows is ``python -m vrl.scripts.rewards.preflight``'s
+    job, not a config gate's."""
 
     del precision
     production = root.production
@@ -243,13 +245,7 @@ def gate_production(root: RootConfig, precision: PrecisionPolicy) -> None:
         )
     if root.data is None:
         raise ValueError("config missing required field: data.manifest")
-    components = reward.components if reward is not None else {}
-    DatasetProvenance.from_config(
-        root.data,
-        extra_artifact_fields=tuple(
-            field for name in components for field in get_reward(name).required_prompt_artifacts
-        ),
-    )
+    DatasetProvenance.from_config(root.data)
 
 
 TRAINING_GATES: tuple[TrainingGate, ...] = (

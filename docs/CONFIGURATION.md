@@ -72,6 +72,21 @@ gate. Resolution-time validation that needs a resolved object (the GPU
 topology in `vrl/ray/resources.py`, the rollout schedule, reward parking) stays
 with the resolver that produces that object and runs after `build_configs`.
 
+Whether the configured rewards can actually score the configured rows (a
+reward that reads a target clip or a caption target off each prompt) is not a
+config question, so no gate answers it. Run the reward once, before training,
+on the same rows and metadata projection the collector will use:
+
+```bash
+python -m vrl.scripts.rewards.preflight --config experiment/wan_2_1/online_grpo_kling_video_reward \
+  --prompts 4 --device auto
+```
+
+It builds every configured component, scores synthetic media of the configured
+geometry for the first rows of `data.manifest` (`--eval` for the eval
+manifest), prints per-component scores, and exits non-zero on the first
+component that raises. The scores themselves mean nothing; the pipeline does.
+
 ## Judge, rubric, and data are separate choices
 
 The `codex_image_qa_anime_*` names identify anime-oriented scoring rubrics;

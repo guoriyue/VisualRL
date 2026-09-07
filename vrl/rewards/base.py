@@ -65,10 +65,6 @@ class RewardFunction:
     # Most reward constructors expose the selected device as ``device``;
     # exceptional schemas (for example NSFW's classifier_device) override it.
     device_config_key: ClassVar[str] = "device"
-    # Prompt-manifest artifact fields this reward reads off every example
-    # (``metadata['target_video']`` for the DINO target similarity). The dataset
-    # provenance gate turns them into hard manifest requirements.
-    required_prompt_artifacts: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
     def resolve_execution_device(

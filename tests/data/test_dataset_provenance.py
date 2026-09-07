@@ -179,22 +179,17 @@ def test_image_to_video_rows_need_their_provenance_metadata(tmp_path) -> None:
         DatasetProvenance.from_config(data)
 
 
-def test_video_world_provenance_passes_and_reward_artifacts_become_requirements(tmp_path) -> None:
-    """A reward that reads ``target_video`` turns it into a hard row requirement."""
-    without_target = _v2w_dataset(tmp_path, with_target=False)
+def test_video_world_provenance_resolves_the_reference_and_any_target_clip(tmp_path) -> None:
+    """Target clips are not a manifest requirement here (a reward that reads them
+    fails in the reward preflight); when present they resolve like any artifact."""
+    provenance = DatasetProvenance.from_config(_v2w_dataset(tmp_path, with_target=False))
+    assert provenance.spec is PROVENANCE_SPECS["video2world"]
+    assert {item.field for item in provenance.train.resolved_artifacts} == {"reference_image"}
 
-    assert DatasetProvenance.from_config(without_target).spec is not None
-    with pytest.raises(ValueError, match="missing required field target_video"):
-        DatasetProvenance.from_config(without_target, extra_artifact_fields=("target_video",))
-
-    with_target = _v2w_dataset(tmp_path / "targets", with_target=True)
-    provenance = DatasetProvenance.from_config(
-        with_target, extra_artifact_fields=("target_video",)
+    with_target = DatasetProvenance.from_config(
+        _v2w_dataset(tmp_path / "targets", with_target=True)
     )
-    assert {item.field for item in provenance.train.resolved_artifacts} == {
-        "reference_image",
-        "target_video",
-    }
+    assert {item.field for item in with_target.train.resolved_artifacts} == {"reference_image"}
 
 
 def test_video_world_report_needs_its_validation_summary(tmp_path) -> None:

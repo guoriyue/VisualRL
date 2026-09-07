@@ -38,9 +38,11 @@ artifact format、`production_task_types`、锁定的 worker_config 键），再
 `ArtifactManifestReport.from_manifest` / `PrecisionPolicy.from_section` 的形状：按 `data.task_type`
 查 `PROVENANCE_SPECS`，用 config 声明的 loader 加载两份 manifest，走
 `ArtifactManifestReport.from_examples` 做 artifact / 元数据检查，再用 `SourceReport`
-对账 report.json）。奖励读的额外 artifact（DINO 的 `target_video`）由
-`RewardFunction.required_prompt_artifacts` 声明，不再在 config 层硬编码奖励名。
-原来 i2v 手写的 JSONL 解析器删掉了——它重复了 `ImageCaptionPromptDataset`。`compile_conflicts` 返回结构化的 `CompileConflict(feature, message)`，
+对账 report.json）。原来 i2v 手写的 JSONL 解析器删掉了——它重复了
+`ImageCaptionPromptDataset`。"某个奖励需要行里有 `target_video`"这类要求**不再是 config
+门**（第一版加过一个 `required_prompt_artifacts` 声明，用户判定是干扰，删了）：
+`python -m vrl.scripts.rewards.preflight --config <experiment>` 用 collector 同一套
+metadata 投影、在配置的行上真跑一次奖励（合成像素），打分时才会炸的错误在启动前就出来。`compile_conflicts` 返回结构化的 `CompileConflict(feature, message)`，
 `activation_checkpointing.validate_compile_checkpointing_compatible` 改为按
 `feature == "gradient_checkpointing"` 复用矩阵，删掉重复文案。`RewardConfig` 转口
 删除，importer 改从 `schema` 取。
