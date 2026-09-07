@@ -590,6 +590,10 @@ class _SyntheticDiffusionReplayCollector:
 
     requires_generation_offload_before_reward = False
     requires_driver_model_offload_for_reward = False
+    # Synthetic replay has no reward runtime to overlap with or place beside
+    # continuous work; both capabilities are honestly absent.
+    supports_reward_generation_overlap = False
+    supports_continuous_reward_execution = False
 
     def __init__(
         self,
@@ -642,7 +646,10 @@ def test_real_checkpoint_online_rl_updates_trainable_weights(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checks real checkpoint online RL updates trainable weights."""
+    """One real online-RL step on a cached checkpoint: trainable weights change, reward std and
+    advantage rate are live, loss and grad norm are finite, and rollout-vs-replay log-prob
+    parity holds within the case's tolerance.
+    """
     _skip_unless_case_enabled(case)
     _skip_unless_cuda_has_memory(case.min_cuda_memory_gib)
 
@@ -891,11 +898,17 @@ def _build_executor(
     model: Any,
     cfg: Any,
 ) -> Any:
+    from vrl.models.families.registry import GENERIC_FULL_SEQUENCE_DENOISE_EXECUTOR
+
     executor_cls = import_from_path(entry.executor_cls)
     kwargs: dict[str, Any] = {"gatherer": entry.new_gatherer()}
     signature = inspect.signature(executor_cls)
     if "samples_per_generation_batch" in signature.parameters:
         kwargs["samples_per_generation_batch"] = int(cfg.rollout.samples_per_generation_batch)
+    # Same construction as the rollout worker (vrl/generation/execution/worker.py):
+    # the generic denoise executor takes its family/task from the registry entry.
+    if entry.executor_cls == GENERIC_FULL_SEQUENCE_DENOISE_EXECUTOR:
+        kwargs.update(family=entry.family, task=entry.task)
     return executor_cls(model, **kwargs)
 
 
