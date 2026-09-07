@@ -79,6 +79,7 @@ _MODEL_RUNTIME_CAPABILITY_MATRIX = {
     "cosmos-predict2": (False, True),
     "cosmos-predict2.5": (False, True),
     "cosmos3": (False, True),
+    "minimax_h3": (False, True),
     "cosmos-predict2-anima": (True, True),
     "echo": (False, False),
     "janus_pro": (False, False),

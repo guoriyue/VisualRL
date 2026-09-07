@@ -28,6 +28,7 @@ _ALIASES_BY_FAMILY: dict[str, tuple[str, ...]] = {
     "cosmos-predict2.5": ("cosmos_predict2_5",),
     "cosmos3": ("cosmos3_omni", "cosmos_omni"),
     "cosmos-predict2-anima": ("anima", "cosmos_anima"),
+    "minimax_h3": ("minimax-h3", "hailuo_3", "hailuo3"),
     "echo": ("joyai_echo",),
     "janus_pro": ("janus",),
     "janus_pro_r1": ("janus_r1",),

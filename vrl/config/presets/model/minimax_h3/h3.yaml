@@ -1,0 +1,31 @@
+# MiniMax-H3 (Hailuo 3.0) joint video+audio generator, FL2VA partition
+# (`transformer/`, the t2va/fl2va checkpoint), for flow-matching GRPO RL on the
+# video latent. Strictly batch=1: the transformer's batch axis replicates ONE
+# packed layout, so the executor pins samples_per_generation_batch=1
+# (runtime.py). The audio rows ride along as a deterministic side stream and are
+# not part of the policy action (model.py).
+#
+# Size: 33B transformer + 32B Qwen3-VL conditioner (~144 GB bf16). Single-card
+# runs are out of reach; this preset is the LoRA shape a multi-GPU FSDP
+# deployment starts from. Requires diffusers>=0.40.0 (MiniMaxH3Transformer3DModel).
+# License: MiniMax-H3 Community License -- check its geographic and use
+# restrictions before deploying the weights.
+model:
+  family: minimax_h3
+  path: MiniMaxAI/MiniMax-H3
+  revision: 42ed227ee7df40d41602854ae760620d6eb651fe
+  use_lora: true
+  lora:
+    rank: 32
+    alpha: 64
+    target_modules:
+      - to_q
+      - to_k
+      - to_v
+      - to_out.0
+  memory:
+    vae_decode:
+      tiling: true
+  torch_compile:
+    enable: false
+    mode: default

@@ -91,6 +91,13 @@ class EchoSamplingSection(VideoSamplingSection):
     guidance_scale: Literal[1.0] | None = None
 
 
+class MiniMaxH3SamplingSection(TextEncodedVideoSamplingSection):
+    """MiniMax-H3 sampling: guidance-distilled, ``max_sequence_length`` bounds the
+    text rows of its packed sequence (``fps`` is fixed at 24 by the checkpoint)."""
+
+    guidance_scale: Literal[1.0] | None = None
+
+
 class MagiSamplingSection(SamplingSection):
     """Inputs mapped into MAGI-1's isolated official inference runtime."""
 
@@ -196,6 +203,7 @@ __all__ = [
     "JanusProSamplingSection",
     "LlamaGenSamplingSection",
     "MagiSamplingSection",
+    "MiniMaxH3SamplingSection",
     "NextStepSamplingSection",
     "SamplingSection",
     "SharedAttentionARSamplingSection",

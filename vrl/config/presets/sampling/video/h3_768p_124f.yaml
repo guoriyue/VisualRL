@@ -1,0 +1,7 @@
+# MiniMax-H3's own 16:9 canvas (768 short edge, 32-multiple, area-capped) at
+# its fixed 24 fps; 124 frames is the shortest 17n+5 count at or above 5 s.
+sampling:
+  width: 1344
+  height: 768
+  num_frames: 124
+  fps: 24

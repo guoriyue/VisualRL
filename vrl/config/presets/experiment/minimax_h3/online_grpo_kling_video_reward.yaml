@@ -1,0 +1,47 @@
+# MiniMax-H3 T2V + production video reward GRPO on motion-grounded prompts.
+# Same recipe shape as wan_2_1/online_grpo_kling_video_reward; the model and
+# sampling layers are the only family-specific parts. The checkpoint is
+# guidance-distilled (20_step_no_cfg keeps guidance_scale at 1.0) and generates
+# at 24 fps only. Not validated: no run of this file has completed (the 144 GB
+# checkpoint needs a multi-GPU FSDP deployment).
+defaults:
+  - /recipe/online/denoise_grpo
+  - /model/minimax_h3/h3
+  - /sampling/video/h3_768p_124f
+  - /sampling/denoise/20_step_no_cfg
+  - /reward/kling_video_reward
+  - /dataset/videophy
+
+actor:
+  optim:
+    lr: 1.0e-5
+  ppo_epochs: 1
+  train_batch_size: 1   # one packed layout per replay forward (model.py)
+
+algorithm:
+  kl_coef: 0.004
+
+rollout:
+  n_samples_per_prompt: 8
+  prompts_per_batch: 1
+  samples_per_generation_batch: 1
+  denoise_mode: native
+  noise_level: 0.7
+  sde:
+    type: cps
+
+sampling:
+  max_sequence_length: 512   # text rows of the packed sequence
+
+trainer:
+  output_dir: outputs/minimax_h3_kling_video_reward
+  save_freq: 20
+
+reward:
+  kwargs:
+    kling_video_reward:
+      artifact_format: mp4
+
+production:
+  kling_video_reward:
+    enabled: true

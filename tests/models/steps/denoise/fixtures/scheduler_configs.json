@@ -213,6 +213,18 @@
     "scheduler_config_path": "scheduler/scheduler_config.json",
     "scheduler_repo_id": "Alpha-VLLM/Lumina-Image-2.0"
   },
+  "minimax_h3": {
+    "model_repo_id": "MiniMaxAI/MiniMax-H3",
+    "scheduler_repo_id": "MiniMaxAI/MiniMax-H3",
+    "revision": "42ed227ee7df40d41602854ae760620d6eb651fe",
+    "scheduler_config_path": "scheduler/scheduler_config.json",
+    "config": {
+      "_class_name": "MiniMaxH3Scheduler",
+      "_diffusers_version": "0.36.0.dev0",
+      "shift": 12.0
+    },
+    "note": "Video schedule only (shift 12). The audio schedule (audio_scheduler/, shift 3) is a deterministic side stream outside the SDE log-prob path."
+  },
   "mochi": {
     "config": {
       "_class_name": "FlowMatchEulerDiscreteScheduler",

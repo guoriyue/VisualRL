@@ -12,6 +12,7 @@ _CUSTOM_REPLAY_MODEL_CLASSES = {
     "cosmos-predict2-anima": "vrl.models.families.cosmos.anima.model:AnimaReplayModel",
     "cosmos3": "vrl.models.families.cosmos.cosmos3.model:Cosmos3ReplayModel",
     "echo": "vrl.models.families.echo.model:EchoReplayModel",
+    "minimax_h3": "vrl.models.families.minimax_h3.model:MiniMaxH3ReplayModel",
 }
 
 
