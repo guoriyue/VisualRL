@@ -64,6 +64,10 @@ Two hybrid cases show why this scope matters:
 - Cosmos3 contains a causal reasoner and a full-sequence vision generator, but
   VRL trains the vision policy stream. Its current entry is
   `full_sequence + denoise`.
+- MiniMax-H3 denoises video and audio latents jointly in one packed
+  sequence. VRL's action is the video latent (`full_sequence + denoise`); the
+  audio rows are a deterministic side stream the family steps itself and
+  records for replay, so they never enter the policy ratio.
 
 If one checkpoint supports multiple executable policies, register distinct
 entries or variants. Do not mutate a checkpoint-level label based on the
