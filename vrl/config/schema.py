@@ -1,4 +1,4 @@
-"""Pydantic typed boundary for merged training configs.
+"""Pydantic typed boundary for merged training configs (validation tier 1).
 
 OmegaConf handles YAML defaults, interpolation, and CLI overrides.
 Pydantic validates the fully-resolved, merged container after OmegaConf finishes.
@@ -6,6 +6,12 @@ Every section is a closed pydantic model, so an unknown YAML key — a typo, a
 dead key, a removed legacy key — fails here with one error naming the dotted
 path. ``parse_config`` is the one seam, so every entrypoint that parses a
 config (training, eval, perf, encode tools) gets the same gate.
+
+This module owns section *shapes* and per-section invariants only. Rules that
+relate two sections live in ``vrl/config/rules.py`` (tier 2, run by
+``RootConfig``'s validator); checks that need the precision policy, runtime
+modules or the filesystem are launch gates in ``vrl/config/validation.py``
+(tier 3, run by ``require_training_config``).
 """
 
 from __future__ import annotations
@@ -42,7 +48,6 @@ from vrl.config.reward_inference import (
 )
 from vrl.config.sampling_schema import SamplingSection
 from vrl.generation.execution.types import BatchPlacementStrategy
-from vrl.models.families.names import normalize_model_family
 from vrl.models.families.registry import get_model_family_entry
 from vrl.ray.resources import (
     DistributedResourceConfig,
@@ -253,7 +258,7 @@ class DataConfig(ConfigBase):
     sft_latents: str | None = None
     max_train_samples: StrictInt | None = None
     task_type: str | None = None
-    # readers: data/eval tooling and the production Kling gate (validation.py).
+    # readers: data/eval tooling and the production Kling gate (config/production.py).
     allow_absolute_artifact_paths: StrictBool | None = None
     artifact_data_root: str | None = None
     source_report: str | None = None
@@ -552,35 +557,6 @@ class TrainerSection(ConfigBase):
     max_train_steps: StrictInt | None = None
 
 
-# Entrypoint-specific schema boundary. These are the only shared actor/trainer
-# keys consumed by train_wan_2_1_dpo (plus trainer.entrypoint, consumed by the
-# public dispatcher). Keeping the sets here makes inherited online-only knobs
-# fail loudly before model/data construction.
-_OFFLINE_DPO_ACTOR_FIELDS = frozenset(
-    {
-        "gradient_accumulation_steps",
-        "gradient_checkpointing",
-        "max_norm",
-        "optim",
-        "prediction_type",
-        "scale_lr",
-        "train_batch_size",
-        "use_adafactor",
-    },
-)
-_OFFLINE_DPO_TRAINER_FIELDS = frozenset(
-    {
-        "checkpointing_steps",
-        "entrypoint",
-        "log_interval",
-        "max_train_steps",
-        "output_dir",
-        "resume_from",
-        "resume_strict",
-    },
-)
-
-
 class FSDPConfig(ConfigBase):
     """distributed.training.fsdp: the FSDP2 knobs ``build_strategy`` reads.
 
@@ -790,8 +766,8 @@ class RootConfig(ConfigBase):
     # (``_parse_model_section``); sampling follows the model's family.
     model: SerializeAsAny[ModelSection] | None = None
     sampling: SerializeAsAny[SamplingSection] | None = None
-    # Per-component production gates; contract checks live in
-    # vrl/config/validation.py validate_production_* (raw-cfg checks)
+    # Per-component production gates; the contract and data-provenance checks
+    # are launch gates (vrl/config/production.py, run by require_training_config).
     production: ProductionSection | None = None
     trainer: TrainerSection | None = None
     actor: ActorSection | None = None
@@ -818,121 +794,13 @@ class RootConfig(ConfigBase):
         )
 
     @model_validator(mode="after")
-    def _cross_field_validate(self) -> RootConfig:
-        algo = self.algorithm
-        if algo is None:
-            return self
+    def _cross_section_rules(self) -> RootConfig:
+        # Tier 2 lives in vrl/config/rules.py; running it here (not only in
+        # parse_config) keeps direct RootConfig.model_validate callers honest.
+        from vrl.config.rules import check_cross_section_rules
 
-        kind = algo.kind
-        kl_reward_coef = resolve_kl_reward_coef(algo.kl_reward_coef)
-        if kl_reward_coef > 0.0 and kind in {
-            "token_grpo",
-            "token_grpo_multisegment",
-            "diffusion_dpo",
-        }:
-            raise ValueError(
-                "algorithm.kl_reward_coef > 0 requires a diffusion rollout "
-                "trajectory with collected per-step KL; "
-                f"algorithm.kind={kind!r} does not provide one",
-            )
-        rollout = self.rollout
-        model_family = normalize_model_family(
-            (self.model.family or "") if self.model else "",
-        )
-
-        if kind == "diffusion_dpo":
-            self._validate_offline_dpo_surface()
-
-        # The SFT term belongs to continuous diffusion GRPO and offline
-        # Diffusion-DPO. Validate the numeric domain and algorithm ownership
-        # here so an inherited token-GRPO field cannot silently become a no-op.
-        raw_sft_weight = getattr(algo.hyperparameters, "sft_weight", None)
-        if raw_sft_weight is not None:
-            try:
-                sft_weight = float(raw_sft_weight)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("algorithm.sft_weight must be a finite number >= 0") from exc
-            if not math.isfinite(sft_weight) or sft_weight < 0:
-                raise ValueError("algorithm.sft_weight must be a finite number >= 0")
-            if sft_weight > 0:
-                if kind in {"grpo", "dance_grpo"}:
-                    if self.data is None or not self.data.sft_latents:
-                        raise ValueError(
-                            "algorithm.sft_weight > 0 requires data.sft_latents "
-                            "(the precomputed clean-latents shard; see "
-                            "vrl/scripts/denoise/encode_targets.py)",
-                        )
-                elif kind != "diffusion_dpo":
-                    raise ValueError(
-                        "algorithm.sft_weight > 0 is supported only for diffusion "
-                        "grpo/dance_grpo or diffusion_dpo",
-                    )
-
-        # grpo / diffusion_nft: SDE type must be sde or cps
-        # grpo / diffusion_nft require an sde block; sde.type membership is now
-        # enforced by the SdeConfig Literal (for every kind, not just these two —
-        # the runtime layout guard remains the wire-boundary check).
-        if kind in {
-            "grpo",
-            "dance_grpo",
-            "flash_grpo",
-            "flow_dppo",
-            "grpo_guard",
-            "diffusion_nft",
-        } and (rollout is None or rollout.sde is None):
-            raise ValueError("config missing required field: rollout.sde.type")
-
-        # token_grpo: nextstep_1 family requires rollout.noise_level
-        if (
-            kind == "token_grpo"
-            and model_family == "nextstep_1"
-            and (rollout is None or rollout.noise_level is None)
-        ):
-            raise ValueError("config missing required field: rollout.noise_level")
-
-        if model_family == "janus_pro_r1" and kind != "token_grpo_multisegment":
-            raise ValueError(
-                "model.family=janus_pro_r1 requires algorithm.kind=token_grpo_multisegment",
-            )
-
-        # token_grpo_multisegment: explicit Janus R1 protocol; final_image_policy
-        # remains owned by rollout.
-        if kind == "token_grpo_multisegment":
-            if model_family != "janus_pro_r1":
-                raise ValueError(
-                    "token_grpo_multisegment currently requires model.family=janus_pro_r1",
-                )
-            # Single source: final_image_policy lives on rollout only. Validate it
-            # here as a legality check (the collector reads rollout.final_image_policy).
-            policy = (rollout.final_image_policy or "") if rollout else ""
-            if policy not in {"always_generate", "use_selfcheck"}:
-                raise ValueError(
-                    "rollout.final_image_policy must be 'always_generate' or 'use_selfcheck'"
-                )
-
+        check_cross_section_rules(self)
         return self
-
-    def _validate_offline_dpo_surface(self) -> None:
-        for section_name, section, allowed in (
-            ("actor", self.actor, _OFFLINE_DPO_ACTOR_FIELDS),
-            ("trainer", self.trainer, _OFFLINE_DPO_TRAINER_FIELDS),
-        ):
-            if section is None:
-                continue
-            unsupported = sorted(section.model_fields_set - allowed)
-            if unsupported:
-                fields = ", ".join(f"{section_name}.{name}" for name in unsupported)
-                raise ValueError(
-                    f"diffusion_dpo does not consume config field(s): {fields}",
-                )
-
-        if self.rollout is not None and self.rollout.model_fields_set:
-            fields = ", ".join(f"rollout.{name}" for name in sorted(self.rollout.model_fields_set))
-            raise ValueError(
-                f"diffusion_dpo does not consume config field(s): {fields}",
-            )
-        if self.reward is not None:
-            raise ValueError("diffusion_dpo does not consume the reward config section")
 
 
 # ── Parse boundary ────────────────────────────────────────────────────────────
