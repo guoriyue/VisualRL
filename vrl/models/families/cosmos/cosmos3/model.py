@@ -407,9 +407,6 @@ class Cosmos3ReplayModel(ReplayRolloutStubs, Cosmos3Model):
     def scheduler(self) -> Any:
         return self._scheduler
 
-    def set_num_steps(self, n: int) -> None:
-        self.scheduler.set_timesteps(n, device=self.device)
-
 
 def _assemble_packed_static(text: dict[str, Any], vision: dict[str, Any]) -> dict[str, Any]:
     """Merge text+vision segments into the transformer-facing packed_static, MINUS

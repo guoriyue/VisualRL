@@ -37,7 +37,6 @@ from vrl.models.interfaces.runtime import ModelBuild
 from vrl.models.steps.denoise import (
     DiffusersPipelineModelBase,
     DiffusersReplayModelBase,
-    diffusers_pipeline_dtypes,
 )
 from vrl.models.steps.denoise.common import (
     DiffusionBackboneCaller,
@@ -74,6 +73,12 @@ class SanaModel(
     cfg_mode = "batched_cfg"
     cfg_base = "uncond"
     sampling_state_cls = SanaSamplingState
+
+    _pipeline_classname = "SanaPipeline"
+    _frozen_encoder_names = ("text_encoder",)
+    # Gemma-2-2B is small enough to co-reside with the 1.6B DiT; keep it
+    # on-device (no CPU offload dance like Qwen-Image's 15 GB VL).
+    _prompt_encoder_on_cpu = False
 
     # -- backend ownership (called by runtime, not by collectors) -------
 
@@ -112,26 +117,14 @@ class SanaModel(
 
     @classmethod
     def from_build(cls, build: ModelBuild) -> SanaModel:
-        """Load the diffusers SANA pipeline + freeze non-trainable modules."""
-        from diffusers import SanaPipeline
+        """Shared pipeline load, then SANA's two deviations: flow-match scheduler + fp16 clamp.
 
-        # Rollout and replay both receive the role dtype selected by the unified
-        # precision policy. The canonical SANA preset chooses native FP16.
-        model_dtype = build.parameter_dtype
-        prompt_encoder_dtype, load_kwargs = diffusers_pipeline_dtypes(build, model_dtype)
-        pipeline = SanaPipeline.from_pretrained(
-            build.model_name_or_path,
-            **load_kwargs,
-        )
-        pipeline.vae.requires_grad_(False)
-        text_encoder = getattr(pipeline, "text_encoder", None)
-        if text_encoder is not None:
-            # Gemma-2-2B is small enough to co-reside with the 1.6B DiT; keep
-            # it on-device (no CPU offload dance like Qwen-Image's 15 GB VL).
-            text_encoder.requires_grad_(False)
-            text_encoder.to(build.device, dtype=prompt_encoder_dtype)
-        # DC-AE decodes in fp32 for output fidelity regardless of denoiser dtype.
-        pipeline.vae.to(build.device, dtype=torch.float32)
+        The freeze / placement sequence (frozen encoder at the rollout prompt
+        dtype, DC-AE in fp32 for decode fidelity) is the shared loader's; only
+        what follows is SANA-specific.
+        """
+        model = super().from_build(build)
+        pipeline = model.pipeline
         # SANA is rectified-flow native; diffusers ships DPMSolverMultistep for
         # fast inference, but flow-matching GRPO's per-step SDE log-prob needs a
         # FlowMatchEuler scheduler on BOTH sides. The replay bundle already loads
@@ -149,12 +142,9 @@ class SanaModel(
             scheduler_config,
             shift=float(scheduler_config.get("flow_shift", 1.0)),
         )
-        if model_dtype != torch.float16:
+        if build.parameter_dtype != torch.float16:
             cls._apply_fp16_saturation_clamp(pipeline.transformer)
-        return cls(
-            pipeline=pipeline,
-            device=build.device,
-        )
+        return model
 
     def prepare_replay(self, build: ModelBuild) -> None:
         """Replay forwards need the same non-fp16 saturation clamp as rollout."""

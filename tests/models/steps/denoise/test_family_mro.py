@@ -101,6 +101,27 @@ def test_family_either_declares_its_pipeline_load_or_owns_from_build(
     assert hasattr(diffusers, model_cls._pipeline_classname)
 
 
+def test_wan_i2v_replay_takes_forward_math_from_i2v_and_plumbing_from_t2v_replay() -> None:
+    """The I2V replay's base order is load-bearing.
+
+    ``WanT2VReplayModel`` must come first so the replay plumbing (constructor,
+    dual-stage ``prepare_replay``, pipeline-less accessors) wins, while the I2V
+    forward math must still resolve to ``WanI2VDiffusersModel``, not the T2V
+    class further down the MRO. Reversing the bases keeps every test that only
+    constructs the model green and silently swaps the forward.
+    """
+    from vrl.models.families.wan_2_1.model import (
+        WanI2VDiffusersModel,
+        WanI2VReplayModel,
+        WanT2VReplayModel,
+    )
+
+    for name in ("forward_step", "restore_eval_state", "export_replay_tensors"):
+        assert _owner(WanI2VReplayModel, name) is WanI2VDiffusersModel, name
+    for name in ("__init__", "prepare_replay", "pipeline", "scheduler", "_set_transformer"):
+        assert _owner(WanI2VReplayModel, name) is WanT2VReplayModel, name
+
+
 @pytest.mark.parametrize("replay_cls", _replay_model_classes())
 def test_pipeline_less_replay_models_never_inherit_the_pipeline_sync(
     replay_cls: type,

@@ -21,7 +21,11 @@ from tests.models.steps.denoise.fixtures import (
     stamp_model_precision,
 )
 from vrl.generation.types import DenoiseRequest
-from vrl.models.families.cosmos.cosmos3.model import Cosmos3Model, Cosmos3SamplingState
+from vrl.models.families.cosmos.cosmos3.model import (
+    Cosmos3Model,
+    Cosmos3ReplayModel,
+    Cosmos3SamplingState,
+)
 
 _GUIDANCE = 2.0
 _NUM_STEPS = 3
@@ -144,6 +148,24 @@ def test_forward_step_without_cfg_runs_one_forward_and_reports_a_zero_uncond() -
     assert len(calls) == 1
     torch.testing.assert_close(out["noise_pred"], out["noise_pred_cond"].float())
     assert torch.count_nonzero(out["noise_pred_uncond"]) == 0
+
+
+def test_replay_model_sets_its_own_scheduler_through_the_shared_set_num_steps() -> None:
+    """The replay model holds the scheduler itself; the inherited ``set_num_steps`` reaches
+    it through the ``scheduler`` property (UniPC is static, so the set is eager)."""
+    from diffusers import UniPCMultistepScheduler
+
+    pipe = build_tiny_cosmos3_pipeline()
+    replay = Cosmos3ReplayModel(
+        pipeline_shell=pipe,
+        scheduler=UniPCMultistepScheduler(),
+        device=torch.device("cpu"),
+    )
+
+    replay.set_num_steps(3)
+
+    assert replay.scheduler is not pipe.scheduler
+    assert replay.scheduler.timesteps.numel() == 3
 
 
 def test_decode_latents_denormalizes_with_the_real_vae_stats() -> None:

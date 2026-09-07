@@ -1190,52 +1190,17 @@ class WanI2VDiffusersModel(WanT2VDiffusersModel):
         return image_embeds.to(self.transformer.dtype)
 
 
-class WanI2VReplayModel(ReplayRolloutStubs, WanI2VDiffusersModel):
-    """Replay-only Wan I2V model that owns no text, image, VAE, or pipeline modules."""
+class WanI2VReplayModel(WanT2VReplayModel, WanI2VDiffusersModel):
+    """Replay-only Wan I2V model that owns no text, image, VAE, or pipeline modules.
 
-    def __init__(
-        self,
-        *,
-        transformer: Any,
-        scheduler: Any,
-        device: Any = None,
-        transformer_2: Any = None,
-        boundary_ratio: float | None = None,
-        trainable_transformers: Any = None,
-    ) -> None:
-        WanT2VReplayModel.__init__(
-            self,
-            transformer=transformer,
-            scheduler=scheduler,
-            device=device,
-            transformer_2=transformer_2,
-            boundary_ratio=boundary_ratio,
-            trainable_transformers=trainable_transformers,
-        )
-
-    def prepare_replay(self, build: ModelBuild) -> None:
-        # Same delegation as __init__: the i2v replay shares the t2v replay's
-        # dual-stage setup wholesale (it does not inherit from it — the class
-        # bases carry the i2v FORWARD math, not the replay plumbing).
-        WanT2VReplayModel.prepare_replay(self, build)
-
-    @property
-    def pipeline(self) -> Any:
-        raise RuntimeError("WanI2VReplayModel does not own a diffusers pipeline")
-
-    def _set_transformer(self, transformer: Any) -> None:
-        self.transformer = transformer
-
-    def _set_transformer_2(self, transformer: Any) -> None:
-        self.transformer_2 = transformer
-
-    @property
-    def scheduler(self) -> Any:
-        return self._scheduler
-
-    @property
-    def raw_handle(self) -> Any:
-        return None
+    Base order is the whole design: ``WanT2VReplayModel`` (first) supplies the
+    replay plumbing -- constructor, dual-stage ``prepare_replay``, the
+    pipeline-less ``pipeline`` / ``scheduler`` / ``_set_transformer`` -- and
+    ``WanI2VDiffusersModel`` (second) supplies the I2V forward math
+    (``forward_step`` / ``restore_eval_state`` / ``export_replay_tensors``),
+    which the C3 order puts ahead of the T2V versions. Pinned in
+    tests/models/steps/denoise/test_family_mro.py.
+    """
 
 
 def _align_optional_batch(value: torch.Tensor | None, batch_size: int) -> torch.Tensor | None:
