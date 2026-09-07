@@ -125,6 +125,7 @@ def test_forward_step_returns_raw_velocity_and_the_cosmos3_cfg_combine() -> None
     assert set(calls[0]) == _PACKED_STATIC_TRANSFORMER_KWARGS | {
         "vision_tokens",
         "vision_timesteps",
+        "return_dict",  # diffusers 0.40: the three lists, not Cosmos3OmniTransformerOutput
     }
     cond, uncond = out["noise_pred_cond"], out["noise_pred_uncond"]
     assert cond.shape == uncond.shape == out["noise_pred"].shape == state.latents.shape

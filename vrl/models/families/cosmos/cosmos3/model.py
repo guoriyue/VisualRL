@@ -1,6 +1,6 @@
 """Cosmos3 Omni vision generator — diffusers-backed model for flow-matching GRPO RL.
 
-Wraps the ``Cosmos3OmniPipeline`` released in diffusers 0.39. Cosmos3 is an omni MoT
+Wraps the ``Cosmos3OmniPipeline`` released in diffusers 0.39 (0.40+ required by the pin). Cosmos3 is an omni MoT
 (Mixture-of-Transformers): one ``Cosmos3OmniTransformer`` carries a Qwen3-VL
 causal reasoner stream + a bidirectional diffusion generation stream. We train
 ONLY the vision-generation stream as an RL policy; sound/action towers are off.
@@ -255,6 +255,8 @@ class Cosmos3Model(CosmosReplayForward, LoraModelMixin, DiffusersPipelineModelBa
                 vision_mse_loss_indexes=pack["vision_mse_loss_indexes"],
                 vision_timesteps=vision_timesteps,
                 vision_noisy_frame_indexes=pack["vision_noisy_frame_indexes"],
+                # diffusers 0.40 wraps the three lists in Cosmos3OmniTransformerOutput by default.
+                return_dict=False,
             )
             velocity, _s, _a = self.pipeline._mask_velocity_predictions(
                 preds_vision,
