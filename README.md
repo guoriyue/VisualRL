@@ -58,7 +58,7 @@ positioning and roadmap.
 
 | Family | Modality | Generation regime / step | Algorithms | Status |
 | --- | --- | --- | --- | --- |
-| **SD3.5** | text -> image | full_sequence / denoise | GRPO | ✅ OCR GRPO |
+| **SD3.5** | text -> image | full_sequence / denoise | GRPO, V-GRPO | ✅ OCR GRPO |
 | **FLUX** | text -> image | full_sequence / denoise | GRPO-Guard, DanceGRPO, DiffusionNFT, Flow-DPPO | 🧪 Runnable |
 | **Qwen-Image** | text -> image | full_sequence / denoise | GRPO | 🧪 Runnable |
 | **SANA** | text -> image | full_sequence / denoise | GRPO | 🧪 Runnable |
@@ -96,6 +96,7 @@ experiment config and its dependency contract are committed.
 | GRPO-Guard | `vrl/config/presets/base/algorithm/grpo_guard.yaml` |
 | DanceGRPO | `vrl/config/presets/base/algorithm/dance_grpo.yaml` |
 | DiffusionNFT | `vrl/config/presets/base/algorithm/diffusion_nft.yaml` |
+| V-GRPO | `vrl/config/presets/base/algorithm/v_grpo.yaml` |
 | Flow-DPPO | `vrl/config/presets/base/algorithm/flow_dppo.yaml` |
 | Token-GRPO | `vrl/config/presets/base/algorithm/token_grpo{,_multisegment}.yaml` |
 | DPO | `vrl/config/presets/base/algorithm/dpo.yaml` |
