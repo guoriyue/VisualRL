@@ -19,7 +19,7 @@ class KlingVideoReward(DiskArtifactRewardFunction):
     debug_basename = "kling_video_reward"
     default_reward_name = "kling_video_reward"
     default_score_key = "overall_reward"
-    # The production gate (vrl/config/production.py) validates this reward for
+    # The production gate (vrl/config/validation.py) validates this reward for
     # the three video prompt task types its datasets ship.
     production_task_types = frozenset({"text_to_video", "image_to_video", "video2world"})
 

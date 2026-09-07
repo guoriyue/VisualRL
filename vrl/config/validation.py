@@ -209,12 +209,47 @@ def gate_compile_compatible(root: RootConfig, precision: PrecisionPolicy) -> Non
 
 
 def gate_production(root: RootConfig, precision: PrecisionPolicy) -> None:
-    # Reward-owned contracts plus the data layer's provenance check, for every
-    # ``production.<reward>.enabled`` entry (vrl/config/production.py).
-    del precision
-    from vrl.config.production import validate_production_gates
+    """Every ``production.<reward>.enabled`` entry: the reward's own contract
+    (``validate_production_kwargs``), then the dataset provenance the configured
+    rewards need (``DatasetProvenance.from_config``). The gate holds no
+    per-reward or per-dataset knowledge; both owners declare theirs."""
 
-    validate_production_gates(root)
+    del precision
+    production = root.production
+    enabled = (
+        ()
+        if production is None
+        else tuple(
+            name
+            for name in type(production).model_fields
+            if bool(getattr(production, name).enabled)
+        )
+    )
+    if not enabled:
+        return
+    from vrl.rewards.functions.registry import get_reward
+    from vrl.trainers.data.provenance import DatasetProvenance
+
+    reward = root.reward
+    task_type = str((root.data.task_type if root.data is not None else None) or "")
+    for name in enabled:
+        contract = getattr(get_reward(name), "validate_production_kwargs", None)
+        if not callable(contract):
+            raise ValueError(f"production.{name}: the reward declares no production contract")
+        contract(
+            name,
+            (reward.kwargs.get(name) if reward is not None else None) or {},
+            task_type=task_type,
+        )
+    if root.data is None:
+        raise ValueError("config missing required field: data.manifest")
+    components = reward.components if reward is not None else {}
+    DatasetProvenance.from_config(
+        root.data,
+        extra_artifact_fields=tuple(
+            field for name in components for field in get_reward(name).required_prompt_artifacts
+        ),
+    )
 
 
 TRAINING_GATES: tuple[TrainingGate, ...] = (

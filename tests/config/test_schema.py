@@ -1319,9 +1319,14 @@ def test_production_video_reward_structural_rules() -> None:
             "production": {"kling_video_reward": {"enabled": True}},
         }
     )
-    from vrl.config.production import validate_production_reward_contract
+    from vrl.rewards.functions.registry import get_reward
 
-    validate_production_reward_contract(parse_config(cfg))
+    root = parse_config(cfg)
+    get_reward("kling_video_reward").validate_production_kwargs(
+        "kling_video_reward",
+        root.reward.kwargs["kling_video_reward"],
+        task_type=str(root.data.task_type),
+    )
 
 
 def test_production_video_reward_accepts_image_to_video_task_type() -> None:

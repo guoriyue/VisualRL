@@ -71,8 +71,8 @@ def test_launch_gates_do_not_run_inside_parse_config() -> None:
         validation.require_training_config(cfg)
 
 
-def test_production_data_gate_requires_existing_paths(tmp_path) -> None:
-    from vrl.config.production import validate_production_data
+def test_dataset_provenance_requires_existing_paths(tmp_path) -> None:
+    from vrl.trainers.data.provenance import DatasetProvenance
 
     manifest = tmp_path / "train.jsonl"
     manifest.write_text("{}\n", encoding="utf-8")
@@ -93,4 +93,4 @@ def test_production_data_gate_requires_existing_paths(tmp_path) -> None:
     )
 
     with pytest.raises(ValueError, match=r"data\.eval_manifest does not exist"):
-        validate_production_data(root)
+        DatasetProvenance.from_config(root.data)

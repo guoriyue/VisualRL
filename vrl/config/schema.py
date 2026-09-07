@@ -258,7 +258,7 @@ class DataConfig(ConfigBase):
     sft_latents: str | None = None
     max_train_samples: StrictInt | None = None
     task_type: str | None = None
-    # readers: data/eval tooling and the production Kling gate (config/production.py).
+    # readers: data/eval tooling and the dataset provenance gate (trainers/data/provenance.py).
     allow_absolute_artifact_paths: StrictBool | None = None
     artifact_data_root: str | None = None
     source_report: str | None = None
@@ -766,8 +766,8 @@ class RootConfig(ConfigBase):
     # (``_parse_model_section``); sampling follows the model's family.
     model: SerializeAsAny[ModelSection] | None = None
     sampling: SerializeAsAny[SamplingSection] | None = None
-    # Per-component production gates; the contract and data-provenance checks
-    # are launch gates (vrl/config/production.py, run by require_training_config).
+    # Per-component production gates; the reward contract and data-provenance checks
+    # are launch gates (vrl/config/validation.py gate_production).
     production: ProductionSection | None = None
     trainer: TrainerSection | None = None
     actor: ActorSection | None = None

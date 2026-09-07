@@ -7,11 +7,13 @@ and carry provenance metadata, and a ``report.json`` describing the dump
 artifact fields, which metadata keys, which report keys — and that is a
 ``DatasetProvenanceSpec`` in ``PROVENANCE_SPECS``, keyed by ``data.task_type``.
 
-``validate_dataset_provenance`` is the one check: it loads both manifests with
-the loader the config declares (so the rows are exactly what training will
-read), runs the artifact / metadata checks through ``ArtifactManifestReport``,
-and cross-checks the source report against the loaded rows. It reads files,
-so it is a launch gate (``vrl/config/production.py``), never a schema rule.
+``DatasetProvenance.from_config`` is the one check, in the repo's
+constructor-validates shape (like ``ArtifactManifestReport.from_manifest`` and
+``PrecisionPolicy.from_section``): it loads both manifests with the loader the
+config declares (so the rows are exactly what training will read), runs the
+artifact / metadata checks through ``ArtifactManifestReport``, and cross-checks
+the source report against the loaded rows. It reads files, so it is reached
+from a launch gate (``vrl/config/validation.py``), never a schema rule.
 """
 
 from __future__ import annotations
@@ -114,6 +116,24 @@ class DatasetProvenanceSpec:
     # Whether ``data.artifact_data_root`` must be declared explicitly.
     requires_data_root: bool = False
 
+    @staticmethod
+    def load_manifest(data: DataConfig, path: str) -> list[PromptExample]:
+        """Load one manifest the way the parsed ``data`` section declares."""
+
+        if data.loader == "prompt_image_manifest":
+            preprocessing = data.preprocessing
+            return load_prompt_image_manifest(
+                path,
+                image_field=str((preprocessing.image_field if preprocessing else None) or "image"),
+                caption_field=str(
+                    (preprocessing.caption_field if preprocessing else None) or "caption"
+                ),
+                default_task_type=str(data.task_type or "image_to_video"),
+            )
+        if data.loader == "prompt_manifest":
+            return load_prompt_manifest(path)
+        raise ValueError(f"dataset provenance has no loader for data.loader={data.loader!r}")
+
 
 PROVENANCE_SPECS: dict[str, DatasetProvenanceSpec] = {
     "video2world": DatasetProvenanceSpec(
@@ -145,86 +165,74 @@ PROVENANCE_SPECS: dict[str, DatasetProvenanceSpec] = {
 
 @dataclass(frozen=True, slots=True)
 class DatasetProvenance:
-    """What ``validate_dataset_provenance`` established."""
+    """What a source-backed dataset established at launch.
 
-    spec: DatasetProvenanceSpec
-    train: ArtifactManifestReport
-    report: SourceReport | None
-
-
-def validate_dataset_provenance(
-    data: DataConfig,
-    *,
-    extra_artifact_fields: Sequence[str] = (),
-) -> DatasetProvenance | None:
-    """Check the manifests and source report a source-backed dataset ships.
-
-    Returns ``None`` for a task type without a provenance spec (plain text
-    prompts): only the three files' existence is required then.
-    ``extra_artifact_fields`` are artifacts the configured rewards read
-    (``RewardFunction.required_prompt_artifacts``); they become hard row
-    requirements on top of the task type's own.
+    ``spec`` / ``train`` / ``report`` are ``None`` for a task type without a
+    provenance spec (plain text prompts): only the three files' existence is
+    required then.
     """
 
-    for name in ("manifest", "eval_manifest", "source_report"):
-        value = str(getattr(data, name) or "").strip()
-        if not value:
-            raise ValueError(f"config missing required field: data.{name}")
-        if not Path(value).exists():
-            raise ValueError(f"data.{name} does not exist: {value}")
-    if not isinstance(data.manifest, str):
-        raise ValueError("dataset provenance validates one data.manifest path, not a mixture")
+    spec: DatasetProvenanceSpec | None
+    train: ArtifactManifestReport | None
+    report: SourceReport | None
 
-    spec = PROVENANCE_SPECS.get(str(data.task_type or ""))
-    if spec is None:
-        return None
-    data_root = str(data.artifact_data_root or "").strip()
-    if spec.requires_data_root and not data_root:
-        raise ValueError("config missing required field: data.artifact_data_root")
+    @classmethod
+    def from_config(
+        cls,
+        data: DataConfig,
+        *,
+        extra_artifact_fields: Sequence[str] = (),
+    ) -> DatasetProvenance:
+        """Check the manifests and source report a source-backed dataset ships.
 
-    artifact_fields = tuple(dict.fromkeys((*spec.artifact_fields, *extra_artifact_fields)))
-    train_examples = _load_manifest(data, data.manifest)
-    eval_examples = _load_manifest(data, str(data.eval_manifest))
-    train = ArtifactManifestReport.from_examples(
-        train_examples,
-        manifest_path=data.manifest,
-        eval_examples=eval_examples,
-        eval_manifest_path=str(data.eval_manifest),
-        data_root=data_root or None,
-        artifact_fields=artifact_fields,
-        required_artifact_fields=artifact_fields,
-        required_metadata_fields=spec.required_metadata_fields,
-    )
+        ``extra_artifact_fields`` are artifacts the configured rewards read
+        (``RewardFunction.required_prompt_artifacts``); they become hard row
+        requirements on top of the task type's own.
+        """
 
-    report = SourceReport.from_json(str(data.source_report))
-    report.require_fields(spec.report_fields, task_type=spec.task_type)
-    if spec.dataset_names is not None and report.dataset not in spec.dataset_names:
-        expected = ", ".join(spec.dataset_names)
-        raise ValueError(f"data.source_report dataset must be {expected}, got {report.dataset!r}")
-    if spec.rows_must_match:
-        if report.train_rows != len(train_examples):
-            raise ValueError("data.source_report train_rows does not match data.manifest")
-        if report.eval_rows != len(eval_examples):
-            raise ValueError("data.source_report eval_rows does not match data.eval_manifest")
-    return DatasetProvenance(spec=spec, train=train, report=report)
+        for name in ("manifest", "eval_manifest", "source_report"):
+            value = str(getattr(data, name) or "").strip()
+            if not value:
+                raise ValueError(f"config missing required field: data.{name}")
+            if not Path(value).exists():
+                raise ValueError(f"data.{name} does not exist: {value}")
+        if not isinstance(data.manifest, str):
+            raise ValueError("dataset provenance validates one data.manifest path, not a mixture")
 
+        spec = PROVENANCE_SPECS.get(str(data.task_type or ""))
+        if spec is None:
+            return cls(spec=None, train=None, report=None)
+        data_root = str(data.artifact_data_root or "").strip()
+        if spec.requires_data_root and not data_root:
+            raise ValueError("config missing required field: data.artifact_data_root")
 
-def _load_manifest(data: DataConfig, path: str) -> list[PromptExample]:
-    """Load one manifest the way the parsed ``data`` section declares."""
-
-    if data.loader == "prompt_image_manifest":
-        preprocessing = data.preprocessing
-        return load_prompt_image_manifest(
-            path,
-            image_field=str((preprocessing.image_field if preprocessing else None) or "image"),
-            caption_field=str(
-                (preprocessing.caption_field if preprocessing else None) or "caption"
-            ),
-            default_task_type=str(data.task_type or "image_to_video"),
+        artifact_fields = tuple(dict.fromkeys((*spec.artifact_fields, *extra_artifact_fields)))
+        train_examples = spec.load_manifest(data, data.manifest)
+        eval_examples = spec.load_manifest(data, str(data.eval_manifest))
+        train = ArtifactManifestReport.from_examples(
+            train_examples,
+            manifest_path=data.manifest,
+            eval_examples=eval_examples,
+            eval_manifest_path=str(data.eval_manifest),
+            data_root=data_root or None,
+            artifact_fields=artifact_fields,
+            required_artifact_fields=artifact_fields,
+            required_metadata_fields=spec.required_metadata_fields,
         )
-    if data.loader == "prompt_manifest":
-        return load_prompt_manifest(path)
-    raise ValueError(f"dataset provenance has no loader for data.loader={data.loader!r}")
+
+        report = SourceReport.from_json(str(data.source_report))
+        report.require_fields(spec.report_fields, task_type=spec.task_type)
+        if spec.dataset_names is not None and report.dataset not in spec.dataset_names:
+            expected = ", ".join(spec.dataset_names)
+            raise ValueError(
+                f"data.source_report dataset must be {expected}, got {report.dataset!r}"
+            )
+        if spec.rows_must_match:
+            if report.train_rows != len(train_examples):
+                raise ValueError("data.source_report train_rows does not match data.manifest")
+            if report.eval_rows != len(eval_examples):
+                raise ValueError("data.source_report eval_rows does not match data.eval_manifest")
+        return cls(spec=spec, train=train, report=report)
 
 
 __all__ = [
@@ -232,5 +240,4 @@ __all__ = [
     "DatasetProvenance",
     "DatasetProvenanceSpec",
     "SourceReport",
-    "validate_dataset_provenance",
 ]

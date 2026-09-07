@@ -1,4 +1,4 @@
-"""Source-backed dataset provenance (vrl/trainers/data/provenance.py).
+"""Source-backed dataset provenance (``DatasetProvenance.from_config``).
 
 One check for every production task type: the manifests load through the
 loader the config declares, their artifacts resolve and their rows carry the
@@ -16,11 +16,7 @@ import pytest
 from omegaconf import OmegaConf
 
 from vrl.config.schema import parse_config
-from vrl.trainers.data.provenance import (
-    PROVENANCE_SPECS,
-    SourceReport,
-    validate_dataset_provenance,
-)
+from vrl.trainers.data.provenance import PROVENANCE_SPECS, DatasetProvenance, SourceReport
 
 
 def _write_ppm(path: Path) -> None:
@@ -159,9 +155,8 @@ def _v2w_dataset(tmp_path: Path, *, with_target: bool):
 
 
 def test_image_to_video_provenance_loads_rows_through_the_image_caption_loader(tmp_path) -> None:
-    provenance = validate_dataset_provenance(_i2v_dataset(tmp_path))
+    provenance = DatasetProvenance.from_config(_i2v_dataset(tmp_path))
 
-    assert provenance is not None
     assert provenance.spec is PROVENANCE_SPECS["image_to_video"]
     assert provenance.train.row_count == 2
     assert {item.field for item in provenance.train.resolved_artifacts} == {"reference_image"}
@@ -171,7 +166,7 @@ def test_image_to_video_provenance_loads_rows_through_the_image_caption_loader(t
 def test_image_to_video_report_rows_must_match_the_manifests(tmp_path) -> None:
     data = _i2v_dataset(tmp_path, eval_rows=1, report_eval_rows=3)
     with pytest.raises(ValueError, match="eval_rows does not match"):
-        validate_dataset_provenance(data)
+        DatasetProvenance.from_config(data)
 
 
 def test_image_to_video_rows_need_their_provenance_metadata(tmp_path) -> None:
@@ -181,20 +176,21 @@ def test_image_to_video_rows_need_their_provenance_metadata(tmp_path) -> None:
     del rows[0]["metadata"]["source_video_url"]
     _write_jsonl(manifest, rows)
     with pytest.raises(ValueError, match=r"metadata\.source_video_url is required"):
-        validate_dataset_provenance(data)
+        DatasetProvenance.from_config(data)
 
 
 def test_video_world_provenance_passes_and_reward_artifacts_become_requirements(tmp_path) -> None:
     """A reward that reads ``target_video`` turns it into a hard row requirement."""
     without_target = _v2w_dataset(tmp_path, with_target=False)
 
-    assert validate_dataset_provenance(without_target) is not None
+    assert DatasetProvenance.from_config(without_target).spec is not None
     with pytest.raises(ValueError, match="missing required field target_video"):
-        validate_dataset_provenance(without_target, extra_artifact_fields=("target_video",))
+        DatasetProvenance.from_config(without_target, extra_artifact_fields=("target_video",))
 
     with_target = _v2w_dataset(tmp_path / "targets", with_target=True)
-    provenance = validate_dataset_provenance(with_target, extra_artifact_fields=("target_video",))
-    assert provenance is not None
+    provenance = DatasetProvenance.from_config(
+        with_target, extra_artifact_fields=("target_video",)
+    )
     assert {item.field for item in provenance.train.resolved_artifacts} == {
         "reference_image",
         "target_video",
@@ -210,7 +206,7 @@ def test_video_world_report_needs_its_validation_summary(tmp_path) -> None:
     with pytest.raises(
         ValueError, match="video2world provenance fields: \\['validation_summary'\\]"
     ):
-        validate_dataset_provenance(data)
+        DatasetProvenance.from_config(data)
 
 
 def test_plain_text_task_types_only_need_the_three_files(tmp_path) -> None:
@@ -233,10 +229,10 @@ def test_plain_text_task_types_only_need_the_three_files(tmp_path) -> None:
         )
     ).data
 
-    assert validate_dataset_provenance(data) is None
+    assert DatasetProvenance.from_config(data).spec is None
     data_missing = data.model_copy(update={"source_report": str(tmp_path / "nope.json")})
     with pytest.raises(ValueError, match=r"data\.source_report does not exist"):
-        validate_dataset_provenance(data_missing)
+        DatasetProvenance.from_config(data_missing)
 
 
 def test_source_report_rejects_empty_row_counts(tmp_path) -> None:

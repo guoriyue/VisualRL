@@ -30,11 +30,12 @@ compile × checkpointing 的重复文案，docstring 说"也被 require_training
 | 2 跨 section 规则 | `rules.py::CROSS_SECTION_RULES`（6 条 `rule_*`） | `RootConfig` 的 model_validator 转发，所以直接 `RootConfig.model_validate` 也触发 | 只读已解析的 root，不 import torch / 运行时模块 |
 | 3 启动门 | `validation.py::TRAINING_GATES`（compile 矩阵、漂移守卫、生产 Kling 门） | `require_training_config`（只有训练启动付这个钱） | precision policy / 运行时模块 / 文件系统 |
 
-生产门不再是 Kling 专属的一坨：`production.py` 只剩一个通用循环——对每个
+生产门不再是 Kling 专属的一坨，也不再有自己的模块：`validation.py::gate_production` 是一个通用循环——对每个
 `production.<reward>.enabled` 的组件，调 reward 类自己的
 `validate_production_kwargs`（`DiskArtifactRewardFunction` 上的契约：media type、
 artifact format、`production_task_types`、锁定的 worker_config 键），再调数据层的
-`validate_dataset_provenance`（`vrl/trainers/data/provenance.py`：按 `data.task_type`
+`DatasetProvenance.from_config`（`vrl/trainers/data/provenance.py`，构造即校验，同
+`ArtifactManifestReport.from_manifest` / `PrecisionPolicy.from_section` 的形状：按 `data.task_type`
 查 `PROVENANCE_SPECS`，用 config 声明的 loader 加载两份 manifest，走
 `ArtifactManifestReport.from_examples` 做 artifact / 元数据检查，再用 `SourceReport`
 对账 report.json）。奖励读的额外 artifact（DINO 的 `target_video`）由
