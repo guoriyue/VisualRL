@@ -20,11 +20,12 @@ import math
 import time
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
 from vrl.rewards.artifacts import (
+    ArtifactFormat,
     DiskRewardArtifactStore,
     InMemoryRewardArtifactStore,
     MediaType,
@@ -56,8 +57,66 @@ class RewardCleanupError(RuntimeError):
         super().__init__(f"{message}: {details}")
 
 
+@dataclass(frozen=True, slots=True)
+class ProductionContract:
+    """What ``production.<reward>.enabled`` asserts about one reward's config.
+
+    A reward opts into the production gate by declaring one of these in its
+    class-declaration block, beside ``model_factory`` and its ``default_*``
+    values; a reward that declares none has no production gate, and enabling
+    one for it is a config error. Everything the gate compares against is
+    declared here, so the check needs the contract and the configured kwargs
+    and nothing else.
+
+    Most of what a production config can get wrong (a model it cannot load, a
+    row it cannot read, a service that is down) shows up by running the reward
+    -- ``python -m vrl.scripts.rewards.preflight`` does that in seconds. What
+    stays here is what running the reward cannot answer: the prompt task types
+    the reward was validated against, the archive format a production run must
+    leave behind, and the loader keys a production config must not carry.
+    """
+
+    # Prompt task types (``data.task_type``) this reward is validated for.
+    task_types: frozenset[str]
+    # The archive a production run must leave behind. Defaults are the disk
+    # rewards' own; a reward whose production evidence differs declares its own.
+    media_type: MediaType = "video"
+    artifact_format: ArtifactFormat = "mp4"
+
+    # ``DiskArtifactRewardFunction.__init__`` prefers ``worker_config["model_factory"]``
+    # over the class's own, so this key redirects the reward's model loader. A
+    # production config names its model, never its loader. Not per-reward data
+    # -- it is a property of how the loader reads its config -- so it lives on
+    # this type rather than being restated by every reward.
+    LOCKED_WORKER_CONFIG_KEYS: ClassVar[frozenset[str]] = frozenset({"model_factory"})
+
+    def require(self, name: str, kwargs: Mapping[str, Any], *, task_type: str) -> None:
+        """Refuse a production config for component ``name`` that breaks the contract."""
+
+        prefix = f"production.{name} requires"
+        if str(kwargs.get("media_type", "")) != str(self.media_type):
+            raise ValueError(f"{prefix} reward.kwargs.{name}.media_type={self.media_type}")
+        if str(kwargs.get("artifact_format", "")) != str(self.artifact_format):
+            raise ValueError(f"{prefix} artifact_format={self.artifact_format}")
+        if not str(kwargs.get("reward_name", "")).strip():
+            raise ValueError(f"{prefix} reward.kwargs.{name}.reward_name")
+        worker_config = kwargs.get("worker_config") or {}
+        forbidden = sorted(key for key in self.LOCKED_WORKER_CONFIG_KEYS if key in worker_config)
+        if forbidden:
+            raise ValueError(
+                f"production.{name} worker_config should name the reward model directly; "
+                f"remove extra loader fields: {', '.join(forbidden)}",
+            )
+        if task_type not in self.task_types:
+            expected = ", ".join(sorted(self.task_types)) or "<none>"
+            raise ValueError(f"{prefix} data.task_type={expected}")
+
+
 class RewardFunction:
     """Base class for pure scoring functions and reward composition."""
+
+    # The production gate's contract, declared by a reward that has one.
+    production: ClassVar[ProductionContract | None] = None
 
     # None is fail-closed. A specialized base class declares this capability only
     # when all model-owned CUDA state is built in the tagged runtime pool.
@@ -467,49 +526,6 @@ class DiskArtifactRewardFunction(CumemRewardFunction):
     default_score_key: ClassVar[str]
     default_artifact_format: ClassVar[str] = "mp4"
     default_media_type: ClassVar[MediaType] = "video"
-    # Production contract (``production.<reward>.enabled``): the prompt task
-    # types the reward is validated for, and the worker_config loader keys a
-    # production config must not carry (it names the reward model directly;
-    # ``model_factory`` / ``import_path`` are live reader machinery).
-    production_task_types: ClassVar[frozenset[str]] = frozenset()
-    production_locked_worker_config_keys: ClassVar[frozenset[str]] = frozenset(
-        {"model_factory", "import_path"}
-    )
-
-    @classmethod
-    def validate_production_kwargs(
-        cls,
-        name: str,
-        kwargs: Mapping[str, Any],
-        *,
-        task_type: str,
-    ) -> None:
-        """The structural production contract for one configured component.
-
-        Reads the reward's kwargs mapping directly: per-reward config knowledge
-        lives with the reward, not in the config schema. Exists because a
-        production misconfiguration is unrecoverable mid-run.
-        """
-
-        prefix = f"production.{name} requires"
-        if str(kwargs.get("media_type", "")) != str(cls.default_media_type):
-            raise ValueError(f"{prefix} reward.kwargs.{name}.media_type={cls.default_media_type}")
-        if str(kwargs.get("artifact_format", "")) != str(cls.default_artifact_format):
-            raise ValueError(f"{prefix} artifact_format={cls.default_artifact_format}")
-        if not str(kwargs.get("reward_name", "")).strip():
-            raise ValueError(f"{prefix} reward.kwargs.{name}.reward_name")
-        worker_config = kwargs.get("worker_config") or {}
-        forbidden = sorted(
-            key for key in cls.production_locked_worker_config_keys if key in worker_config
-        )
-        if forbidden:
-            raise ValueError(
-                f"production.{name} worker_config should name the reward model directly; "
-                f"remove extra loader fields: {', '.join(forbidden)}",
-            )
-        if task_type not in cls.production_task_types:
-            expected = ", ".join(sorted(cls.production_task_types)) or "<none>"
-            raise ValueError(f"{prefix} data.task_type={expected}")
 
     def __init__(
         self,

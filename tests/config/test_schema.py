@@ -1322,7 +1322,7 @@ def test_production_video_reward_structural_rules() -> None:
     from vrl.rewards.functions.registry import get_reward
 
     root = parse_config(cfg)
-    get_reward("kling_video_reward").validate_production_kwargs(
+    get_reward("kling_video_reward").production.require(
         "kling_video_reward",
         root.reward.kwargs["kling_video_reward"],
         task_type=str(root.data.task_type),

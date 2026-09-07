@@ -8,7 +8,7 @@ factory and its defaults.
 
 from __future__ import annotations
 
-from vrl.rewards.base import DiskArtifactRewardFunction
+from vrl.rewards.base import DiskArtifactRewardFunction, ProductionContract
 
 
 class KlingVideoReward(DiskArtifactRewardFunction):
@@ -19,9 +19,9 @@ class KlingVideoReward(DiskArtifactRewardFunction):
     debug_basename = "kling_video_reward"
     default_reward_name = "kling_video_reward"
     default_score_key = "overall_reward"
-    # The production gate (vrl/config/validation.py) validates this reward for
-    # the three video prompt task types its datasets ship.
-    production_task_types = frozenset({"text_to_video", "image_to_video", "video2world"})
+    production = ProductionContract(
+        task_types=frozenset({"text_to_video", "image_to_video", "video2world"}),
+    )
 
 
 __all__ = ["KlingVideoReward"]

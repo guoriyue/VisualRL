@@ -31,9 +31,10 @@ compile × checkpointing 的重复文案，docstring 说"也被 require_training
 | 3 启动门 | `validation.py::TRAINING_GATES`（compile 矩阵、漂移守卫、生产 Kling 门） | `require_training_config`（只有训练启动付这个钱） | precision policy / 运行时模块 / 文件系统 |
 
 生产门不再是 Kling 专属的一坨，也不再有自己的模块：`validation.py::gate_production` 是一个通用循环——对每个
-`production.<reward>.enabled` 的组件，调 reward 类自己的
-`validate_production_kwargs`（`DiskArtifactRewardFunction` 上的契约：media type、
-artifact format、`production_task_types`、锁定的 worker_config 键），再调数据层的
+`production.<reward>.enabled` 的组件，调 reward 自己声明的
+`ProductionContract`（`vrl/rewards/base.py` 上的独立类型，和 `model_factory` /
+`default_*` 一样写在 reward 的声明块里：`task_types` + 产物 media type / artifact
+format；不声明就没有生产门，开了即报错），再调数据层的
 `DatasetProvenance.from_config`（`vrl/trainers/data/provenance.py`，构造即校验，同
 `ArtifactManifestReport.from_manifest` / `PrecisionPolicy.from_section` 的形状：按 `data.task_type`
 查 `PROVENANCE_SPECS`，用 config 声明的 loader 加载两份 manifest，走
@@ -42,7 +43,15 @@ artifact format、`production_task_types`、锁定的 worker_config 键），再
 `ImageCaptionPromptDataset`。"某个奖励需要行里有 `target_video`"这类要求**不再是 config
 门**（第一版加过一个 `required_prompt_artifacts` 声明，用户判定是干扰，删了）：
 `python -m vrl.scripts.rewards.preflight --config <experiment>` 用 collector 同一套
-metadata 投影、在配置的行上真跑一次奖励（合成像素），打分时才会炸的错误在启动前就出来。`compile_conflicts` 返回结构化的 `CompileConflict(feature, message)`，
+metadata 投影、在配置的行上真跑一次奖励（合成像素），打分时才会炸的错误在启动前就出来。
+
+同一把尺子也裁掉了 `ProductionContract` 里两处：它只留"跑一次奖励也答不出来"的东西
+（validated 的 `data.task_type`、生产必须留下的归档格式、以及会改写 loader 的
+`worker_config.model_factory`）。`import_path` 从锁里删了——它是 GenEval 的构造参数
+（`reward.kwargs.geneval.import_path`），从来不从 `worker_config` 读，锁着它保护不了
+任何东西（仓库自己的规矩：a lock that cannot protect anything misleads more than it
+protects）。locked-keys 不是 per-reward 数据，所以挂在 `ProductionContract` 类型上，
+不是每个 reward 重复一遍。`compile_conflicts` 返回结构化的 `CompileConflict(feature, message)`，
 `activation_checkpointing.validate_compile_checkpointing_compatible` 改为按
 `feature == "gradient_checkpointing"` 复用矩阵，删掉重复文案。`RewardConfig` 转口
 删除，importer 改从 `schema` 取。

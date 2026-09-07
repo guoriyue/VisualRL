@@ -235,10 +235,10 @@ def gate_production(root: RootConfig, precision: PrecisionPolicy) -> None:
     reward = root.reward
     task_type = str((root.data.task_type if root.data is not None else None) or "")
     for name in enabled:
-        contract = getattr(get_reward(name), "validate_production_kwargs", None)
-        if not callable(contract):
+        contract = get_reward(name).production
+        if contract is None:
             raise ValueError(f"production.{name}: the reward declares no production contract")
-        contract(
+        contract.require(
             name,
             (reward.kwargs.get(name) if reward is not None else None) or {},
             task_type=task_type,

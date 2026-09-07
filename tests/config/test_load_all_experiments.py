@@ -905,16 +905,16 @@ def test_wan_video_reward_production_config_requires_reward_name() -> None:
         require_training_config(cfg)
 
 
-def test_wan_video_reward_production_rejects_extra_loader_fields() -> None:
-    """Production Kling configs reject loader-level keys (``import_path``, ``model_factory``)
-    inside ``worker_config``.
+def test_wan_video_reward_production_rejects_a_redirected_model_loader() -> None:
+    """A production Kling config cannot carry ``worker_config.model_factory``.
+
+    That key is the live redirect: ``DiskArtifactRewardFunction.__init__`` prefers
+    it over the reward class's own factory, so a config carrying it names the
+    loader instead of the model. ``import_path`` used to be locked beside it and
+    is not any more -- it is a GenEval *constructor* kwarg
+    (``reward.kwargs.geneval.import_path``), never read out of ``worker_config``,
+    so locking it there protected nothing.
     """
-    cfg = load_config("experiment/wan_2_1/online_grpo_kling_video_reward")
-    cfg.reward.kwargs.kling_video_reward.worker_config.import_path = "fake:thing"
-
-    with pytest.raises(ValueError, match="remove extra loader fields"):
-        require_training_config(cfg)
-
     cfg = load_config("experiment/wan_2_1/online_grpo_kling_video_reward")
     cfg.reward.kwargs.kling_video_reward.worker_config.model_factory = "fake:factory"
 
