@@ -627,3 +627,215 @@ def build_tiny_cosmos3_pipeline(
         scheduler=UniPCMultistepScheduler(),
         enable_safety_checker=False,
     )
+
+
+# ---- MiniMax-H3 (diffusers 0.40) ------------------------------------------------
+# Tiny real geometry: video latents [1, 4, T_lat, 4, 4] from a 16x16 canvas
+# (spatial ratio 4, patch (1, 2, 2) -> canvas multiple 8), a 5-frame VAE clip
+# keeping 3 latents with 1 dropped (the released 17/5/3 shape scaled down), so
+# 8 pixel frames -> 5 latent frames. Audio: 6 latent channels, 2 channels packed
+# channel-major. The Qwen3-VL conditioner is a real 2-layer model read at
+# ``hidden_states[1]``.
+TINY_MINIMAX_H3_LATENT_CHANNELS = 4
+TINY_MINIMAX_H3_AUDIO_LATENT_CHANNELS = 6
+TINY_MINIMAX_H3_TEXT_DIM = 16
+TINY_MINIMAX_H3_PATCH_SIZE = (1, 2, 2)
+TINY_MINIMAX_H3_TEXT_ENCODER_LAYER = 1
+TINY_MINIMAX_H3_VAE_CLIP_LENGTH = 5
+TINY_MINIMAX_H3_VAE_TOKEN_DROP = 1
+
+
+def build_tiny_minimax_h3_tokenizer() -> Any:
+    """A real ``Qwen2TokenizerFast`` over a word-level vocabulary carrying the
+    four vision-pad specials ``Qwen3VLProcessor`` derives its token types from."""
+
+    from tokenizers import Tokenizer, models, pre_tokenizers
+    from transformers import Qwen2TokenizerFast
+
+    specials = [
+        "<unk>",
+        "<|endoftext|>",
+        "<|vision_start|>",
+        "<|vision_end|>",
+        "<|image_pad|>",
+        "<|video_pad|>",
+    ]
+    words = ["a", "cat", "video", "the", "is", "of", "long", "dog", "runs", "on", "grass"]
+    vocab = {token: index for index, token in enumerate([*specials, *words])}
+    core = Tokenizer(models.WordLevel(vocab, unk_token="<unk>"))
+    core.pre_tokenizer = pre_tokenizers.Whitespace()
+    return Qwen2TokenizerFast(
+        tokenizer_object=core,
+        eos_token="<|endoftext|>",
+        pad_token="<|endoftext|>",
+        unk_token="<unk>",
+        additional_special_tokens=specials[2:],
+    )
+
+
+def build_tiny_minimax_h3_text_encoder(tokenizer: Any, *, seed: int = 0) -> Any:
+    """Tiny real ``Qwen3VLForConditionalGeneration`` (2 decoder layers, ~30K params)."""
+
+    from transformers import Qwen3VLConfig, Qwen3VLForConditionalGeneration
+
+    token_id = tokenizer.convert_tokens_to_ids
+    config = Qwen3VLConfig(
+        text_config={
+            "hidden_size": TINY_MINIMAX_H3_TEXT_DIM,
+            "intermediate_size": 32,
+            "num_hidden_layers": 2,
+            "num_attention_heads": 2,
+            "num_key_value_heads": 1,
+            "vocab_size": len(tokenizer),
+            "head_dim": 8,
+            "rope_theta": 10000.0,
+            "rope_scaling": {
+                "mrope_section": [1, 1, 2],
+                "rope_type": "default",
+                "mrope_interleaved": True,
+            },
+        },
+        vision_config={
+            "depth": 1,
+            "hidden_size": 16,
+            "intermediate_size": 32,
+            "num_heads": 2,
+            "out_hidden_size": TINY_MINIMAX_H3_TEXT_DIM,
+            "patch_size": 4,
+            "spatial_merge_size": 2,
+            "temporal_patch_size": 2,
+            "num_position_embeddings": 16,
+            "in_channels": 3,
+        },
+        image_token_id=token_id("<|image_pad|>"),
+        video_token_id=token_id("<|video_pad|>"),
+        vision_start_token_id=token_id("<|vision_start|>"),
+        vision_end_token_id=token_id("<|vision_end|>"),
+    )
+    torch.manual_seed(seed)
+    return Qwen3VLForConditionalGeneration(config)
+
+
+def build_tiny_minimax_h3_processor(tokenizer: Any) -> Any:
+    """A real ``Qwen3VLProcessor`` around the tiny tokenizer (image/video processors at defaults)."""
+
+    from transformers import Qwen2VLImageProcessor, Qwen3VLProcessor, Qwen3VLVideoProcessor
+
+    return Qwen3VLProcessor(
+        image_processor=Qwen2VLImageProcessor(),
+        tokenizer=tokenizer,
+        video_processor=Qwen3VLVideoProcessor(),
+    )
+
+
+def build_tiny_minimax_h3_transformer(*, seed: int = 0) -> Any:
+    """Tiny real ``MiniMaxH3Transformer3DModel`` (~9K params): one block, one refiner."""
+
+    from diffusers import MiniMaxH3Transformer3DModel
+
+    torch.manual_seed(seed)
+    return MiniMaxH3Transformer3DModel(
+        num_attention_heads=2,
+        attention_head_dim=8,
+        hidden_size=16,
+        num_layers=1,
+        num_refiner_layers=1,
+        ffn_dim=32,
+        in_channels=TINY_MINIMAX_H3_LATENT_CHANNELS,
+        audio_in_channels=TINY_MINIMAX_H3_AUDIO_LATENT_CHANNELS,
+        patch_size=TINY_MINIMAX_H3_PATCH_SIZE,
+        text_dim=TINY_MINIMAX_H3_TEXT_DIM,
+        freq_dim=8,
+        time_embed_hidden_dim=16,
+        time_embed_dim=8,
+        # 2 * 3 * rope_freq_dim channels of the head are rotated; 6 of 8 here.
+        rope_freq_dim=1,
+    )
+
+
+def build_tiny_minimax_h3_video_vae(
+    *,
+    seed: int = 0,
+    latents_mean: float = 0.0,
+    latents_std: float = 1.0,
+) -> Any:
+    """Tiny real ``AutoencoderKLMiniMaxH3`` (~23K params) with the released chunking shape scaled down."""
+
+    from diffusers import AutoencoderKLMiniMaxH3
+
+    torch.manual_seed(seed)
+    channels = TINY_MINIMAX_H3_LATENT_CHANNELS
+    return AutoencoderKLMiniMaxH3(
+        latent_channels=channels,
+        block_out_channels=(8, 8, 8),
+        layers_per_block=1,
+        spatial_downsample_factors=(2, 2, 1),
+        temporal_downsample_factors=(1, 2, 1),
+        norm_num_groups=4,
+        decoder_num_layers=1,
+        decoder_num_attention_heads=2,
+        decoder_attention_head_dim=8,
+        clip_length=TINY_MINIMAX_H3_VAE_CLIP_LENGTH,
+        token_drop=TINY_MINIMAX_H3_VAE_TOKEN_DROP,
+        latents_mean=(latents_mean,) * channels,
+        latents_std=(latents_std,) * channels,
+    )
+
+
+def build_tiny_minimax_h3_audio_vae(*, seed: int = 0) -> Any:
+    """Tiny real ``AutoencoderKLMiniMaxH3Audio`` (hop 4 at a 100 Hz sample rate)."""
+
+    from diffusers import AutoencoderKLMiniMaxH3Audio
+
+    torch.manual_seed(seed)
+    return AutoencoderKLMiniMaxH3Audio(
+        encoder_dim=4,
+        encoder_rates=(2, 2),
+        latent_dim=12,
+        latent_channels=TINY_MINIMAX_H3_AUDIO_LATENT_CHANNELS,
+        num_attention_heads=2,
+        decoder_dim=8,
+        decoder_rates=(2, 2),
+        decoder_kernel_sizes=(4, 4),
+        resblock_kernel_sizes=(3,),
+        resblock_dilation_sizes=((1,),),
+        sampling_rate=100,
+        latents_mean=[0.0] * TINY_MINIMAX_H3_AUDIO_LATENT_CHANNELS,
+        latents_std=[1.0] * TINY_MINIMAX_H3_AUDIO_LATENT_CHANNELS,
+    )
+
+
+def build_tiny_minimax_h3_components(
+    *,
+    seed: int = 0,
+    latents_mean: float = 0.0,
+    latents_std: float = 1.0,
+) -> Any:
+    """The full tiny real component set the family reads, on the family's own shell.
+
+    Video scheduler is the flow-convention subclass the rollout model installs
+    (``shift=12``); the audio scheduler is the plain ``MiniMaxH3Scheduler``
+    (``shift=3``), exactly the released pairing.
+    """
+
+    from diffusers import MiniMaxH3Scheduler
+
+    from vrl.models.families.minimax_h3.model import (
+        MiniMaxH3Components,
+        build_flow_scheduler_class,
+    )
+
+    tokenizer = build_tiny_minimax_h3_tokenizer()
+    return MiniMaxH3Components(
+        transformer=build_tiny_minimax_h3_transformer(seed=seed),
+        vae=build_tiny_minimax_h3_video_vae(
+            seed=seed, latents_mean=latents_mean, latents_std=latents_std
+        ),
+        audio_vae=build_tiny_minimax_h3_audio_vae(seed=seed),
+        text_encoder=build_tiny_minimax_h3_text_encoder(tokenizer, seed=seed),
+        tokenizer=tokenizer,
+        processor=build_tiny_minimax_h3_processor(tokenizer),
+        scheduler=build_flow_scheduler_class()(shift=12.0),
+        audio_scheduler=MiniMaxH3Scheduler(shift=3.0),
+        text_encoder_layer=TINY_MINIMAX_H3_TEXT_ENCODER_LAYER,
+    )
