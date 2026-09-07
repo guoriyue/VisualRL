@@ -1,6 +1,6 @@
 # SPRINT：让 docstring 陈述不变量，让每个替身只有一个 owner
 
-状态：**PLANNED**。基线 main @ `812cc3cf`。本文全部数字均在本机实测（`.venv/bin/python -m pytest ... -p no:randomly`），不是估算。
+状态：**done（2026-09-07 落地，见文末「落地记录」）**。原基线 main @ `812cc3cf`。本文全部数字均在本机实测（`.venv/bin/python -m pytest ... -p no:randomly`），不是估算。
 
 序号：**轨道六 / 共六轨。风险 low。必须最后执行。**
 
@@ -657,3 +657,28 @@ grep -rn 'collect_scored\|_video_to_cthw\|_generate_one_video' vrl/ tests/ --inc
 - 陈旧引用：`docs/sprints/done/SPRINT_test_suite_tiny_real_and_fake_audit.md:274,282,704`；`tests/conftest.py:64-69`（归 infra 轨）
 - 配置：`pyproject.toml:203-211`（`--strict-markers` + 已注册 marker 清单，`real_cover` 不在其中）
 - 当前 marker 契约：`docs/sprints/done/SPRINT_tier-policy-and-real-cover-labels.md`
+
+## 落地记录（2026-09-07）
+
+五个 commit，顺序与 §8.1 一致：
+
+| 提交 | commit | 内容 |
+|---|---|---|
+| 一 | `ef9874daa` | 复述型 docstring 清扫。用 §2.1 的匹配器在当日树上重新量：**262 条 / 86 文件**（不是 347——前面的 test-slop 批次已经删掉一批带复述 docstring 的测试）。逐条读函数体后改写为不变量，或在函数体已有解释性注释 / 短 `pytest.raises(match=)` 时删除。§2.5 的两条近似命中一并修：`BCHTW`→ 说明两次 permute 相抵、"batch batches"。§2.9 的 kling 测试改名为 `test_reward_schema_passes_through_unvalidated_kling_kwargs`，fixture 换成 preset 真透传的形状并加返回值断言。118 条有信息量的 `Checks` docstring 一条未动；`joint_denoise` / `causal_token` 全仓 grep 在 `vrl/` + `tests/` 仍为 0 |
+| 二 | `747aff824` | 一个替身一个 owner：`RecordingModule`（§3.1，plain object、不归一化 device，四处断言原样）；`tests/trainers/_strategy_policies.py`（§3.2：`ToyBlock`/`ToyTransformer`/`FakePolicy`/`DualStagePolicy`/`Bundle`/`free_port`，五处 `_free_port` 收编，gather_distributed 与 fp32_master 的刻意变体保留）；`tests/generation/execution/_helpers.py::launch_contract`（§3.3，五处纯数据字面量） |
+| 三 | `aa5704a98` | 删 `tests/rollouts/collector/_collect.py`（§4.2） |
+| 四 | `21a58d4d9` | `tests/architecture/test_docstring_truth.py`（§5，AST 扫描 0.40 s，两条边界用例钉住启发式） |
+| 附 | `0accf019c` | bloat audit §8.2 的 models 项（sana `from_build`→super、wan I2V replay MRO、cosmos3 `set_num_steps`）——它的前置"tiny-model 回归"由本轨的 RecordingModule 与前一天的 cosmos3 tiny 真对象补齐 |
+
+### 与计划的偏差
+
+- **§3.2 的 fixture 放进了 `tests/trainers/conftest.py`**，不是按 §3.2 说的显式 import。显式 import 一个 fixture 名会让 ruff 在每个请求它的测试处报 F811（33 处），`# noqa` 只能压一半；conftest 是 pytest 的正解，且 module scope 语义不变（每个模块各建一次 group）。
+- **§3.4 不需要做**：`test_replay_model_contract.py` 的四张手写家族表已不存在，文件现在只有 `registered_replay_model_classes()` 派生的一张。
+- **§4.1 / §4.3 不需要做**：墓碑测试与 `cosmos_predict25_kling_eval.py` 的三个别名都已被更早的批次删除。
+- 三个既有 docstring 改写又被 §3 收编触到的文件（sd3_5 model_loading、test_model_base、test_runtime_inputs）放在提交二里，没有拆 hunk。
+
+### 验收
+
+- 匹配器：262 → **0** 命中；`test_docstring_truth.py` 绿。
+- 提交一后全仓（.venv）：3463 passed / 65 skipped，与改前相同（docstring 不改行为）。
+- 提交二~附后全仓（.venv）：3469 passed / 65 skipped（+2 sana 加载测试、+1 cosmos3 `set_num_steps`、+1 wan I2V MRO 钉、+2 守卫）。

@@ -233,7 +233,6 @@ collector 内层计时 vs prompt_collection 恒开计时）归入 2-B 一并处�
 |---|---|
 | generation executor/weight_sync 的 remote-vs-local 双路径（2-A 核心） | 需要把 test_oom_split/test_engine 等替身迁移到 conftest 的包级真 Ray 集群上——独立的测试架构工程,不宜混入机械批次 |
 | `retain_artifacts`、reward client `_execute`/`_revalidate` 脚手架 | 低值;前者三个测试消费者需改断言路径 |
-| models: sana `from_build`→super、wan `WanI2VReplayModel` MRO、cosmos3 `set_num_steps` | 中风险继承/MRO 变化,各需 tiny-model 回归确认(cosmos3 还需查 dynamic shifting) |
 | reward inference 映射 4→1 构造点 | `resources.py` 在 typed build 之前运行,需先确认调用序 |
 | `_OFFLINE_DPO_*_FIELDS` 派生/交叉校验、`lora.init` 双别名、precision `_select`→`cfg_path` | 用户可见 config 面(别名删除是 key 迁移)、`None`-vs-缺失语义差需逐调用点核对 |
 | 三份 lazy-export 表 → 共享工厂 | 公共 facade 行为须逐字节保持,含 torch-free import 契约测试 |
@@ -264,6 +263,8 @@ collector 内层计时 vs prompt_collection 恒开计时）归入 2-B 一并处�
 - **hpsv3 / videoscore2 两份逐字同构的 function 测试** → `tests/rewards/test_disk_artifact_reward_functions.py`。
 
 ### 已结清的 deferral
+
+- **models 三项（2026-09-07，`0accf019c`）**：sana `from_build`→`super().from_build` + 两处 SANA 特有步骤；`WanI2VReplayModel(WanT2VReplayModel, WanI2VDiffusersModel)`，每个方法的 owner 由 `test_family_mro.py` 钉住；cosmos3 的 `set_num_steps` 与基类静态分支逐字相同（UniPC 无 dynamic shifting，pipeline 自己也是无 `mu` 的 `set_timesteps`），删除。前置的 tiny-model 回归由 `RecordingModule` 与 cosmos3 tiny 真对象提供。
 
 - **制度补丁:dead-flag lint 进 `make verify`（2026-08-22 落地）。**
   `vrl/scripts/lint/dead_flags.py` + `tests/scripts/test_dead_flag_lint.py`，

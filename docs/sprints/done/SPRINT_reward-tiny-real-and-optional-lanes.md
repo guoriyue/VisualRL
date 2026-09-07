@@ -721,3 +721,15 @@ reward 加载前把 11B 文本编码器与 transformer 挪到主机内存（见�
 trajectory builder 丢掉 None，`restore_eval_state` 走 `replay_tensor()` 的 batch_context 回退就炸。
 修法与 `negative_prompt_embeds` 一致（`.get`），并加 CPU 往返测试
 （`test_predict2_restore_tolerates_the_absent_uncond_bundle_when_cfg_is_off`）。
+
+### 11.6 2026-09-07：其余 e2e case 的巡检（`e624a0cc1`）
+
+把 `CASES` 里剩下的十个 cached case 各跑一遍（GPU 当时被一条 anima 训练 + 一个渲染任务共用，约 13 GB 已占）：
+
+| case | 结果 | 结论 |
+|---|---|---|
+| wan_2_1、sd3_5 ×4 | 先 `GenericDiffusionBatchExecutor` 缺 `family`/`task`（harness 位腐，已修：按 worker.py 的构造方式）；修后 OOM | OOM 是显存被共用造成，**未得出结论**，GPU 空出后重跑 |
+| cosmos_anima ×2 | 先 `_SyntheticDiffusionReplayCollector` 缺 `supports_reward_generation_overlap`（已补）；修后 `PrecisionDriftError`：bf16/bf16 期望 1e-6 精确一致，实测 7.2e-4 | **真发现，未修**：synthetic collector 用 `restore_eval_state`+`forward_step`+`sde_step_with_logprob` 自算 old_log_prob，与 trainer 的 evaluator 路径有 7e-4 的差，需要在 GPU 上对照两条路径的 dtype/autocast 才能定位 |
+| janus_pro | `janus.models` import 失败：`VisionConfig(PretrainedConfig)` 里 `params: dict = {}`，transformers 5.x 把 `PretrainedConfig` 子类转成 dataclass 后拒绝可变默认值 | **外部包问题**：`~/Desktop/Janus` 上游要 `field(default_factory=dict)`，不在本仓修 |
+| cosmos_predict2_5 | skip：`nvidia/Cosmos-Predict2.5-2B` 快照不在缓存 | — |
+| nextstep_1 | skip：门槛 64 GiB | — |
