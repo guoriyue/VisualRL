@@ -54,6 +54,24 @@ the workflow above.
 Both the training CLI and supervisor forward this same argument list. There is
 one loader, not a second configuration registry or per-model launcher.
 
+## Validation tiers
+
+After composition every entrypoint parses the merged config through the same
+typed boundary, and validation is split into three tiers, one module and one
+registry each. Where a new check goes is decided by what it needs:
+
+| Tier | Module | Runs from | Needs | Examples |
+| --- | --- | --- | --- | --- |
+| 1. Section shape | `vrl/config/schema.py` (pydantic) | `parse_config` | the section itself | closed keys, types, `rollout.sde.type` membership, `data.manifest` required by loader |
+| 2. Cross-section rules | `vrl/config/rules.py`, `CROSS_SECTION_RULES` | `RootConfig`'s validator (so also `parse_config`) | two or more parsed sections, nothing else | `algorithm.kind` needs `rollout.sde`; `janus_pro_r1` pairs with `token_grpo_multisegment`; offline DPO's consumed surface |
+| 3. Launch gates | `vrl/config/validation.py`, `TRAINING_GATES` | `require_training_config` (training launches only) | the precision policy, a runtime module, or the filesystem | torch.compile compatibility matrix, unguarded rollout drift, the production Kling gate (`vrl/config/production.py`, reads manifests) |
+
+Tier 2 must stay import-light because eval and perf tools pay for it on every
+parse; a check that needs `vrl.trainers` or `vrl.models.interfaces` is a tier 3
+gate. Resolution-time validation that needs a resolved object (the GPU
+topology in `vrl/ray/resources.py`, the rollout schedule, reward parking) stays
+with the resolver that produces that object and runs after `build_configs`.
+
 ## Judge, rubric, and data are separate choices
 
 The `codex_image_qa_anime_*` names identify anime-oriented scoring rubrics;
