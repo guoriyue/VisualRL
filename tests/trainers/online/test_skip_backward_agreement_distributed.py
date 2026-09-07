@@ -13,7 +13,6 @@ local flags.
 from __future__ import annotations
 
 import os
-import socket
 
 import pytest
 import torch
@@ -21,6 +20,7 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch import nn
 
+from tests.trainers._strategy_policies import free_port
 from tests.trainers.online._collector_control import CollectorControlFake
 from tests.trainers.online._helpers import (
     _diffusion_rollout_batch,
@@ -53,14 +53,6 @@ _CASES = {
 }
 
 
-def _free_port() -> int:
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.bind(("127.0.0.1", 0))
-    port = probe.getsockname()[1]
-    probe.close()
-    return port
-
-
 def _rollout_batch(sample_count: int) -> RolloutBatch:
     return _diffusion_rollout_batch(
         rewards=torch.arange(sample_count, dtype=torch.float32),
@@ -88,7 +80,7 @@ def _run_rank(rank: int, world_size: int, port: int, local_flags: list[bool], q:
 def test_skip_backward_decision_is_unanimous(local_flags: list[bool], expected: bool) -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     procs = [ctx.Process(target=_run_rank, args=(r, 2, port, local_flags, q)) for r in range(2)]
     for p in procs:
         p.start()
@@ -199,7 +191,7 @@ def _run_parity_rank(rank: int, world_size: int, port: int, q: mp.Queue) -> None
 def test_parity_verdict_is_rank_consistent() -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     procs = [ctx.Process(target=_run_parity_rank, args=(r, 2, port, q)) for r in range(2)]
     for process in procs:
         process.start()
@@ -300,7 +292,7 @@ def _run_replay_planner_rank(
 def test_replay_planner_slot_count_is_unanimous_under_gloo() -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     procs = [
         ctx.Process(target=_run_replay_planner_rank, args=(r, 2, port, [8, 3], q))
         for r in range(2)
@@ -420,7 +412,7 @@ def _run_replay_loop_rank(
 def test_replay_loop_balances_evaluate_and_backward_counts_under_gloo() -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     procs = [
         ctx.Process(target=_run_replay_loop_rank, args=(r, 2, port, [8, 3], q)) for r in range(2)
     ]

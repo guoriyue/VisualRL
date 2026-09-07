@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.generation.execution._helpers import launch_contract
 from vrl.generation.execution.memory_parking import WorkerMemoryParking
 from vrl.generation.execution.types import (
     BatchProduceFence,
@@ -16,7 +17,6 @@ from vrl.generation.execution.types import (
     StaleSlotDiscard,
 )
 from vrl.generation.execution.worker import GenerationWorkerCore
-from vrl.generation.launch_contract import GenerationRuntimeLaunchContract
 
 _NOOP_CB = lambda *args, **kwargs: None  # noqa: E731 — sites that do not assert on it
 
@@ -67,9 +67,7 @@ def _core(*, executor, uses_slots: bool, policy_version: int | None):
     core._policy_version = policy_version
     core._memory_parking = WorkerMemoryParking(
         "w0",
-        GenerationRuntimeLaunchContract(
-            family="sd3_5", model_build={}, expected_model_identity={"schema": "test"}
-        ),
+        launch_contract(),
     )
     core.load_policy = lambda: None  # type: ignore[method-assign]
     return core

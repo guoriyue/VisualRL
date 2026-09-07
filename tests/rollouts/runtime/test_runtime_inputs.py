@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from omegaconf import OmegaConf
 
+from tests.generation.execution._helpers import launch_contract
 from vrl.config.loading import load_config
 from vrl.config.schema import parse_config
 from vrl.generation.bindings.full_sequence_denoise import DiffusionBatchGatherer
@@ -43,11 +44,7 @@ class _UnpickleableGatherer(_TestGatherer):
 def test_ray_launch_inputs_reject_unpickleable_gatherer_state() -> None:
     with pytest.raises(TypeError, match="must be pickle-serializable"):
         RayGenerationLaunchInputs(
-            launch_contract=GenerationRuntimeLaunchContract(
-                family="test",
-                model_build={},
-                expected_model_identity={"schema": "test"},
-            ),
+            launch_contract=launch_contract(family="test"),
             gatherer=_UnpickleableGatherer(),
         )
 
@@ -154,7 +151,10 @@ def test_rollout_runtime_inputs_are_serializable_and_registry_backed(
     expected_gatherer: type,
     overrides: tuple[str, ...],
 ) -> None:
-    """Checks rollout runtime inputs are serializable and registry-backed."""
+    """Launch inputs survive a pickle round trip; family lives only on the outer contract, batch
+    width only in request sampling, and the gatherer is registry-built and is not itself an
+    executor.
+    """
     cfg = load_config(
         f"experiment/{experiment}",
         overrides=[

@@ -13,12 +13,16 @@ run unconditionally.
 
 from __future__ import annotations
 
-import socket
-
 import pytest
 import torch
 from torch import nn
 
+from tests.trainers._strategy_policies import (
+    Bundle,
+    DualStagePolicy,
+    FakePolicy,
+    ToyTransformer,
+)
 from vrl.config.schema import DDPConfig, RootConfig
 from vrl.models.interfaces.runtime import register_checkpoint_owned_state
 from vrl.trainers.distributed import DistributedTrainingContext
@@ -51,103 +55,8 @@ def _ddp_strategy(
     )
 
 
-class _Block(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.lin = nn.Linear(4, 4)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.relu(self.lin(x))
-
-
-class _ToyTransformer(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.blocks = nn.ModuleList([_Block() for _ in range(2)])
-        self.head = nn.Linear(4, 4)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for block in self.blocks:
-            x = block(x)
-        return self.head(x)
-
-
-class _FakePolicy:
-    """Diffusion-policy shape the wrapper needs: trainable_modules + writer."""
-
-    def __init__(self, transformer: nn.Module) -> None:
-        self.transformer = transformer
-        self.set_calls = 0
-
-    def set_module_root(self, name: str, module: nn.Module) -> None:
-        if name != "transformer":
-            raise ValueError(f"unknown trainable root: {name!r}")
-        self.transformer = module
-        self.set_calls += 1
-
-    @property
-    def trainable_modules(self) -> dict[str, nn.Module]:
-        return {"transformer": self.transformer}
-
-
-class _DualStagePolicy(_FakePolicy):
-    """Wan-style policy with two independently writable trainable roots.
-
-    ONE name-keyed writer serves both roots -- the strategy never needs a
-    per-root method to exist under a derived name.
-    """
-
-    def __init__(self, transformer: nn.Module) -> None:
-        super().__init__(transformer)
-        self.transformer_2 = _ToyTransformer()
-        self.set_2_calls = 0
-
-    def set_module_root(self, name: str, module: nn.Module) -> None:
-        if name == "transformer_2":
-            self.transformer_2 = module
-            self.set_2_calls += 1
-            return
-        super().set_module_root(name, module)
-
-    @property
-    def trainable_modules(self) -> dict[str, nn.Module]:
-        return {"transformer": self.transformer, "transformer_2": self.transformer_2}
-
-
 class _ARLikePolicy:
     """No trainable_modules / writer (AR family shape)."""
-
-
-class _Bundle:
-    def __init__(self, module: nn.Module) -> None:
-        self.trainable_modules = {"transformer": module}
-
-
-@pytest.fixture(scope="module")
-def cpu_process_group():
-    """One gloo world_size=1 group for the collective tests in this module."""
-
-    import torch.distributed as dist
-
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.bind(("127.0.0.1", 0))
-    port = probe.getsockname()[1]
-    probe.close()
-
-    mp = pytest.MonkeyPatch()
-    mp.setenv("MASTER_ADDR", "127.0.0.1")
-    mp.setenv("MASTER_PORT", str(port))
-    mp.setenv("RANK", "0")
-    mp.setenv("WORLD_SIZE", "1")
-    mp.setenv("LOCAL_RANK", "0")
-    created = False
-    if not dist.is_initialized():
-        dist.init_process_group(backend="gloo", rank=0, world_size=1)
-        created = True
-    yield
-    if created and dist.is_initialized():
-        dist.destroy_process_group()
-    mp.undo()
 
 
 def _ddp_wrap(module: nn.Module) -> nn.Module:
@@ -210,9 +119,7 @@ def test_ddp_wraps_resolved_device_after_per_rank_mask(monkeypatch) -> None:
 
     monkeypatch.setattr(torch.nn.parallel, "DistributedDataParallel", _wrap)
 
-    DDPStrategy(context, find_unused_parameters=False).prepare_model(
-        _FakePolicy(_ToyTransformer())
-    )
+    DDPStrategy(context, find_unused_parameters=False).prepare_model(FakePolicy(ToyTransformer()))
 
     assert wrap_calls == [{"device_ids": [0], "find_unused_parameters": False}]
 
@@ -221,7 +128,7 @@ def test_ddp_prepare_model_wraps_multi_transformer_model(cpu_process_group) -> N
     """Dual-stage Wan wraps both named roots and writes both aliases back."""
     from torch.nn.parallel import DistributedDataParallel
 
-    policy = _DualStagePolicy(_ToyTransformer())
+    policy = DualStagePolicy(ToyTransformer())
     out = _ddp_strategy(_cpu_ddp_context()).prepare_model(policy)
 
     assert out is policy
@@ -237,7 +144,7 @@ def test_ddp_prepare_model_wraps_multi_transformer_model(cpu_process_group) -> N
 def test_ddp_prepare_model_wraps_transformer(cpu_process_group) -> None:
     from torch.nn.parallel import DistributedDataParallel
 
-    policy = _FakePolicy(_ToyTransformer())
+    policy = FakePolicy(ToyTransformer())
     out = _ddp_strategy(_cpu_ddp_context()).prepare_model(policy)
 
     assert out is policy
@@ -251,14 +158,14 @@ def test_ddp_rollout_export_matches_single_process_key_space(cpu_process_group) 
     Same keys (clean ``transformer.*``, no ``.module.`` leak), same values — a
     rollout worker is oblivious to whether the trainer ran DDP.
     """
-    ref = _ToyTransformer()
+    ref = ToyTransformer()
     snapshot = {k: v.detach().clone() for k, v in ref.state_dict().items()}
-    replicated = _ToyTransformer()
+    replicated = ToyTransformer()
     replicated.load_state_dict(snapshot)
     wrapped = _ddp_wrap(replicated)
 
-    got = _ddp_strategy(_cpu_ddp_context()).export_rollout_state(_Bundle(wrapped))
-    expected = SingleProcessStrategy().export_rollout_state(_Bundle(ref))
+    got = _ddp_strategy(_cpu_ddp_context()).export_rollout_state(Bundle(wrapped))
+    expected = SingleProcessStrategy().export_rollout_state(Bundle(ref))
 
     assert got.keys() == expected.keys()
     assert all(key.startswith("transformer.") for key in got)
@@ -269,7 +176,7 @@ def test_ddp_rollout_export_matches_single_process_key_space(cpu_process_group) 
 
 def test_ddp_rollout_export_filters_frozen_params(cpu_process_group) -> None:
     """Rollout excludes frozen state while checkpoint includes registered state."""
-    net = _ToyTransformer()
+    net = ToyTransformer()
     net.head.requires_grad_(False)
     register_checkpoint_owned_state(
         net,
@@ -278,39 +185,39 @@ def test_ddp_rollout_export_filters_frozen_params(cpu_process_group) -> None:
     wrapped = _ddp_wrap(net)
     strategy = _ddp_strategy(_cpu_ddp_context())
 
-    rollout = strategy.export_rollout_state(_Bundle(wrapped))
+    rollout = strategy.export_rollout_state(Bundle(wrapped))
     assert rollout
     assert not any("head" in key for key in rollout)
 
-    checkpoint = strategy.export_checkpoint_state(_Bundle(wrapped))["transformer"]
+    checkpoint = strategy.export_checkpoint_state(Bundle(wrapped))["transformer"]
     assert any("head" in key for key in checkpoint)
 
 
 def test_ddp_checkpoint_state_excludes_unregistered_frozen_params(cpu_process_group) -> None:
-    net = _ToyTransformer()
+    net = ToyTransformer()
     net.head.requires_grad_(False)
     strategy = _ddp_strategy(_cpu_ddp_context())
 
-    checkpoint = strategy.export_checkpoint_state(_Bundle(_ddp_wrap(net)))["transformer"]
+    checkpoint = strategy.export_checkpoint_state(Bundle(_ddp_wrap(net)))["transformer"]
 
     assert not any("head" in key for key in checkpoint)
 
 
 def test_ddp_export_then_load_checkpoint_state_round_trip(cpu_process_group) -> None:
     strategy = _ddp_strategy(_cpu_ddp_context())
-    src = _ddp_wrap(_ToyTransformer())
+    src = _ddp_wrap(ToyTransformer())
     with torch.no_grad():
         for p in src.parameters():
             p.fill_(3.0)
 
-    snapshot = strategy.export_checkpoint_state(_Bundle(src))
+    snapshot = strategy.export_checkpoint_state(Bundle(src))
     assert set(snapshot) == {"transformer"}
     first_name, first_value = next(iter(snapshot["transformer"].items()))
     live = dict(src.module.state_dict())[first_name]
     assert first_value.data_ptr() != live.data_ptr()
 
-    dst = _ddp_wrap(_ToyTransformer())
-    strategy.load_checkpoint_state(_Bundle(dst), snapshot)
+    dst = _ddp_wrap(ToyTransformer())
+    strategy.load_checkpoint_state(Bundle(dst), snapshot)
     for value in dst.module.state_dict().values():
         assert torch.allclose(value, torch.full_like(value, 3.0))
 
@@ -321,14 +228,14 @@ def test_ddp_restore_protocol_loads_schema_v1_full_frozen_state(
 ) -> None:
     from vrl.trainers.checkpointing import TrainingCheckpoint, restore_model_checkpoint
 
-    source_module = _ToyTransformer()
+    source_module = ToyTransformer()
     source_module.head.requires_grad_(False)
     with torch.no_grad():
         for parameter in source_module.parameters():
             parameter.fill_(7.0)
     source = _ddp_wrap(source_module)
 
-    restored_module = _ToyTransformer()
+    restored_module = ToyTransformer()
     restored_module.head.requires_grad_(False)
     with torch.no_grad():
         for parameter in restored_module.parameters():
@@ -350,7 +257,7 @@ def test_ddp_restore_protocol_loads_schema_v1_full_frozen_state(
 
     restore_model_checkpoint(
         checkpoint,
-        bundle=_Bundle(restored),
+        bundle=Bundle(restored),
         family="toy",
         strict=True,
         strategy=_ddp_strategy(_cpu_ddp_context()),
@@ -378,7 +285,7 @@ def test_ddp_adapter_export_uses_gathered_checkpoint_state(
     )
 
     module = get_peft_model(
-        _ToyTransformer(),
+        ToyTransformer(),
         LoraConfig(r=2, lora_alpha=4, target_modules=["lin"]),
     )
     with torch.no_grad():
@@ -390,7 +297,7 @@ def test_ddp_adapter_export_uses_gathered_checkpoint_state(
     save_training_checkpoint(
         tmp_path,
         trainer=SimpleNamespace(state_dict=lambda: {"step": 0, "global_step": 0}),
-        bundle=_Bundle(wrapped),
+        bundle=Bundle(wrapped),
         family="toy",
         model_identity={"schema": "toy/v1"},
         progress={"next_epoch": 1},

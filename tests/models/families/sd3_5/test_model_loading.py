@@ -4,38 +4,27 @@ from typing import Any
 
 import torch
 
+from tests.models.steps.denoise.fixtures import RecordingModule
 from vrl.config.precision import RolePrecision
 from vrl.models.families.sd3_5.model import SD3_5Model
 from vrl.models.interfaces.runtime import ModelBuild, RolloutBuildOptions
 
 
-class _FakeModule:
-    def __init__(self) -> None:
-        self.dtype: torch.dtype | None = None
-        self.requires_grad_enabled: bool | None = None
-        self.to_calls: list[tuple[Any, torch.dtype | None]] = []
-
-    def requires_grad_(self, enabled: bool) -> None:
-        self.requires_grad_enabled = enabled
-
-    def to(self, device: Any, dtype: torch.dtype | None = None) -> None:
-        self.to_calls.append((device, dtype))
-        if dtype is not None:
-            self.dtype = dtype
-
-
 class _FakePipeline:
     def __init__(self) -> None:
-        self.transformer = _FakeModule()
-        self.vae = _FakeModule()
-        self.text_encoder = _FakeModule()
-        self.text_encoder_2 = _FakeModule()
-        self.text_encoder_3 = _FakeModule()
+        self.transformer = RecordingModule()
+        self.vae = RecordingModule()
+        self.text_encoder = RecordingModule()
+        self.text_encoder_2 = RecordingModule()
+        self.text_encoder_3 = RecordingModule()
         self.device = "cpu"
 
 
 def test_sd3_fp32_runtime_loads_frozen_components_without_fp32_peak(monkeypatch) -> None:
-    """Checks SD3 FP32 runtime loads frozen components without FP32 peak."""
+    """fp32 training keeps the transformer and VAE in fp32 while the frozen text encoders load
+    straight into the rollout prompt-encoder dtype through the per-component ``torch_dtype``
+    mapping, so no fp32 encoder copy is ever materialized.
+    """
     from diffusers import StableDiffusion3Pipeline
 
     calls: list[dict[str, Any]] = []

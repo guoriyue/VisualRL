@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import os
-import socket
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +10,7 @@ import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 
+from tests.trainers._strategy_policies import free_port
 from vrl.scripts.common.online import OnlineRecipeRun
 from vrl.trainers.distributed import DistributedTrainingContext
 
@@ -22,12 +22,6 @@ def _context(*, distributed: bool, primary: bool) -> DistributedTrainingContext:
         world_size=2 if distributed else 1,
         device=torch.device("cpu"),
     )
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
 
 
 def test_online_checkpoint_threads_required_model_identity(
@@ -226,7 +220,7 @@ def test_metrics_csv_preflight_is_rank_consistent_with_real_gloo(tmp_path, fail)
     context = mp.get_context("spawn")
     queue = context.Queue()
     marker = tmp_path / "prepared.txt"
-    port = _free_port()
+    port = free_port()
     processes = [
         context.Process(
             target=_run_metrics_preflight_rank,

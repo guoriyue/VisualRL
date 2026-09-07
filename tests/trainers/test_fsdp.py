@@ -14,13 +14,20 @@ the build_strategy §10 gates need no process group and run unconditionally.
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any, ClassVar
+from typing import Any
 
 import pytest
 import torch
 from torch import nn
 
 from tests.trainers._state_dict_helpers import gather_full_state_dict
+from tests.trainers._strategy_policies import (
+    Bundle,
+    DualStagePolicy,
+    FakePolicy,
+    ToyBlock,
+    ToyTransformer,
+)
 from vrl.config.schema import FSDPConfig, RootConfig, parse_config
 from vrl.models.interfaces.runtime import register_checkpoint_owned_state
 from vrl.trainers.distributed import DistributedTrainingContext, init_training_process_group
@@ -81,112 +88,6 @@ def _strategy_config(
     return RootConfig.model_validate(payload)
 
 
-class _Block(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.lin = nn.Linear(4, 4)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return torch.relu(self.lin(x))
-
-
-class _ToyTransformer(nn.Module):
-    """Stands in for a diffusers DiT: per-layer blocks named in _no_split_modules."""
-
-    _no_split_modules: ClassVar[list[str]] = ["_Block"]
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.blocks = nn.ModuleList([_Block() for _ in range(2)])
-        self.head = nn.Linear(4, 4)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for block in self.blocks:
-            x = block(x)
-        return self.head(x)
-
-
-class _FakePolicy:
-    """Diffusion-policy shape the FSDP applier needs: trainable_modules + writer."""
-
-    def __init__(self, transformer: nn.Module) -> None:
-        self.transformer = transformer
-        self.set_calls = 0
-
-    def set_module_root(self, name: str, module: nn.Module) -> None:
-        if name != "transformer":
-            raise ValueError(f"unknown trainable root: {name!r}")
-        self.transformer = module
-        self.set_calls += 1
-
-    @property
-    def trainable_modules(self) -> dict[str, nn.Module]:
-        return {"transformer": self.transformer}
-
-
-class _DualStagePolicy(_FakePolicy):
-    """Wan-style policy with two independently writable trainable roots.
-
-    ONE name-keyed writer serves both roots -- the strategy never needs a
-    per-root method to exist under a derived name.
-    """
-
-    def __init__(self, transformer: nn.Module) -> None:
-        super().__init__(transformer)
-        self.transformer_2 = _ToyTransformer()
-        self.set_2_calls = 0
-
-    def set_module_root(self, name: str, module: nn.Module) -> None:
-        if name == "transformer_2":
-            self.transformer_2 = module
-            self.set_2_calls += 1
-            return
-        super().set_module_root(name, module)
-
-    @property
-    def trainable_modules(self) -> dict[str, nn.Module]:
-        return {"transformer": self.transformer, "transformer_2": self.transformer_2}
-
-
-class _Bundle:
-    def __init__(self, module: nn.Module) -> None:
-        self.trainable_modules = {"transformer": module}
-
-
-@pytest.fixture(scope="module")
-def cpu_process_group():
-    """One gloo world_size=1 group for the collective tests in this module.
-
-    Uses a free ephemeral port (no fixed-port collision under parallel sessions)
-    and a self-restoring MonkeyPatch so the torchrun env vars do not leak into the
-    rest of the suite.
-    """
-
-    import socket
-
-    import torch.distributed as dist
-
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.bind(("127.0.0.1", 0))
-    port = probe.getsockname()[1]
-    probe.close()
-
-    mp = pytest.MonkeyPatch()
-    mp.setenv("MASTER_ADDR", "127.0.0.1")
-    mp.setenv("MASTER_PORT", str(port))
-    mp.setenv("RANK", "0")
-    mp.setenv("WORLD_SIZE", "1")
-    mp.setenv("LOCAL_RANK", "0")
-    created = False
-    if not dist.is_initialized():
-        dist.init_process_group(backend="gloo", rank=0, world_size=1)
-        created = True
-    yield
-    if created and dist.is_initialized():
-        dist.destroy_process_group()
-    mp.undo()
-
-
 def _shard(module: nn.Module) -> nn.Module:
     return apply_fsdp(
         module,
@@ -199,28 +100,28 @@ def _shard(module: nn.Module) -> nn.Module:
 
 
 def test_unwrap_module_peels_compile_then_peft_get_base_model() -> None:
-    base = _ToyTransformer()
+    base = ToyTransformer()
     peft = SimpleNamespace(get_base_model=lambda: base)
     compiled = SimpleNamespace(_orig_mod=peft)
     assert unwrap_module(compiled) is base
 
 
 def test_unwrap_module_peels_peft_base_model_model() -> None:
-    base = _ToyTransformer()
+    base = ToyTransformer()
     peft = SimpleNamespace(base_model=SimpleNamespace(model=base))
     assert unwrap_module(peft) is base
 
 
 def test_unwrap_module_returns_plain_module_unchanged() -> None:
-    base = _ToyTransformer()
+    base = ToyTransformer()
     assert unwrap_module(base) is base
 
 
 def test_iter_blocks_yields_no_split_modules() -> None:
-    net = _ToyTransformer()
+    net = ToyTransformer()
     blocks = list(iter_blocks(net))
     assert len(blocks) == 2
-    assert all(isinstance(b, _Block) for b in blocks)
+    assert all(isinstance(b, ToyBlock) for b in blocks)
 
 
 def test_iter_blocks_fails_without_no_split_modules() -> None:
@@ -256,7 +157,7 @@ def test_apply_fsdp_casts_only_root_forward_inputs(monkeypatch) -> None:
 
     monkeypatch.setattr(torch_fsdp, "fully_shard", record_fully_shard)
     policy = mixed_precision_policy("actor", parameter_dtype=torch.bfloat16)
-    net = _ToyTransformer()
+    net = ToyTransformer()
 
     apply_fsdp(net, mesh=object(), mp_policy=policy)
 
@@ -267,7 +168,7 @@ def test_apply_fsdp_casts_only_root_forward_inputs(monkeypatch) -> None:
 
 
 def test_normalize_fsdp_parameter_dtype_casts_mixed_actor_sources(caplog) -> None:
-    net = _ToyTransformer().to(dtype=torch.bfloat16)
+    net = ToyTransformer().to(dtype=torch.bfloat16)
     net.head.to(dtype=torch.float32)
 
     with caplog.at_level("INFO", logger="vrl.trainers.fsdp"):
@@ -282,7 +183,7 @@ def test_normalize_fsdp_parameter_dtype_casts_mixed_actor_sources(caplog) -> Non
 
 
 def test_normalize_fsdp_parameter_dtype_rejects_mixed_native_policy() -> None:
-    net = _ToyTransformer().to(dtype=torch.bfloat16)
+    net = ToyTransformer().to(dtype=torch.bfloat16)
     net.head.to(dtype=torch.float32)
 
     with pytest.raises(ValueError, match=r"precision_policy='none'.*head\.weight"):
@@ -304,7 +205,7 @@ def test_build_fsdp_mesh_rejects_2d_hsdp() -> None:
 def test_apply_fsdp_shards_params_and_runs_forward_backward(cpu_process_group) -> None:
     from torch.distributed.tensor import DTensor
 
-    net = _shard(_ToyTransformer())
+    net = _shard(ToyTransformer())
     assert any(isinstance(p, DTensor) for p in net.parameters())
 
     out = net(torch.randn(3, 4))
@@ -315,10 +216,10 @@ def test_apply_fsdp_shards_params_and_runs_forward_backward(cpu_process_group) -
 def test_gather_full_state_dict_materializes_plain_full_tensors(cpu_process_group) -> None:
     from torch.distributed.tensor import DTensor
 
-    ref = _ToyTransformer()
+    ref = ToyTransformer()
     snapshot = {k: v.detach().clone() for k, v in ref.state_dict().items()}
 
-    sharded = _ToyTransformer()
+    sharded = ToyTransformer()
     sharded.load_state_dict(snapshot)
     _shard(sharded)
 
@@ -330,7 +231,7 @@ def test_gather_full_state_dict_materializes_plain_full_tensors(cpu_process_grou
 
 
 def test_load_full_state_dict_round_trips_into_sharded_module(cpu_process_group) -> None:
-    sharded = _shard(_ToyTransformer())
+    sharded = _shard(ToyTransformer())
     # set_model_state_dict shards the input in place, so keep a plain `expected`
     # snapshot and feed the loader a clone.
     expected = {k: torch.full_like(v, 0.5) for k, v in gather_full_state_dict(sharded).items()}
@@ -354,7 +255,7 @@ def _full_grad_norm(net: nn.Module) -> float:
 
 
 def test_fsdp_clip_grad_norm_returns_global_norm_and_actually_clips(cpu_process_group) -> None:
-    net = _shard(_ToyTransformer())
+    net = _shard(ToyTransformer())
     net(torch.randn(3, 4)).mul(5.0).sum().backward()  # large grads so clipping bites
 
     pre = _full_grad_norm(net)
@@ -376,16 +277,16 @@ def test_fsdp_rollout_export_matches_single_process_key_space(cpu_process_group)
     Same keys, same values — so a rollout worker's ``load_trainable_state`` is
     oblivious to whether the trainer was sharded.
     """
-    ref = _ToyTransformer()
+    ref = ToyTransformer()
     snapshot = {k: v.detach().clone() for k, v in ref.state_dict().items()}
-    sharded = _ToyTransformer()
+    sharded = ToyTransformer()
     sharded.load_state_dict(snapshot)
     _shard(sharded)
 
     got = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none").export_rollout_state(
-        _Bundle(sharded),
+        Bundle(sharded),
     )
-    expected = SingleProcessStrategy().export_rollout_state(_Bundle(ref))
+    expected = SingleProcessStrategy().export_rollout_state(Bundle(ref))
 
     assert got.keys() == expected.keys()
     assert all(key.startswith("transformer.") for key in got)
@@ -401,17 +302,17 @@ def test_fsdp_rollout_export_unwraps_torch_compile_to_clean_keys(cpu_process_gro
     without unwrapping first the trainable-key select disagrees and crashes. This
     locks the export path against the real compiled-policy shape.
     """
-    ref = _ToyTransformer()
+    ref = ToyTransformer()
     snapshot = {k: v.detach().clone() for k, v in ref.state_dict().items()}
-    inner = _ToyTransformer()
+    inner = ToyTransformer()
     inner.load_state_dict(snapshot)
     compiled = torch.compile(inner)  # OptimizedModule with _orig_mod, like production
     _shard(compiled)
 
     got = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none").export_rollout_state(
-        _Bundle(compiled),
+        Bundle(compiled),
     )
-    expected = SingleProcessStrategy().export_rollout_state(_Bundle(torch.compile(ref)))
+    expected = SingleProcessStrategy().export_rollout_state(Bundle(torch.compile(ref)))
 
     assert all("_orig_mod" not in key for key in got)
     assert got.keys() == expected.keys()
@@ -421,17 +322,17 @@ def test_fsdp_rollout_export_unwraps_torch_compile_to_clean_keys(cpu_process_gro
 
 def test_fsdp_rollout_export_filters_frozen_params(cpu_process_group) -> None:
     """Rollout and checkpoint export omit unregistered frozen base state."""
-    net = _ToyTransformer()
+    net = ToyTransformer()
     net.head.requires_grad_(False)  # freeze the non-block head
     net.register_buffer("frozen_cache", torch.ones(4))
     _shard(net)
     strategy = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none")
     expected = {name for name, parameter in net.named_parameters() if parameter.requires_grad}
 
-    rollout = strategy.export_rollout_state(_Bundle(net))
+    rollout = strategy.export_rollout_state(Bundle(net))
     assert set(rollout) == {f"transformer.{name}" for name in expected}
 
-    checkpoint = strategy.export_checkpoint_state(_Bundle(net))["transformer"]
+    checkpoint = strategy.export_checkpoint_state(Bundle(net))["transformer"]
     assert set(checkpoint) == expected
     assert not any("head" in key or "frozen_cache" in key for key in checkpoint)
 
@@ -485,25 +386,25 @@ def test_fsdp_checkpoint_gather_asks_dcp_to_skip_frozen_base_when_possible(
 def test_fsdp_checkpoint_includes_registered_frozen_state_but_rollout_does_not(
     cpu_process_group,
 ) -> None:
-    net = _ToyTransformer()
+    net = ToyTransformer()
     net.head.requires_grad_(False)
     registered = [name for name, _ in net.named_parameters() if name.startswith("head.")]
     register_checkpoint_owned_state(net, registered)
     _shard(net)
     strategy = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none")
 
-    checkpoint = strategy.export_checkpoint_state(_Bundle(net))["transformer"]
-    rollout = strategy.export_rollout_state(_Bundle(net))
+    checkpoint = strategy.export_checkpoint_state(Bundle(net))["transformer"]
+    rollout = strategy.export_rollout_state(Bundle(net))
 
     assert set(registered) <= set(checkpoint)
     assert not any("head" in name for name in rollout)
 
-    restored = _ToyTransformer()
+    restored = ToyTransformer()
     restored.head.requires_grad_(False)
     register_checkpoint_owned_state(restored, registered)
     _shard(restored)
     strategy.load_checkpoint_state(
-        _Bundle(restored),
+        Bundle(restored),
         {"transformer": checkpoint},
         strict=True,
     )
@@ -515,7 +416,7 @@ def test_fsdp_prepare_model_wraps_multi_transformer_model(cpu_process_group) -> 
     """Dual-stage Wan shards both named roots and writes both aliases back."""
     from torch.distributed.tensor import DTensor
 
-    policy = _DualStagePolicy(_ToyTransformer())
+    policy = DualStagePolicy(ToyTransformer())
     out = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none").prepare_model(policy)
 
     assert out is policy
@@ -527,24 +428,24 @@ def test_fsdp_prepare_model_wraps_multi_transformer_model(cpu_process_group) -> 
 
 def test_fsdp_export_then_load_checkpoint_state_round_trip(cpu_process_group) -> None:
     strategy = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none")
-    src_module = _ToyTransformer()
+    src_module = ToyTransformer()
     src_module.head.requires_grad_(False)
     with torch.no_grad():
         for parameter in src_module.parameters():
             parameter.fill_(3.0 if parameter.requires_grad else 5.0)
     src = _shard(src_module)
 
-    snapshot = strategy.export_checkpoint_state(_Bundle(src))
+    snapshot = strategy.export_checkpoint_state(Bundle(src))
     assert set(snapshot) == {"transformer"}
     assert not any("head" in key for key in snapshot["transformer"])
 
-    dst_module = _ToyTransformer()
+    dst_module = ToyTransformer()
     dst_module.head.requires_grad_(False)
     with torch.no_grad():
         dst_module.head.weight.fill_(11.0)
         dst_module.head.bias.fill_(11.0)
     dst = _shard(dst_module)
-    strategy.load_checkpoint_state(_Bundle(dst), snapshot)
+    strategy.load_checkpoint_state(Bundle(dst), snapshot)
     restored = gather_full_state_dict(dst)
     for name, value in restored.items():
         expected = 11.0 if name.startswith("head.") else 3.0
@@ -553,7 +454,7 @@ def test_fsdp_export_then_load_checkpoint_state_round_trip(cpu_process_group) ->
 
 def test_fsdp_checkpoint_loader_rejects_unselected_legacy_full_state(cpu_process_group) -> None:
     strategy = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none")
-    src_module = _ToyTransformer()
+    src_module = ToyTransformer()
     src_module.head.requires_grad_(False)
     with torch.no_grad():
         for parameter in src_module.parameters():
@@ -561,11 +462,11 @@ def test_fsdp_checkpoint_loader_rejects_unselected_legacy_full_state(cpu_process
     src = _shard(src_module)
     legacy = {"transformer": gather_full_state_dict(src)}
 
-    dst_module = _ToyTransformer()
+    dst_module = ToyTransformer()
     dst_module.head.requires_grad_(False)
     dst = _shard(dst_module)
     with pytest.raises(ValueError, match="unexpected="):
-        strategy.load_checkpoint_state(_Bundle(dst), legacy, strict=True)
+        strategy.load_checkpoint_state(Bundle(dst), legacy, strict=True)
 
 
 def test_fsdp_restore_protocol_normalizes_schema_v1_full_state(
@@ -574,7 +475,7 @@ def test_fsdp_restore_protocol_normalizes_schema_v1_full_state(
     from vrl.trainers.checkpointing import TrainingCheckpoint, restore_training_checkpoint
 
     strategy = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none")
-    src_module = _ToyTransformer()
+    src_module = ToyTransformer()
     src_module.head.requires_grad_(False)
     with torch.no_grad():
         for parameter in src_module.parameters():
@@ -582,7 +483,7 @@ def test_fsdp_restore_protocol_normalizes_schema_v1_full_state(
     src = _shard(src_module)
     legacy_full = gather_full_state_dict(src)
 
-    dst_module = _ToyTransformer()
+    dst_module = ToyTransformer()
     dst_module.head.requires_grad_(False)
     with torch.no_grad():
         for parameter in dst_module.parameters():
@@ -610,7 +511,7 @@ def test_fsdp_restore_protocol_normalizes_schema_v1_full_state(
     restore_training_checkpoint(
         checkpoint,
         trainer=trainer,
-        bundle=_Bundle(dst),
+        bundle=Bundle(dst),
         family="toy",
         strict=True,
     )
@@ -629,13 +530,13 @@ def test_fsdp_restore_preflights_global_shape_before_mutation(
     from vrl.trainers.checkpointing import TrainingCheckpoint, restore_model_checkpoint
 
     strategy = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none")
-    destination_module = _ToyTransformer()
+    destination_module = ToyTransformer()
     destination_module.head.requires_grad_(False)
     destination = _shard(destination_module)
     assert any(isinstance(value, DTensor) for value in destination.state_dict().values())
     before = gather_full_state_dict(destination)
 
-    owned_state = strategy.export_checkpoint_state(_Bundle(destination))["transformer"]
+    owned_state = strategy.export_checkpoint_state(Bundle(destination))["transformer"]
     owned_state = {name: torch.full_like(value, 7.0) for name, value in owned_state.items()}
     bad_name = sorted(owned_state)[-1]
     owned_state[bad_name] = owned_state[bad_name].new_zeros(
@@ -662,7 +563,7 @@ def test_fsdp_restore_preflights_global_shape_before_mutation(
     with pytest.raises(ValueError, match="shape mismatch"):
         restore_model_checkpoint(
             checkpoint,
-            bundle=_Bundle(destination),
+            bundle=Bundle(destination),
             family="toy",
             expected_model_identity=identity,
             strict=True,
@@ -675,26 +576,26 @@ def test_fsdp_restore_preflights_global_shape_before_mutation(
 
 def test_fsdp_load_checkpoint_state_strictly_validates_owned_keys(cpu_process_group) -> None:
     strategy = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none")
-    net = _ToyTransformer()
+    net = ToyTransformer()
     net.head.requires_grad_(False)
     sharded = _shard(net)
-    snapshot = strategy.export_checkpoint_state(_Bundle(sharded))
+    snapshot = strategy.export_checkpoint_state(Bundle(sharded))
     state = snapshot["transformer"]
 
     missing = {"transformer": dict(state)}
     missing["transformer"].pop(next(iter(state)))
     with pytest.raises(ValueError, match="missing="):
-        strategy.load_checkpoint_state(_Bundle(sharded), missing, strict=True)
+        strategy.load_checkpoint_state(Bundle(sharded), missing, strict=True)
 
     unexpected = {"transformer": {**state, "unknown.weight": torch.ones(1)}}
     with pytest.raises(ValueError, match="unexpected="):
-        strategy.load_checkpoint_state(_Bundle(sharded), unexpected, strict=True)
+        strategy.load_checkpoint_state(Bundle(sharded), unexpected, strict=True)
 
 
 def test_fsdp_prepare_model_wraps_diffusion_handle(cpu_process_group) -> None:
     from torch.distributed.tensor import DTensor
 
-    policy = _FakePolicy(_ToyTransformer())
+    policy = FakePolicy(ToyTransformer())
     out = _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none").prepare_model(policy)
 
     assert out is policy
@@ -705,7 +606,7 @@ def test_fsdp_prepare_model_wraps_diffusion_handle(cpu_process_group) -> None:
 def test_fsdp_actor_prepare_normalizes_mixed_sources_before_first_forward(
     cpu_process_group,
 ) -> None:
-    policy = _FakePolicy(_ToyTransformer().to(dtype=torch.bfloat16))
+    policy = FakePolicy(ToyTransformer().to(dtype=torch.bfloat16))
     policy.transformer.head.to(dtype=torch.float32)
 
     FSDPStrategy(
@@ -732,7 +633,7 @@ def test_wan_fsdp_replay_build_defers_full_gpu_move_until_sharding(
     from vrl.models.families.registry import get_model_family_entry
     from vrl.models.steps.denoise import build as denoise_build
 
-    class _TrackingWanTransformer(_ToyTransformer):
+    class _TrackingWanTransformer(ToyTransformer):
         def __init__(self) -> None:
             super().__init__()
             self.to_calls = 0
@@ -838,7 +739,7 @@ def test_fsdp_prepare_model_initializes_process_group(cpu_process_group, monkeyp
 
     monkeypatch.setattr(strategy_mod, "init_training_process_group", _spy)
 
-    policy = _FakePolicy(_ToyTransformer())
+    policy = FakePolicy(ToyTransformer())
     _fsdp_strategy(_cpu_fsdp_context(), precision_policy="none").prepare_model(policy)
 
     assert calls == [("fsdp", "gloo")]
@@ -1049,12 +950,12 @@ def test_fsdp_adapter_export_writes_gathered_hf_adapter(cpu_process_group, tmp_p
 
     torch.manual_seed(0)
     peft_model = get_peft_model(
-        _ToyTransformer(),
+        ToyTransformer(),
         LoraConfig(r=2, lora_alpha=4, init_lora_weights="gaussian", target_modules=["lin"]),
     )
     sharded = _shard(peft_model)
     assert any(isinstance(p, DTensor) for p in sharded.parameters())
-    bundle = _Bundle(sharded)
+    bundle = Bundle(sharded)
     strategy = _fsdp_strategy(_cpu_fsdp_context())
 
     trainer = SimpleNamespace(state_dict=lambda: {"step": 0, "global_step": 0})
@@ -1105,11 +1006,11 @@ def test_adapter_export_rejects_module_outside_bundle(cpu_process_group, tmp_pat
     torch.manual_seed(0)
     stray = _shard(
         get_peft_model(
-            _ToyTransformer(),
+            ToyTransformer(),
             LoraConfig(r=2, lora_alpha=4, target_modules=["lin"]),
         ),
     )
-    bundle = _Bundle(_shard(_ToyTransformer()))
+    bundle = Bundle(_shard(ToyTransformer()))
     trainer = SimpleNamespace(state_dict=lambda: {"step": 0, "global_step": 0})
 
     with pytest.raises(ValueError, match="exactly one bundle checkpoint root"):
@@ -1140,7 +1041,7 @@ def test_fsdp_optimizer_state_export_is_full_plain_cpu(cpu_process_group) -> Non
     from torch.distributed.tensor import DTensor
 
     torch.manual_seed(0)
-    net = _shard(_ToyTransformer())
+    net = _shard(ToyTransformer())
     optimizer = torch.optim.AdamW(net.parameters(), lr=1e-2)
     _one_sgd_like_step(net, optimizer)
 
@@ -1164,7 +1065,7 @@ def test_fsdp_optimizer_state_round_trip(cpu_process_group) -> None:
     """Export -> fresh optimizer -> load reproduces the exact moment tensors."""
 
     torch.manual_seed(0)
-    net = _shard(_ToyTransformer())
+    net = _shard(ToyTransformer())
     optimizer = torch.optim.AdamW(net.parameters(), lr=1e-2)
     _one_sgd_like_step(net, optimizer)
 
@@ -1199,7 +1100,7 @@ def test_ema_over_dtensor_params_updates_swaps_and_round_trips(cpu_process_group
     from vrl.trainers.online.ema import EMAModuleWrapper
 
     torch.manual_seed(0)
-    net = _shard(_ToyTransformer())
+    net = _shard(ToyTransformer())
     params = [p for p in net.parameters() if p.requires_grad]
     ema = EMAModuleWrapper(params, decay=0.5, update_step_interval=1)
     assert all(isinstance(p, DTensor) for p in ema.ema_parameters)

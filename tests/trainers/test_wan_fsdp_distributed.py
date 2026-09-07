@@ -10,7 +10,6 @@ linear model.
 from __future__ import annotations
 
 import os
-import socket
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,6 +29,7 @@ from tests.models.steps.denoise.fixtures import (
     build_tiny_wan_i2v_transformer,
     stamp_model_precision,
 )
+from tests.trainers._strategy_policies import free_port
 from vrl.config.precision import RolePrecision
 from vrl.config.schema import FSDPConfig
 from vrl.models.families.wan_2_1.model import (
@@ -53,12 +53,6 @@ def _fsdp_strategy(
         reshard_after_forward=config.reshard_after_forward,
         cpu_offload=config.cpu_offload,
     )
-
-
-def _free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.bind(("127.0.0.1", 0))
-        return int(probe.getsockname()[1])
 
 
 def _build_policy(seed: int = 0) -> WanI2VReplayModel:
@@ -292,7 +286,7 @@ def _run_rank(
 def test_wan_i2v_fsdp_step_checkpoint_resume_and_continue(tmp_path: Path) -> None:
     context = mp.get_context("spawn")
     queue: mp.Queue = context.Queue()
-    port = _free_port()
+    port = free_port()
     checkpoint_path = tmp_path / "checkpoint.pt"
     processes = [
         context.Process(
@@ -424,7 +418,7 @@ def _run_dual_rank(
 def test_wan_dual_expert_fsdp_stage_isolation_sync_and_resume(tmp_path: Path) -> None:
     context = mp.get_context("spawn")
     queue: mp.Queue = context.Queue()
-    port = _free_port()
+    port = free_port()
     checkpoint_path = tmp_path / "dual-expert-checkpoint.pt"
     processes = [
         context.Process(
@@ -581,7 +575,7 @@ def test_wan_dual_expert_fsdp_cuda_cpu_offload(world_size: int) -> None:
 
     context = mp.get_context("spawn")
     queue: mp.Queue = context.Queue()
-    port = _free_port()
+    port = free_port()
     processes = [
         context.Process(
             target=_run_dual_cuda_offload_rank,
@@ -616,7 +610,7 @@ def test_wan_i2v_fsdp_four_rank_cuda_step() -> None:
 
     context = mp.get_context("spawn")
     queue: mp.Queue = context.Queue()
-    port = _free_port()
+    port = free_port()
     processes = [
         context.Process(target=_run_cuda_rank, args=(rank, 4, port, queue)) for rank in range(4)
     ]

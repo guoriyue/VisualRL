@@ -31,31 +31,16 @@ from typing import Any
 
 import torch
 
+from tests.models.steps.denoise.fixtures import RecordingModule
 from vrl.config.precision import RolePrecision
 from vrl.models.interfaces.runtime import ModelBuild
 
 
-class _FakeModule:
-    def __init__(self) -> None:
-        self.dtype: torch.dtype | None = None
-        self.requires_grad_enabled: bool | None = None
-        self.to_calls: list[tuple[Any, torch.dtype | None]] = []
-
-    def requires_grad_(self, enabled: bool) -> None:
-        self.requires_grad_enabled = enabled
-
-    def to(self, device: Any, dtype: torch.dtype | None = None) -> _FakeModule:
-        self.to_calls.append((device, dtype))
-        if dtype is not None:
-            self.dtype = dtype
-        return self
-
-
 class _FakePipeline:
     def __init__(self) -> None:
-        self.transformer = _FakeModule()
-        self.vae = _FakeModule()
-        self.text_encoder = _FakeModule()
+        self.transformer = RecordingModule()
+        self.vae = RecordingModule()
+        self.text_encoder = RecordingModule()
         self.device = "cpu"
         self.progress_bar_disabled: bool | None = None
 

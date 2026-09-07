@@ -3,45 +3,17 @@
 from __future__ import annotations
 
 import os
-import socket
 from typing import ClassVar
 
-import pytest
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch import nn
 
+from tests.trainers._strategy_policies import free_port
 from vrl.trainers.distributed import DistributedTrainingContext
 from vrl.trainers.optimizer import FP32MasterWeightOptimizer
 from vrl.trainers.strategy import FSDPStrategy
-
-
-@pytest.fixture(scope="module")
-def cpu_process_group():
-    """Create the one-rank gloo group required by FSDP2 CPU tests."""
-
-    import torch.distributed as dist
-
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.bind(("127.0.0.1", 0))
-    port = probe.getsockname()[1]
-    probe.close()
-
-    monkeypatch = pytest.MonkeyPatch()
-    monkeypatch.setenv("MASTER_ADDR", "127.0.0.1")
-    monkeypatch.setenv("MASTER_PORT", str(port))
-    monkeypatch.setenv("RANK", "0")
-    monkeypatch.setenv("WORLD_SIZE", "1")
-    monkeypatch.setenv("LOCAL_RANK", "0")
-    created = False
-    if not dist.is_initialized():
-        dist.init_process_group(backend="gloo", rank=0, world_size=1)
-        created = True
-    yield
-    if created and dist.is_initialized():
-        dist.destroy_process_group()
-    monkeypatch.undo()
 
 
 class _Block(nn.Module):
@@ -168,14 +140,6 @@ def test_fsdp_bf16_fp32_master_step_and_checkpoint_round_trip(
         torch.testing.assert_close(actual.full_tensor(), expected.full_tensor())
 
 
-def _free_port() -> int:
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.bind(("127.0.0.1", 0))
-    port = probe.getsockname()[1]
-    probe.close()
-    return port
-
-
 def _run_two_rank_master_round_trip(
     rank: int,
     world_size: int,
@@ -274,7 +238,7 @@ def _run_two_rank_master_round_trip(
 def test_two_rank_bf16_fp32_master_round_trip() -> None:
     context = mp.get_context("spawn")
     queue: mp.Queue = context.Queue()
-    port = _free_port()
+    port = free_port()
     processes = [
         context.Process(
             target=_run_two_rank_master_round_trip,

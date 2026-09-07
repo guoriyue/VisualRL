@@ -17,10 +17,10 @@ from typing import Any
 
 import torch
 
+from tests.generation.execution._helpers import launch_contract
 from vrl.generation.execution.sample_batches import GenerationSampleBatch
 from vrl.generation.execution.types import GenerationBatchEnvelope
 from vrl.generation.execution.worker import GenerationWorkerCore
-from vrl.generation.launch_contract import GenerationRuntimeLaunchContract
 from vrl.generation.types import GenerationRequest
 
 
@@ -93,13 +93,7 @@ def _core(
     *,
     versioned_weight_sync: bool = True,
 ) -> GenerationWorkerCore:
-    contract = GenerationRuntimeLaunchContract(
-        family="sd3_5",
-        model_build={},
-        expected_model_identity={"schema": "test"},
-        policy_version=1,
-        versioned_weight_sync=versioned_weight_sync,
-    )
+    contract = launch_contract(policy_version=1, versioned_weight_sync=versioned_weight_sync)
     executor = _Executor(model)
     core = GenerationWorkerCore("rollout-0", contract, executor)
     core.executor = executor  # bypass load_policy() build

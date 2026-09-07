@@ -405,6 +405,31 @@ def record_forward_calls(module: torch.nn.Module) -> list[dict[str, Any]]:
     return calls
 
 
+class RecordingModule:
+    """Records the freeze / placement calls the shared loaders make on a component.
+
+    Deliberately a plain object, not an ``nn.Module``: the loader tests assert on
+    ``"cuda:0"`` / ``torch.device("cuda:1")`` placements, and a real ``Module.to``
+    would fail on the CUDA-less default lane. ``to_calls`` appends whatever it is
+    handed -- strings, ``torch.device`` objects, ``None`` -- with no normalization,
+    so every existing assertion reads the exact argument the loader passed.
+    """
+
+    def __init__(self) -> None:
+        self.dtype: torch.dtype | None = None
+        self.requires_grad_enabled: bool | None = None
+        self.to_calls: list[tuple[Any, torch.dtype | None]] = []
+
+    def requires_grad_(self, enabled: bool) -> None:
+        self.requires_grad_enabled = enabled
+
+    def to(self, device: Any = None, dtype: torch.dtype | None = None) -> RecordingModule:
+        self.to_calls.append((device, dtype))
+        if dtype is not None:
+            self.dtype = dtype
+        return self
+
+
 def stamp_model_precision(model: Any) -> None:
     """Mirror RuntimeBundle precision assembly for direct-model forward tests."""
 

@@ -13,7 +13,6 @@ scatter them back on load without changing frozen base state.
 from __future__ import annotations
 
 import os
-import socket
 from pathlib import Path
 from typing import ClassVar
 
@@ -26,6 +25,7 @@ from torch import nn
 peft = pytest.importorskip("peft")
 
 from tests.trainers._state_dict_helpers import gather_full_state_dict  # noqa: E402
+from tests.trainers._strategy_policies import free_port  # noqa: E402
 from vrl.trainers.distributed import DistributedTrainingContext  # noqa: E402
 from vrl.trainers.fsdp import (  # noqa: E402
     apply_fsdp,
@@ -58,14 +58,6 @@ class _ToyTransformer(nn.Module):
         for block in self.transformer_blocks:
             x = block(x)
         return x
-
-
-def _free_port() -> int:
-    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    probe.bind(("127.0.0.1", 0))
-    port = probe.getsockname()[1]
-    probe.close()
-    return port
 
 
 def _run_rank(rank: int, world_size: int, port: int, q: mp.Queue) -> None:
@@ -143,7 +135,7 @@ def _run_rank(rank: int, world_size: int, port: int, q: mp.Queue) -> None:
 def test_checkpoint_state_is_selective_and_round_trips_on_every_rank() -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     procs = [ctx.Process(target=_run_rank, args=(r, 2, port, q)) for r in range(2)]
     for p in procs:
         p.start()
@@ -270,7 +262,7 @@ def _run_optim_ema_rank(rank: int, world_size: int, port: int, q: mp.Queue) -> N
 def test_optimizer_and_ema_full_state_on_every_rank() -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     procs = [ctx.Process(target=_run_optim_ema_rank, args=(r, 2, port, q)) for r in range(2)]
     for p in procs:
         p.start()
@@ -458,7 +450,7 @@ def _run_checkpoint_ema_export_rank(
 def test_checkpoint_keeps_raw_state_and_exports_ema_on_every_fsdp_rank(tmp_path) -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     output_dir = str(tmp_path / "checkpoint-ema")
     procs = [
         ctx.Process(
@@ -487,7 +479,7 @@ def test_checkpoint_keeps_raw_state_and_exports_ema_on_every_fsdp_rank(tmp_path)
 def test_peer_ema_swap_failure_aborts_before_second_fsdp_gather(tmp_path) -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     output_dir = str(tmp_path / "checkpoint-peer-swap-failure")
     procs = [
         ctx.Process(
@@ -518,7 +510,7 @@ def test_peer_ema_swap_and_rollback_failures_propagate_to_every_fsdp_rank(
 ) -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     output_dir = str(tmp_path / "checkpoint-peer-rollback-failure")
     procs = [
         ctx.Process(
@@ -547,7 +539,7 @@ def test_peer_ema_swap_and_rollback_failures_propagate_to_every_fsdp_rank(
 def test_rank0_artifact_write_failure_propagates_to_every_fsdp_rank(tmp_path) -> None:
     ctx = mp.get_context("spawn")
     q: mp.Queue = ctx.Queue()
-    port = _free_port()
+    port = free_port()
     output_dir = str(tmp_path / "checkpoint-rank0-write-failure")
     procs = [
         ctx.Process(

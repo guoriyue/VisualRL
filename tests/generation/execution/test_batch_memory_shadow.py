@@ -17,6 +17,7 @@ import pytest
 import torch
 
 import vrl.generation.execution.worker as worker_module
+from tests.generation.execution._helpers import launch_contract
 from vrl.generation.execution.batch_memory import (
     AffinePeakFit,
     build_batch_memory_shadow,
@@ -29,7 +30,6 @@ from vrl.generation.execution.types import (
     GenerationBatchResult,
 )
 from vrl.generation.execution.worker import GenerationWorkerCore
-from vrl.generation.launch_contract import GenerationRuntimeLaunchContract
 from vrl.generation.ray.engine import RayGenerationEngine
 from vrl.generation.ray.executor import RayGenerationExecutor
 from vrl.generation.ray.runtime import RayGenerationRuntime
@@ -188,12 +188,7 @@ class _ProbeExecutor:
 
 
 def _probe_core(executor: Any) -> GenerationWorkerCore:
-    contract = GenerationRuntimeLaunchContract(
-        family="sd3_5",
-        model_build={},
-        expected_model_identity={"schema": "test"},
-        policy_version=1,
-    )
+    contract = launch_contract(policy_version=1)
     core = GenerationWorkerCore("rollout-0", contract, executor)
     core.executor = executor
     return core
@@ -424,12 +419,7 @@ class _MemoryExecutor:
 
 
 def test_worker_forwards_batch_memory_without_runtime_debug() -> None:
-    contract = GenerationRuntimeLaunchContract(
-        family="sd3_5",
-        model_build={},
-        expected_model_identity={"schema": "test"},
-        policy_version=1,
-    )
+    contract = launch_contract(policy_version=1)
     executor = _MemoryExecutor()
     core = GenerationWorkerCore("rollout-0", contract, executor)
     core.executor = executor

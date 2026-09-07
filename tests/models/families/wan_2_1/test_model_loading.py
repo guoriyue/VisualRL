@@ -30,6 +30,7 @@ from typing import Any
 import pytest
 import torch
 
+from tests.models.steps.denoise.fixtures import RecordingModule
 from vrl.config.precision import RolePrecision
 from vrl.models.interfaces.runtime import ModelBuild, RolloutBuildOptions
 
@@ -41,34 +42,13 @@ def _rollout_build_options(offload_mode: str) -> RolloutBuildOptions:
     )
 
 
-class _FakeModule:
-    def __init__(self) -> None:
-        self.dtype: torch.dtype | None = None
-        self.requires_grad_enabled: bool | None = None
-        self.to_calls: list[tuple[Any, torch.dtype | None]] = []
-
-    def requires_grad_(self, enabled: bool) -> None:
-        self.requires_grad_enabled = enabled
-
-    def to(
-        self,
-        device: Any = None,
-        *,
-        dtype: torch.dtype | None = None,
-    ) -> _FakeModule:
-        self.to_calls.append((device, dtype))
-        if dtype is not None:
-            self.dtype = dtype
-        return self
-
-
 class _FakePipeline:
     def __init__(self) -> None:
-        self.transformer = _FakeModule()
+        self.transformer = RecordingModule()
         self.transformer_2 = None
-        self.vae = _FakeModule()
-        self.text_encoder = _FakeModule()
-        self.image_encoder = _FakeModule()
+        self.vae = RecordingModule()
+        self.text_encoder = RecordingModule()
+        self.image_encoder = RecordingModule()
         self.device = "cpu"
         # Single-transformer Wan 2.1 I2V: no boundary_ratio / expand_timesteps.
         self.config = SimpleNamespace(boundary_ratio=None, expand_timesteps=False)
@@ -335,7 +315,7 @@ def test_wan_replay_full_finetune_ignores_rollout_pipeline_offload() -> None:
     """A normalized replay build moves its transformer through the trainer path."""
     from vrl.models.families.wan_2_1.model import WanT2VReplayModel
 
-    transformer = _FakeModule()
+    transformer = RecordingModule()
     model = WanT2VReplayModel(
         transformer=transformer,
         scheduler=object(),
@@ -643,7 +623,7 @@ def test_wan_i2v_from_build_accepts_dual_stage_pipeline(monkeypatch) -> None:
 
     pipeline, _ = _patch_from_pretrained(monkeypatch)
     pipeline.config = SimpleNamespace(boundary_ratio=0.5, expand_timesteps=False)
-    pipeline.transformer_2 = _FakeModule()
+    pipeline.transformer_2 = RecordingModule()
 
     build = _i2v_build(
         boundary_ratio=0.5,
@@ -663,7 +643,7 @@ def test_wan_i2v_from_build_rejects_expand_timesteps_pipeline(monkeypatch) -> No
 
     pipeline, _ = _patch_from_pretrained(monkeypatch)
     pipeline.config = SimpleNamespace(boundary_ratio=0.5, expand_timesteps=True)
-    pipeline.transformer_2 = _FakeModule()
+    pipeline.transformer_2 = RecordingModule()
 
     build = _i2v_build(
         model_name_or_path="Wan-AI/Wan2.2-I2V-5B-Diffusers",
@@ -819,7 +799,7 @@ def test_wan_rollout_rejects_source_change_after_build_normalization(
 
     pipeline, _ = _patch_from_pretrained(monkeypatch)
     pipeline.config = SimpleNamespace(boundary_ratio=0.5, expand_timesteps=False)
-    pipeline.transformer_2 = _FakeModule()
+    pipeline.transformer_2 = RecordingModule()
     build = _i2v_build(
         model_name_or_path="Wan-AI/Wan2.2-I2V-A14B-Diffusers",
         boundary_ratio=0.9,
