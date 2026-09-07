@@ -1,0 +1,22 @@
+# Online V-GRPO recipe: forward-process objective, strictly on-policy, colocated.
+defaults:
+  - /base/algorithm/v_grpo
+  - /base/actor
+  - /base/rollout/denoise
+  - /base/distributed/ray_rollout_colocated_single_gpu
+  - /base/rollout/orchestration/strict
+  - /base/trainer
+
+actor:
+  # One random denoise step per equal interval of the rollout grid, resampled
+  # per update: the paper's stratified (t, eps) draw. timestep_fraction sets
+  # N_MC / num_steps in the experiment (e.g. 4 of 20 steps = 0.2).
+  timestep_selection: stratified
+
+rollout:
+  # The surrogate never reads the sampler's transitions, so rollouts are plain
+  # ODE generation (the paper samples with DPMSolver++).
+  denoise_mode: native
+
+trainer:
+  entrypoint: vrl.scripts.train:train_online

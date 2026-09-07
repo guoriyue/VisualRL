@@ -91,7 +91,7 @@ def test_token_grpo_keeps_its_clipping_and_reference_kl_config() -> None:
 
 @pytest.mark.parametrize(
     "recipe",
-    ["flow_matching_dance_grpo", "flow_matching_dppo", "flow_matching_grpo_guard"],
+    ["flow_matching_dance_grpo", "flow_matching_dppo", "flow_matching_grpo_guard", "v_grpo"],
 )
 def test_recipes_have_no_unknown_config_keys(recipe: str) -> None:
     """An unknown key fails parse_config, so a clean build is the assertion."""

@@ -917,10 +917,13 @@ async def run_online_recipe(
         collector.set_generation_runtime(generation_runtime)
         log_host_memory("after_rollout_backend_build", log=logger)
 
+        # Forward-process objectives (DiffusionNFT, V-GRPO) own their behaviour
+        # policy through the previous adapter and run no evaluator; only the
+        # evaluator-backed objectives read a reference model for KL.
         ref_model = (
             _default_reference_model(bundle, built)
             if family_entry.policy_semantics.step_kind == "denoise"
-            and str(built.root.algorithm.kind) != "diffusion_nft"
+            and algorithm_and_evaluator.evaluator is not None
             else None
         )
         # The strategy built during preflight is the single owner of trainable-state

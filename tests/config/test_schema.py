@@ -176,6 +176,7 @@ def test_unknown_algorithm_keys_are_rejected_together() -> None:
         ("token_grpo_multisegment", "segment_weights", {"a": 1.0}),
         ("diffusion_dpo", "beta", 5000.0),
         ("diffusion_nft", "nft_beta", 0.1),
+        ("v_grpo", "adv_soft_clip", 2.0),
     ],
 )
 def test_algorithm_keys_derive_from_selected_runtime_config(

@@ -41,6 +41,10 @@ def algorithm_config_class(kind: str) -> type[Any]:
         from vrl.algorithms.diffusion_nft import DiffusionNFTConfig
 
         return DiffusionNFTConfig
+    if kind == "v_grpo":
+        from vrl.algorithms.v_grpo import VGRPOConfig
+
+        return VGRPOConfig
     raise ValueError(f"unsupported algorithm kind: {kind!r}")
 
 

@@ -155,6 +155,7 @@ class AlgorithmConfig(ConfigBase):
         "token_grpo_multisegment",
         "diffusion_dpo",
         "diffusion_nft",
+        "v_grpo",
     ]
     # Collector-owned diffusion reward-shaping coefficient. Token trajectories
     # do not carry the per-step KL tensor needed to consume a positive value.
@@ -511,7 +512,7 @@ class ActorSection(ConfigBase):
     timestep_fraction: float | None = None
     drop_zero_advantage: StrictBool | None = None
     max_norm: float | None = None
-    timestep_selection: Literal["strided", "random", "sde_window"] | None = None
+    timestep_selection: Literal["strided", "random", "stratified", "sde_window"] | None = None
     ppo_epochs: StrictInt | None = None
     # OnlineBatchPlan inputs: the microstep count or the microbatch size (the
     # size derives the count); the plan is bridged, not stored here.

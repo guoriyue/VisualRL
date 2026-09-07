@@ -6,6 +6,7 @@ collect -> evaluate -> advantage -> loss -> backward -> step.
 from __future__ import annotations
 
 import contextlib
+import itertools
 import logging
 import math
 import time
@@ -1188,6 +1189,10 @@ class OnlineTrainer:
           so gradient coverage of the denoise trajectory decorrelates across
           updates instead of always landing on the same strided steps. Returned
           sorted; the loss loop sums over the indices, so order is irrelevant.
+        - ``"stratified"`` (V-GRPO) — the grid is cut into ``count`` equal-length
+          intervals and one index is drawn uniformly from each, resampled each
+          call: every region of the schedule is covered on every update, with
+          none of ``"strided"``'s fixed positions.
         """
         train_timestep_count = max(1, int(num_timesteps * timestep_fraction))
         if train_timestep_count >= num_timesteps:
@@ -1197,6 +1202,16 @@ class OnlineTrainer:
 
             picks = torch.randperm(num_timesteps)[:train_timestep_count].tolist()
             return sorted(int(i) for i in picks)
+        if selection == "stratified":
+            import torch
+
+            bounds = [
+                round(i * num_timesteps / train_timestep_count)
+                for i in range(train_timestep_count + 1)
+            ]
+            return [
+                int(torch.randint(lo, hi, (1,)).item()) for lo, hi in itertools.pairwise(bounds)
+            ]
         step_size = num_timesteps / train_timestep_count
         return [int(i * step_size) for i in range(train_timestep_count)]
 

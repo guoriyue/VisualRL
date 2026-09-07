@@ -1,0 +1,17 @@
+# V-GRPO (arXiv:2604.23380): GRPO on the ELBO / flow-matching likelihood
+# surrogate of the final sample. No evaluator, no per-step log-probs; the
+# behaviour policy is the frozen `previous` LoRA adapter
+# (model.nft_previous_adapter: true), refreshed after every optimizer step.
+algorithm:
+  kind: v_grpo
+  eps: 1.0e-8
+  adv_clip_max: 5.0
+  global_std: false
+
+  # Gradient-step control (paper Sec. 4.5). Stage-1 (fully on-policy) uses only
+  # the advantage soft clip; multi-epoch stages add clip_ratio (~1e-2..3e-2) or
+  # kl_coef (0.3). null / 0 switches a control off.
+  adv_soft_clip: 3.0
+  clip_ratio: null
+  kl_coef: 0.0
+  weight_copy_decay: 0.0

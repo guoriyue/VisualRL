@@ -231,7 +231,8 @@ class TrainerConfig:
     # How the trained denoise-step subset is chosen each update: "strided"
     # (fixed evenly-spaced steps, default), "random" (DanceGRPO — a fresh
     # random subset per update, decorrelating denoise-step gradient coverage),
-    # or "sde_window" (Flash-GRPO — exactly the steps the rollout made
+    # "stratified" (V-GRPO — one random step per equal-length interval of the
+    # grid, resampled per update), or "sde_window" (Flash-GRPO — exactly the steps the rollout made
     # stochastic, read from the trajectory's recorded window; requires
     # rollout.sde.window_size > 0). "strided"/"random" have no effect when
     # timestep_fraction == 1; "sde_window" ignores timestep_fraction entirely,

@@ -1,0 +1,50 @@
+# SD 3.5 Medium + V-GRPO on PickScore (arXiv:2604.23380, Stage-1 shape).
+#
+# Paper Stage 1 on SD 3.5 M: LoRA r=32/alpha=64, lr 3e-4, group 24, 48 prompts
+# per iteration, 40-step ODE rollouts, N_MC=4 stratified (t, eps) pairs shared
+# per group, one gradient step per iteration (rho == 1, so no ratio clip and no
+# KL), advantage soft clip eta=3, HPS/PickScore/CLIP rewards on Pick-a-Pic.
+#
+# Single-5090 replication scale: PickScore only, 512px, 20-step ODE rollouts,
+# group 16 x 8 prompts (same rollout budget as sd3_5/online_grpo_pickscore),
+# N_MC = 4 of 20 (timestep_fraction 0.2, stratified). Per sample per iteration
+# that is 20 rollout NFE + 4 x 2 training forwards (theta_old, theta); the
+# flux NFT validation preset spends 10 + 9 x 3 on the same budget line.
+#
+#   CUDA_VISIBLE_DEVICES=0 vrl-train \
+#     --config experiment/sd3_5/online_v_grpo_pickscore trainer.total_epochs=150
+defaults:
+  - /recipe/online/v_grpo
+  - /model/sd3_5/medium
+  - /sampling/image/512
+  - /sampling/denoise/20_step_no_cfg
+  - /dataset/pickscore_sfw
+  - /reward/pickscore
+
+actor:
+  optim:
+    lr: 3.0e-4
+  gradient_accumulation_steps: 4
+  timestep_fraction: 0.2          # N_MC = 4 of the 20 rollout steps
+  ppo_epochs: 1                   # fully on-policy: rho == 1 (Stage-1)
+
+algorithm:
+  adv_soft_clip: 3.0
+  clip_ratio: null
+  kl_coef: 0.0
+
+rollout:
+  n_samples_per_prompt: 16
+  prompts_per_batch: 8
+  samples_per_generation_batch: 16
+
+trainer:
+  output_dir: outputs/sd3_5_v_grpo_pickscore
+  save_freq: 50
+  debug:
+    first_step: true              # the lr=0 advantage-antisymmetry invariant
+
+model:
+  nft_previous_adapter: true      # frozen theta_old mirror (LoraModelMixin)
+  torch_compile:
+    enable: false                 # adapter switching per forward; keep eager

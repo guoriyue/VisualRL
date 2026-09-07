@@ -266,6 +266,14 @@ def build_algorithm_and_evaluator(
             evaluator=None,
         )
 
+    if kind == "v_grpo":
+        from vrl.algorithms.v_grpo import VGRPO
+
+        return AlgorithmEvaluatorPair(
+            algorithm=VGRPO(algorithm_config),
+            evaluator=None,
+        )
+
     raise ValueError(f"unsupported online algorithm.kind: {kind!r}")
 
 
