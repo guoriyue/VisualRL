@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from types import SimpleNamespace
 
 import pytest
 from omegaconf import OmegaConf
@@ -104,10 +105,6 @@ def test_checkpointing_rejects_replay_compile_but_accepts_rollout_scope() -> Non
     """The collision is with compiling the REPLAY policy; a rollout-scoped
     compile leaves the checkpointed trainer eager and must pass."""
 
-    from vrl.trainers.activation_checkpointing import (
-        validate_compile_checkpointing_compatible,
-    )
-
     def _cfg(compile_block: dict):
         # The check reads the compile matrix off a parsed root, as the runtime
         # apply path hands it one.
@@ -121,8 +118,11 @@ def test_checkpointing_rejects_replay_compile_but_accepts_rollout_scope() -> Non
         )
 
     with pytest.raises(ValueError, match="gradient_checkpointing"):
-        validate_compile_checkpointing_compatible(_cfg({"enable": True}))
+        enable_transformer_gradient_checkpointing(None, _cfg({"enable": True}))
 
-    validate_compile_checkpointing_compatible(
+    module = SimpleNamespace(enable_gradient_checkpointing=lambda: None)
+    bundle = SimpleNamespace(trainable_modules={"transformer": module})
+    enable_transformer_gradient_checkpointing(
+        bundle,
         _cfg({"enable": True, "scope": "rollout"}),
     )

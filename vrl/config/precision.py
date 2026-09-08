@@ -105,6 +105,13 @@ class QuantizationPolicy:
     format: str
     recipe: str | None = None
 
+    @classmethod
+    def from_section(cls, section: QuantizationConfig | None) -> QuantizationPolicy | None:
+        """Resolve an optional public quantization section."""
+        if section is None:
+            return None
+        return cls(format=section.format, recipe=section.recipe)
+
     def __post_init__(self) -> None:
         format_name = str(self.format).lower().strip()
         recipe = str(self.recipe).lower().strip() if self.recipe is not None else None
@@ -222,7 +229,7 @@ class PrecisionPolicy:
             dtype=section.training.dtype,
             float32_precision=float32_precision,
             outer_autocast=section.training.outer_autocast,
-            quantization=_quantization_policy(section.training.quantization),
+            quantization=QuantizationPolicy.from_section(section.training.quantization),
         )
         rollout_section = section.rollout or RolloutPrecisionConfig()
         rollout = RolePrecision(
@@ -233,7 +240,7 @@ class PrecisionPolicy:
                 if rollout_section.outer_autocast is None
                 else rollout_section.outer_autocast
             ),
-            quantization=_quantization_policy(rollout_section.quantization),
+            quantization=QuantizationPolicy.from_section(rollout_section.quantization),
         )
         prompt_encoders = rollout_section.prompt_encoders
         return cls(
@@ -329,12 +336,6 @@ class PrecisionConfig(ConfigBase):
     @classmethod
     def _normalize_float32(cls, value: Any) -> Float32Precision:
         return _normalize_float32_precision(value)
-
-
-def _quantization_policy(section: QuantizationConfig | None) -> QuantizationPolicy | None:
-    if section is None:
-        return None
-    return QuantizationPolicy(format=section.format, recipe=section.recipe)
 
 
 __all__ = [

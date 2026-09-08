@@ -96,22 +96,6 @@ def resolve_gradient_checkpointing_mode(root: RootConfig) -> str:
     return _normalize_gradient_checkpointing(enabled)
 
 
-def validate_compile_checkpointing_compatible(root: RootConfig) -> None:
-    """Refuse compiling the replay policy combined with grad-checkpointing.
-
-    The rule itself lives in the torch.compile compatibility matrix
-    (``vrl.config.validation.compile_conflicts``), which config load already
-    runs; this re-checks only the checkpointing entry at runtime apply, for
-    callers that build a bundle without going through ``require_training_config``.
-    """
-
-    from vrl.config.validation import compile_conflicts
-
-    for conflict in compile_conflicts(root):
-        if conflict.feature == "gradient_checkpointing":
-            raise ValueError(conflict.message)
-
-
 def enable_transformer_gradient_checkpointing(bundle: Any, root: RootConfig) -> None:
     """Enable transformer gradient checkpointing while preserving family policy.
 
@@ -125,7 +109,11 @@ def enable_transformer_gradient_checkpointing(bundle: Any, root: RootConfig) -> 
     mode = resolve_gradient_checkpointing_mode(root)
     if mode == "off":
         return
-    validate_compile_checkpointing_compatible(root)
+    from vrl.config.validation import compile_conflicts
+
+    for conflict in compile_conflicts(root):
+        if conflict.feature == "gradient_checkpointing":
+            raise ValueError(conflict.message)
 
     trainable_modules = getattr(bundle, "trainable_modules", None) or {
         "transformer": bundle.model.transformer,
@@ -153,5 +141,4 @@ __all__ = [
     "enable_transformer_gradient_checkpointing",
     "resolve_gradient_checkpointing_mode",
     "selective_checkpoint_func",
-    "validate_compile_checkpointing_compatible",
 ]

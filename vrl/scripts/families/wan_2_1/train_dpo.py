@@ -110,8 +110,8 @@ def _required(value: Any, path: str) -> Any:
 def train_wan_2_1_dpo(cfg: DictConfig) -> None:
     """Run Wan-family Diffusion-DPO training driven by a merged YAML config."""
 
-    from vrl.config.builders import build_offline_dpo_trainer_config
     from vrl.run import resolve_model, resolve_run
+    from vrl.trainers.offline import OfflineDPOTrainerConfig
 
     resolved = resolve_run(cfg)
     built = resolved.built
@@ -161,7 +161,7 @@ def train_wan_2_1_dpo(cfg: DictConfig) -> None:
         )
 
     precision = built.precision
-    trainer_cfg = build_offline_dpo_trainer_config(built.root, dpo_config)
+    trainer_cfg = OfflineDPOTrainerConfig.from_root(built.root, dpo_config)
     assert built.root.actor is not None  # the builder required actor.train_batch_size
     train_batch_size = int(built.root.actor.train_batch_size)
     resume_config = built.resume

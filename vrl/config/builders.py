@@ -16,11 +16,9 @@ from vrl.config.schema import RewardConfig, RootConfig
 from vrl.config.validation import require_training_config
 
 if TYPE_CHECKING:
-    from vrl.algorithms.dpo import DiffusionDPOConfig
     from vrl.algorithms.logprob_mismatch import PrecisionCorrectionConfig
     from vrl.trainers.checkpointing import TrainingResumeConfig
     from vrl.trainers.core.types import PrecisionDriftGuardConfig
-    from vrl.trainers.offline import OfflineDPOTrainerConfig
     from vrl.trainers.online.config import TrainerConfig
 
 
@@ -119,75 +117,6 @@ def build_precision_split_safety_configs() -> tuple[
     )
 
 
-def build_offline_dpo_trainer_config(
-    root: RootConfig,
-    dpo_config: DiffusionDPOConfig,
-) -> OfflineDPOTrainerConfig:
-    """Project the parsed ``actor`` section into ``OfflineDPOTrainerConfig``.
-
-    The offline twin of ``TrainerConfig.from_root``: the same public ``actor``
-    section, projected into the offline trainer instead. It stays a free
-    builder because ``vrl.trainers.offline`` deliberately holds no YAML
-    knowledge, and it takes two sources — the typed root plus the already-built
-    algorithm config.
-    """
-
-    from vrl.trainers.core.types import OptimConfig
-    from vrl.trainers.offline import OfflineDPOTrainerConfig
-
-    actor = root.actor
-
-    def required(name: str) -> Any:
-        value = None if actor is None else getattr(actor, name)
-        if value is None:
-            raise ValueError(f"config missing required field: actor.{name}")
-        return value
-
-    train_batch_size = int(required("train_batch_size"))
-    gradient_accumulation_steps = int(required("gradient_accumulation_steps"))
-    optim: OptimConfig = required("optim")
-    if optim.optim_8bit:
-        raise ValueError(
-            "actor.optim.optim_8bit=true is not supported by OfflineDPOTrainer; "
-            "use AdamW/Adafactor without 8-bit optimizer state",
-        )
-    use_adafactor = bool(required("use_adafactor"))
-    if use_adafactor:
-        # An AdamW-only knob moved off its default would be silently ignored
-        # under Adafactor; refuse rather than train with a no-op setting.
-        defaults = OptimConfig(lr=optim.lr)
-        adam_only_keys = sorted(
-            key
-            for key in ("adam_beta1", "adam_beta2", "eps")
-            if getattr(optim, key) != getattr(defaults, key)
-        )
-        if adam_only_keys:
-            paths = ", ".join(f"actor.optim.{key}" for key in adam_only_keys)
-            raise ValueError(
-                f"actor.use_adafactor=true does not consume AdamW-only key(s): {paths}",
-            )
-
-    scale_lr = bool(required("scale_lr"))
-    effective_batch_size = train_batch_size * gradient_accumulation_steps
-    lr = float(optim.lr) * effective_batch_size if scale_lr else float(optim.lr)
-    max_grad_norm = actor.max_norm if actor is not None else None
-    if max_grad_norm is None:
-        max_grad_norm = OfflineDPOTrainerConfig().max_grad_norm
-    return OfflineDPOTrainerConfig(
-        beta=float(dpo_config.beta),
-        sft_weight=float(dpo_config.sft_weight),
-        lr=lr,
-        adam_beta1=float(optim.adam_beta1),
-        adam_beta2=float(optim.adam_beta2),
-        adam_weight_decay=float(optim.weight_decay),
-        adam_epsilon=float(optim.eps),
-        max_grad_norm=float(max_grad_norm),
-        gradient_accumulation_steps=gradient_accumulation_steps,
-        prediction_type=str(required("prediction_type")),
-        use_adafactor=use_adafactor,
-    )
-
-
 def build_configs(cfg: DictConfig) -> BuiltConfigs:
     """Bundle typed configs for downstream training scripts."""
 
@@ -228,5 +157,4 @@ __all__ = [
     "BuiltConfigs",
     "RewardRuntimeConfig",
     "build_configs",
-    "build_offline_dpo_trainer_config",
 ]

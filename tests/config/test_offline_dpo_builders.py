@@ -1,6 +1,6 @@
 """Offline DPO trainer config bridges only the knobs the trainer consumes.
 
-These are theorems of ``vrl.config.builders.build_offline_dpo_trainer_config``
+These are theorems of ``vrl.trainers.offline.OfflineDPOTrainerConfig.from_root``
 over the shipped ``experiment/wan_2_1/offline_dpo_pickapic`` recipe.
 """
 
@@ -9,9 +9,9 @@ from __future__ import annotations
 import pytest
 
 from vrl.algorithms.dpo import DiffusionDPOConfig
-from vrl.config.builders import build_offline_dpo_trainer_config
 from vrl.config.loading import load_config
 from vrl.config.schema import parse_config
+from vrl.trainers.offline import OfflineDPOTrainerConfig
 
 
 def _resolved_trainer_config(overrides: list[str] | None = None):
@@ -19,7 +19,7 @@ def _resolved_trainer_config(overrides: list[str] | None = None):
         "experiment/wan_2_1/offline_dpo_pickapic",
         overrides=overrides,
     )
-    return build_offline_dpo_trainer_config(
+    return OfflineDPOTrainerConfig.from_root(
         parse_config(cfg),
         DiffusionDPOConfig(beta=123.0, sft_weight=0.25),
     )
