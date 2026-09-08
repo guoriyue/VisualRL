@@ -1509,5 +1509,5 @@ def test_sft_weight_rejects_non_diffusion_grpo_kind() -> None:
         algorithm={"kind": "flash_grpo", "sft_weight": 0.1},
     )
     cfg.data.sft_latents = "data/droid/sft_latents.pt"
-    with pytest.raises(ValueError, match="only for diffusion"):
+    with pytest.raises(ValueError, match=r"not supported by algorithm\.kind='flash_grpo'"):
         parse_config(cfg)

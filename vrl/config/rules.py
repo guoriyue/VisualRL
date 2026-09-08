@@ -57,8 +57,8 @@ def rule_kl_reward_shaping_needs_step_kl(root: RootConfig) -> None:
         )
 
 
-def rule_offline_dpo_consumes_only_its_surface(root: RootConfig) -> None:
-    """Offline Diffusion-DPO reads a fixed actor/trainer subset and no rollout or reward."""
+def rule_algorithm_consumes_only_its_surface(root: RootConfig) -> None:
+    """Reject sections and explicit fields outside the algorithm's declared surface."""
 
     algo = root.algorithm
     if algo is None:
@@ -70,18 +70,16 @@ def rule_offline_dpo_consumes_only_its_surface(root: RootConfig) -> None:
         section = getattr(root, section_name)
         if section is None:
             continue
+        if allowed is None:
+            raise ValueError(f"{algo.kind} does not consume the {section_name} config section")
         unsupported = sorted(section.model_fields_set - allowed)
         if unsupported:
             fields = ", ".join(f"{section_name}.{name}" for name in unsupported)
             raise ValueError(f"{algo.kind} does not consume config field(s): {fields}")
-    if root.reward is not None:
-        raise ValueError(f"{algo.kind} does not consume the reward config section")
 
 
 def rule_sft_weight_is_owned_and_backed(root: RootConfig) -> None:
-    """``algorithm.sft_weight`` is a finite non-negative number, owned by
-    diffusion grpo/dance_grpo (backed by ``data.sft_latents``) or diffusion_dpo;
-    an inherited field on any other kind would be a silent no-op."""
+    """Require valid SFT weights and the data source declared by their owner."""
 
     algo = root.algorithm
     if algo is None:
@@ -106,8 +104,7 @@ def rule_sft_weight_is_owned_and_backed(root: RootConfig) -> None:
             )
     elif algo.hyperparameters.config_contract.sft_source == "unsupported":
         raise ValueError(
-            "algorithm.sft_weight > 0 is supported only for diffusion "
-            "grpo/dance_grpo or diffusion_dpo",
+            f"algorithm.sft_weight > 0 is not supported by algorithm.kind={algo.kind!r}",
         )
 
 
@@ -151,16 +148,14 @@ def rule_janus_r1_pairs_with_multisegment_grpo(root: RootConfig) -> None:
         return
     if family != "janus_pro_r1":
         raise ValueError("token_grpo_multisegment currently requires model.family=janus_pro_r1")
-    # Single source: final_image_policy lives on rollout only (the collector
-    # reads it); this is the legality check.
-    policy = (root.rollout.final_image_policy or "") if root.rollout else ""
-    if policy not in {"always_generate", "use_selfcheck"}:
+    # The schema Literal owns the legal values; this pairing requires a value.
+    if root.rollout is None or root.rollout.final_image_policy is None:
         raise ValueError("rollout.final_image_policy must be 'always_generate' or 'use_selfcheck'")
 
 
 CROSS_SECTION_RULES: tuple[CrossSectionRule, ...] = (
     rule_kl_reward_shaping_needs_step_kl,
-    rule_offline_dpo_consumes_only_its_surface,
+    rule_algorithm_consumes_only_its_surface,
     rule_sft_weight_is_owned_and_backed,
     rule_sde_objectives_declare_a_sampler,
     rule_nextstep_token_grpo_needs_noise_level,

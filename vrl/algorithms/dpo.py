@@ -70,6 +70,7 @@ class DiffusionDPOConfig:
                 ),
             ),
             ("rollout", frozenset()),
+            ("reward", None),
         ),
     )
 

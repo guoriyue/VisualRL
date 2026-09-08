@@ -144,18 +144,6 @@ def compile_conflicts(root: RootConfig) -> tuple[CompileConflict, ...]:
     return tuple(conflicts)
 
 
-def validate_compile_compatible(root: RootConfig) -> None:
-    """Refuse a config that enables torch.compile beside an incompatible feature."""
-
-    conflicts = compile_conflicts(root)
-    if not conflicts:
-        return
-    joined = "\n  - ".join(conflict.message for conflict in conflicts)
-    raise ValueError(
-        f"model.torch_compile.enable=true cannot combine with:\n  - {joined}",
-    )
-
-
 # ---- rollout drift ------------------------------------------------------------
 
 
@@ -201,11 +189,16 @@ def validate_guarded_rollout_drift(root: RootConfig, precision: PrecisionPolicy)
 
 
 def gate_compile_compatible(root: RootConfig, precision: PrecisionPolicy) -> None:
-    # Checked at config load — where the all-experiments test sees it — because
-    # a model-layer torch_compile.enable=true default can silently flip compile
-    # on underneath a recipe that needs checkpointing, FSDP, or a multi-rank engine.
-    del precision
-    validate_compile_compatible(root)
+    """Refuse a config that enables torch.compile beside an incompatible feature."""
+
+    del precision  # Uniform TrainingGate signature; this gate only reads the root.
+    conflicts = compile_conflicts(root)
+    if not conflicts:
+        return
+    joined = "\n  - ".join(conflict.message for conflict in conflicts)
+    raise ValueError(
+        f"model.torch_compile.enable=true cannot combine with:\n  - {joined}",
+    )
 
 
 def gate_production(root: RootConfig, precision: PrecisionPolicy) -> None:
@@ -260,7 +253,7 @@ __all__ = [
     "CompileConflict",
     "TrainingGate",
     "compile_conflicts",
+    "gate_compile_compatible",
     "require_training_config",
-    "validate_compile_compatible",
     "validate_guarded_rollout_drift",
 ]

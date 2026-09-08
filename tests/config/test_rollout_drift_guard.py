@@ -204,16 +204,15 @@ def test_several_conflicts_are_reported_together() -> None:
     assert len(conflicts) == 3
 
 
-def test_require_compile_compatible_raises_with_every_reason() -> None:
-    from vrl.config.validation import validate_compile_compatible
+def test_compile_gate_raises_with_every_reason() -> None:
+    from vrl.config.validation import require_training_config
 
     with pytest.raises(ValueError) as excinfo:
-        validate_compile_compatible(
-            parse_config(
-                _compile_cfg(
-                    actor={"gradient_checkpointing": True},
-                    distributed={"training": {"strategy": "fsdp"}},
-                )
+        require_training_config(
+            _compile_cfg(
+                precision={"float32_precision": "tf32", "training": {"dtype": "bf16"}},
+                actor={"gradient_checkpointing": True},
+                distributed={"training": {"strategy": "fsdp"}},
             ),
         )
     message = str(excinfo.value)
