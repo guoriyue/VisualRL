@@ -26,6 +26,7 @@ this for you after fetching the submodules.
 | `DynamicEval`    | _(not imported — run via CLI)_ dynamic-scene eval; fold scores in with `--merge-json` |
 | `CausVid`        | `causvid` causal-Wan model/runtime (in-process; released weights are non-commercial) |
 | `MAGI-1`         | _(not imported — isolated subprocess)_ official causal-chunk video generator |
+| `vdn-minimax-h3` | `src` — VDN-H3 hybrid window-softmax / linear attention (see the name note below) |
 
 The causal-chunk adapters enforce their audited source revisions at runtime:
 `CausVid@adb6a5ecd07666b4d0290042915c8406e6d5ce22` and
@@ -50,3 +51,17 @@ git submodule add <url> third_party/<name>
 # In .gitignore: add `!third_party/<name>` (pyproject.toml is already whitelisted)
 make setup
 ```
+
+## The `vdn-minimax-h3` package name
+
+VDN-H3 names its own top-level package `src` (its `pyproject.toml` declares
+`packages.find include = ["src*"]`), so exposing the submodule verbatim means
+exposing that generic name. It is kept rather than renamed because renaming the
+directory would break the upstream tree's own absolute `from src.models...`
+imports, and a verbatim pinned submodule is the point: the hybrid attention is
+novel math that must not be transcribed into `vrl/`.
+
+Two containments: the wrapper's `include` whitelists `src*` from that root only,
+and `vrl/` funnels every use through one module,
+`vrl/models/families/vdn_h3/vendor.py`. Grep that file to find every upstream
+entry point VRL depends on.

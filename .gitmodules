@@ -19,3 +19,6 @@
 [submodule "third_party/MAGI-1"]
 	path = third_party/MAGI-1
 	url = https://github.com/SandAI-org/MAGI-1.git
+[submodule "third_party/vdn-minimax-h3"]
+	path = third_party/vdn-minimax-h3
+	url = https://github.com/OpenVDN/vdn-minimax-h3

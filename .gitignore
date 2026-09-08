@@ -85,6 +85,7 @@ third_party/*
 !third_party/DynamicEval
 !third_party/CausVid
 !third_party/MAGI-1
+!third_party/vdn-minimax-h3
 # Small audited MAGI prompt-token asset required at CLI import time. Model
 # weights remain ignored; this one file is part of the pinned runtime source.
 !third_party/MAGI-1/example/assets/special_tokens.npz

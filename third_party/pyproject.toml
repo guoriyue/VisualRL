@@ -23,6 +23,15 @@ where = [
     "joyai_echo/ltx-distillation/src",
     "videophy/videocon/training/pipeline_video",
     "CausVid",
+    # VDN-H3 names its own top-level package ``src`` (upstream pyproject:
+    # packages.find include = ["src*"]). Vendoring it verbatim as a submodule
+    # means keeping that name -- renaming the directory would break its own
+    # absolute ``from src.models...`` imports and stop the tree being verbatim
+    # upstream, which is the whole point of a pinned submodule for novel
+    # attention math. The name is generic, so the ``include`` below whitelists
+    # it from THIS root only and vrl/ funnels every use through one module
+    # (vrl/models/families/vdn_h3/vendor.py).
+    "vdn-minimax-h3",
 ]
 include = [
     "ltx_core*",
@@ -30,4 +39,5 @@ include = [
     "ltx_distillation*",
     "mplug_owl_video*",
     "causvid*",
+    "src*",
 ]
