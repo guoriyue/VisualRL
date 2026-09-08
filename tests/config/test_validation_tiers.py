@@ -1,11 +1,11 @@
 """The three validation tiers stay where they are declared.
 
-Tier 1 (section shapes) is ``schema.py``; tier 2 (cross-section rules) is the
-``CROSS_SECTION_RULES`` registry in ``rules.py``, run by ``RootConfig``'s own
-validator; tier 3 (launch gates) is the ``TRAINING_GATES`` registry in
-``validation.py``, run by ``require_training_config``. These pin the seams a
-new check must go through, so a rule cannot quietly grow back into the pydantic
-model or a gate into ``parse_config``.
+Tier 1 (section shapes) is ``schema.py``; tier 2 (cross-section rules) is
+``rules.check_cross_section_rules``, run by ``RootConfig``'s own validator;
+tier 3 (launch gates) is the ``TRAINING_GATES`` registry in ``validation.py``,
+run by ``require_training_config``. These pin the seams a new check must go
+through, so a rule cannot quietly grow back into the pydantic model or a gate
+into ``parse_config``.
 """
 
 from __future__ import annotations
@@ -19,12 +19,11 @@ from vrl.config import rules, validation
 from vrl.config.schema import RootConfig, parse_config
 
 
-def test_every_cross_section_rule_is_a_named_root_function() -> None:
-    assert rules.CROSS_SECTION_RULES
-    for rule in rules.CROSS_SECTION_RULES:
-        assert rule.__name__.startswith("rule_"), rule.__name__
-        assert list(inspect.signature(rule).parameters) == ["root"], rule.__name__
-        assert rule.__doc__, f"{rule.__name__} must say which relationship it guards"
+def test_tier_two_is_one_entrypoint_over_the_parsed_root() -> None:
+    """Tier 2 is a single function of the root: no per-rule registry to drift."""
+
+    assert list(inspect.signature(rules.check_cross_section_rules).parameters) == ["root"]
+    assert rules.__all__ == ["check_cross_section_rules"]
 
 
 def test_every_training_gate_takes_the_root_and_the_precision_policy() -> None:

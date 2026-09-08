@@ -27,7 +27,7 @@ compile × checkpointing 的重复文案，docstring 说"也被 require_training
 | 层 | 模块 | 谁跑 | 需要什么 |
 | --- | --- | --- | --- |
 | 1 section 形状 | `schema.py`（pydantic） | `parse_config` | 该 section 自身 |
-| 2 跨 section 规则 | `rules.py::CROSS_SECTION_RULES`（6 条 `rule_*`） | `RootConfig` 的 model_validator 转发，所以直接 `RootConfig.model_validate` 也触发 | 只读已解析的 root，不 import torch / 运行时模块 |
+| 2 跨 section 规则 | `rules.py::check_cross_section_rules` | `RootConfig` 的 model_validator 转发，所以直接 `RootConfig.model_validate` 也触发 | 只读已解析的 root，不 import torch / 运行时模块 |
 | 3 启动门 | `validation.py::TRAINING_GATES`（compile 矩阵、漂移守卫、生产 Kling 门） | `require_training_config`（只有训练启动付这个钱） | precision policy / 运行时模块 / 文件系统 |
 
 生产门不再是 Kling 专属的一坨，也不再有自己的模块：`validation.py::gate_production` 是一个通用循环——对每个
@@ -63,7 +63,7 @@ protects）。locked-keys 不是 per-reward 数据，所以挂在 `ProductionCon
 ## 2. 新增一个检查往哪放
 
 只看它需要什么：只读两个 section → `rules.py` 加 `rule_<name>` 并 append 到
-`CROSS_SECTION_RULES`；需要 precision / 运行时模块 / 文件 → `validation.py` 加
+`check_cross_section_rules`；需要 precision / 运行时模块 / 文件 → `validation.py` 加
 `gate_<name>(root, precision)` 并 append 到 `TRAINING_GATES`；需要已解析的运行时
 对象（GPU 拓扑、schedule、reward parking）→ 留在产生该对象的 resolver 旁边，
 `build_configs` 之后跑（`docs/CONFIGURATION.md` "Validation tiers" 一节）。
