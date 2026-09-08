@@ -839,3 +839,48 @@ def build_tiny_minimax_h3_components(
         audio_scheduler=MiniMaxH3Scheduler(shift=3.0),
         text_encoder_layer=TINY_MINIMAX_H3_TEXT_ENCODER_LAYER,
     )
+
+
+# ---- VDN-H3 (vendored third_party/vdn-minimax-h3) -------------------------------
+# The transform config of the released 8-NFE artifact
+# (stage-dmd-step-250/model_spec.json), with only ``linear_head_dim`` scaled to
+# the tiny transformer's head dim. Every semantic knob is the shipped value, so
+# a CPU test exercises the delta rule, bridge, anchor mode, short convolutions
+# and text state the real checkpoint runs.
+TINY_VDN_H3_TRANSFORM_CONFIG: dict[str, Any] = {
+    "anchor_frames": "both",
+    "enable_softmax_gate": True,
+    "linear_attention": {
+        "a_fp32": True,
+        "bridge": "alpha",
+        "delta_rule": "vdn_solve",
+        "enable_text_state": True,
+        "linear_head_dim": 8,
+        "short_conv": {"targets": ["k", "v"]},
+    },
+    "softmax_attention": {"chunk": 0, "radius": 1},
+}
+
+
+def build_tiny_vdn_h3_model(*, seed: int = 0, softmax_backend: str = "ref") -> Any:
+    """A tiny real ``VDNH3Model``: the tiny H3 components with the vendored hybrid
+    attention grafted on, exactly as ``install_hybrid_attention`` does it minus the
+    checkpoint read (there are no tiny VDN weights to load).
+
+    ``softmax_backend="ref"`` is upstream's eager reference, the only window-softmax
+    implementation that runs on CPU.
+    """
+
+    import torch
+
+    from vrl.models.families.vdn_h3.model import VDNH3Model
+    from vrl.models.families.vdn_h3.vendor import load_vdn
+
+    vendor = load_vdn()
+    model = VDNH3Model(
+        pipeline=build_tiny_minimax_h3_components(seed=seed), device=torch.device("cpu")
+    )
+    stamp_model_precision(model)
+    vendor.apply_hybrid_attention_transform(model.transformer, TINY_VDN_H3_TRANSFORM_CONFIG)
+    vendor.set_softmax_backend(model.transformer, softmax_backend)
+    return model
