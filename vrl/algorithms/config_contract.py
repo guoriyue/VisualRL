@@ -18,4 +18,7 @@ class AlgorithmConfigContract:
     needs_sde_rollout: bool
     supports_step_kl_reward: bool
     sft_source: Literal["unsupported", "latents", "preference_winner"]
+    # Restrictions belong to the algorithm even when no model section is present.
+    required_model_family: str | None = None
+    required_rollout_fields: tuple[str, ...] = ()
     consumed_sections: tuple[tuple[str, frozenset[str] | None], ...] | None = None

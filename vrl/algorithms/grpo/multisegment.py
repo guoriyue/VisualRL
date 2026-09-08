@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 # Torch is a call-time dependency, not an import-time one: this module's config
 # dataclass is what ``algorithm.kind`` dispatch loads during config parsing,
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     import torch
 
 from vrl.algorithms.advantages import GroupAdvantageEstimator
+from vrl.algorithms.config_contract import AlgorithmConfigContract
 from vrl.algorithms.grpo.token import TokenGRPO, TokenGRPOConfig
 from vrl.algorithms.trajectory import AlgorithmInput
 from vrl.algorithms.types import PolicyUpdateStats, TrainStepMetrics
@@ -20,6 +21,14 @@ from vrl.algorithms.types import PolicyUpdateStats, TrainStepMetrics
 @dataclass(slots=True)
 class MultiSegmentTokenGRPOConfig(TokenGRPOConfig):
     """TokenGRPO config with weighted segment losses."""
+
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=False,
+        supports_step_kl_reward=False,
+        sft_source="unsupported",
+        required_model_family="janus_pro_r1",
+        required_rollout_fields=("final_image_policy",),
+    )
 
     segment_weights: dict[str, float] = field(
         default_factory=lambda: {
