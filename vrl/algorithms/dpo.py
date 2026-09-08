@@ -14,7 +14,9 @@ protocol (which is reward/advantage-based and explicitly rejects DPO).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
+
+from vrl.algorithms.config_contract import AlgorithmConfigContract
 
 # Torch is a call-time dependency, not an import-time one: this module's config
 # dataclass is what ``algorithm.kind`` dispatch loads during config parsing,
@@ -32,6 +34,44 @@ class DiffusionDPOConfig:
       * SDXL latent-space: 2000
       * Larger β → tighter ref-policy anchor.
     """
+
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=False,
+        supports_step_kl_reward=False,
+        sft_source="preference_winner",
+        consumed_sections=(
+            (
+                "actor",
+                frozenset(
+                    {
+                        "gradient_accumulation_steps",
+                        "gradient_checkpointing",
+                        "max_norm",
+                        "optim",
+                        "prediction_type",
+                        "scale_lr",
+                        "train_batch_size",
+                        "use_adafactor",
+                    }
+                ),
+            ),
+            (
+                "trainer",
+                frozenset(
+                    {
+                        "checkpointing_steps",
+                        "entrypoint",
+                        "log_interval",
+                        "max_train_steps",
+                        "output_dir",
+                        "resume_from",
+                        "resume_strict",
+                    }
+                ),
+            ),
+            ("rollout", frozenset()),
+        ),
+    )
 
     beta: float = 5000.0
     sft_weight: float = 0.0  # optional auxiliary SFT-on-winner loss

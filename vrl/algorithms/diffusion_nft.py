@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from vrl.algorithms.advantages import group_relative_advantages
+from vrl.algorithms.config_contract import AlgorithmConfigContract
 from vrl.algorithms.trajectory import AlgorithmInput
 from vrl.algorithms.types import PolicyUpdateStats, TrainStepMetrics
 from vrl.models.precision import model_autocast
@@ -32,6 +33,12 @@ def normalized_mse(prediction: Any, target: Any) -> Any:
 @dataclass(slots=True)
 class DiffusionNFTConfig:
     """Hyper-parameters for the DiffusionNFT training objective."""
+
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=True,
+        supports_step_kl_reward=True,
+        sft_source="unsupported",
+    )
 
     eps: float = 1e-8
     adv_clip_max: float = 5.0

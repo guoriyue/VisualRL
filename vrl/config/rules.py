@@ -35,42 +35,6 @@ if TYPE_CHECKING:
 
 CrossSectionRule = Callable[["RootConfig"], None]
 
-# Denoise objectives whose rollout is the stochastic sampler: they read
-# ``rollout.sde`` (type / window) at collection time.
-_SDE_ROLLOUT_KINDS = frozenset(
-    {"grpo", "dance_grpo", "flash_grpo", "flow_dppo", "grpo_guard", "diffusion_nft"}
-)
-# Objectives whose trajectory carries no per-step KL tensor to shape rewards with.
-_NO_STEP_KL_KINDS = frozenset({"token_grpo", "token_grpo_multisegment", "diffusion_dpo"})
-# The SFT regularizer is owned by continuous diffusion GRPO and offline DPO.
-_SFT_OWNER_KINDS = frozenset({"grpo", "dance_grpo"})
-
-# The public surface an offline Diffusion-DPO run consumes; anything else set
-# on these sections would be silently ignored by the offline trainer.
-_OFFLINE_DPO_ACTOR_FIELDS = frozenset(
-    {
-        "gradient_accumulation_steps",
-        "gradient_checkpointing",
-        "max_norm",
-        "optim",
-        "prediction_type",
-        "scale_lr",
-        "train_batch_size",
-        "use_adafactor",
-    }
-)
-_OFFLINE_DPO_TRAINER_FIELDS = frozenset(
-    {
-        "checkpointing_steps",
-        "entrypoint",
-        "log_interval",
-        "max_train_steps",
-        "output_dir",
-        "resume_from",
-        "resume_strict",
-    }
-)
-
 
 def _family(root: RootConfig) -> str:
     return normalize_model_family((root.model.family or "") if root.model else "")
@@ -82,7 +46,10 @@ def rule_kl_reward_shaping_needs_step_kl(root: RootConfig) -> None:
     algo = root.algorithm
     if algo is None:
         return
-    if resolve_kl_reward_coef(algo.kl_reward_coef) > 0.0 and algo.kind in _NO_STEP_KL_KINDS:
+    if (
+        resolve_kl_reward_coef(algo.kl_reward_coef) > 0.0
+        and not algo.hyperparameters.config_contract.supports_step_kl_reward
+    ):
         raise ValueError(
             "algorithm.kl_reward_coef > 0 requires a diffusion rollout "
             "trajectory with collected per-step KL; "
@@ -94,23 +61,21 @@ def rule_offline_dpo_consumes_only_its_surface(root: RootConfig) -> None:
     """Offline Diffusion-DPO reads a fixed actor/trainer subset and no rollout or reward."""
 
     algo = root.algorithm
-    if algo is None or algo.kind != "diffusion_dpo":
+    if algo is None:
         return
-    for section_name, section, allowed in (
-        ("actor", root.actor, _OFFLINE_DPO_ACTOR_FIELDS),
-        ("trainer", root.trainer, _OFFLINE_DPO_TRAINER_FIELDS),
-    ):
+    surface = algo.hyperparameters.config_contract.consumed_sections
+    if surface is None:
+        return
+    for section_name, allowed in surface:
+        section = getattr(root, section_name)
         if section is None:
             continue
         unsupported = sorted(section.model_fields_set - allowed)
         if unsupported:
             fields = ", ".join(f"{section_name}.{name}" for name in unsupported)
-            raise ValueError(f"diffusion_dpo does not consume config field(s): {fields}")
-    if root.rollout is not None and root.rollout.model_fields_set:
-        fields = ", ".join(f"rollout.{name}" for name in sorted(root.rollout.model_fields_set))
-        raise ValueError(f"diffusion_dpo does not consume config field(s): {fields}")
+            raise ValueError(f"{algo.kind} does not consume config field(s): {fields}")
     if root.reward is not None:
-        raise ValueError("diffusion_dpo does not consume the reward config section")
+        raise ValueError(f"{algo.kind} does not consume the reward config section")
 
 
 def rule_sft_weight_is_owned_and_backed(root: RootConfig) -> None:
@@ -132,14 +97,14 @@ def rule_sft_weight_is_owned_and_backed(root: RootConfig) -> None:
         raise ValueError("algorithm.sft_weight must be a finite number >= 0")
     if sft_weight == 0:
         return
-    if algo.kind in _SFT_OWNER_KINDS:
+    if algo.hyperparameters.config_contract.sft_source == "latents":
         if root.data is None or not root.data.sft_latents:
             raise ValueError(
                 "algorithm.sft_weight > 0 requires data.sft_latents "
                 "(the precomputed clean-latents shard; see "
                 "vrl/scripts/denoise/encode_targets.py)",
             )
-    elif algo.kind != "diffusion_dpo":
+    elif algo.hyperparameters.config_contract.sft_source == "unsupported":
         raise ValueError(
             "algorithm.sft_weight > 0 is supported only for diffusion "
             "grpo/dance_grpo or diffusion_dpo",
@@ -154,7 +119,7 @@ def rule_sde_objectives_declare_a_sampler(root: RootConfig) -> None:
     """
 
     algo = root.algorithm
-    if algo is None or algo.kind not in _SDE_ROLLOUT_KINDS:
+    if algo is None or not algo.hyperparameters.config_contract.needs_sde_rollout:
         return
     if root.rollout is None or root.rollout.sde is None:
         raise ValueError("config missing required field: rollout.sde.type")

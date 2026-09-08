@@ -49,9 +49,10 @@ noised clean latent) and the ``previous`` adapter with
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from vrl.algorithms.advantages import group_relative_advantages
+from vrl.algorithms.config_contract import AlgorithmConfigContract
 from vrl.algorithms.diffusion_nft import normalized_mse
 from vrl.algorithms.trajectory import AlgorithmInput
 from vrl.algorithms.types import PolicyUpdateStats, TrainStepMetrics
@@ -71,6 +72,12 @@ class VGRPOConfig:
     SD 3.5 M Stage-1 recipe (fully on-policy) uses only ``adv_soft_clip=3``;
     its multi-epoch stages add ``clip_ratio`` or ``kl_coef=0.3``.
     """
+
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=False,
+        supports_step_kl_reward=True,
+        sft_source="unsupported",
+    )
 
     eps: float = 1e-8
     adv_clip_max: float = 5.0

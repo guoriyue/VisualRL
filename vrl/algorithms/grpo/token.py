@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
+
+from vrl.algorithms.config_contract import AlgorithmConfigContract
 
 # Torch is a call-time dependency, not an import-time one: this module's config
 # dataclass is what ``algorithm.kind`` dispatch loads during config parsing,
@@ -25,6 +27,12 @@ from vrl.algorithms.types import PolicyUpdateStats, TrainStepMetrics
 @dataclass(slots=True)
 class TokenGRPOConfig(ClippedPolicyConfig):
     """Token-level GRPO hyper-parameters."""
+
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=False,
+        supports_step_kl_reward=False,
+        sft_source="unsupported",
+    )
 
     kl_estimator: str = "k3"
 

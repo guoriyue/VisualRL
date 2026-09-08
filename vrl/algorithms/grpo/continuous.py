@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from vrl.algorithms.advantages import GroupAdvantageEstimator
+from vrl.algorithms.config_contract import AlgorithmConfigContract
 from vrl.algorithms.logprob_mismatch import (
     PrecisionCorrectionConfig,
     apply_rejection_sample_mask,
@@ -62,6 +63,12 @@ class ClippedPolicyConfig(GroupAdvantageConfig):
 @dataclass(slots=True)
 class GRPOConfig(ClippedPolicyConfig):
     """Hyper-parameters for continuous GRPO."""
+
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=True,
+        supports_step_kl_reward=True,
+        sft_source="latents",
+    )
 
     flow_kl_use_dt: bool = False
     # Diffusion-loss regularizer weight (Cosmos-Predict2.5 paper 4.2.2's
@@ -324,6 +331,12 @@ class FlashGRPOConfig(GRPOConfig):
     tight clip is a drift rail, not a trust region.
     """
 
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=True,
+        supports_step_kl_reward=True,
+        sft_source="unsupported",
+    )
+
     clip_ratio: float = 1e-3
 
 
@@ -450,6 +463,12 @@ def _require_trust_region_signals(signals: Any, algorithm: str) -> Any:
 @dataclass(slots=True)
 class FlowDPPOConfig(GroupAdvantageConfig):
     """Flow-DPPO: exact-Gaussian-KL trust region instead of the PPO ratio clip."""
+
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=True,
+        supports_step_kl_reward=True,
+        sft_source="unsupported",
+    )
 
     # Per-sample latent KL above which an update that *widens* the gap from the
     # rollout policy is dropped (the trust-region boundary).
@@ -582,6 +601,12 @@ class GRPOGuardConfig(GroupAdvantageConfig):
 
     The guard terms are derived from the per-step diffusion scale.
     """
+
+    config_contract: ClassVar[AlgorithmConfigContract] = AlgorithmConfigContract(
+        needs_sde_rollout=True,
+        supports_step_kl_reward=True,
+        sft_source="unsupported",
+    )
 
     clip_ratio: float = 0.2
 
