@@ -28,12 +28,16 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from vrl.config.algorithm import resolve_kl_reward_coef
-from vrl.models.families.registry import get_model_family_entry
+from vrl.models.families.names import normalize_model_family
 
 if TYPE_CHECKING:
     from vrl.config.schema import RootConfig
 
 CrossSectionRule = Callable[["RootConfig"], None]
+
+
+def _family(root: RootConfig) -> str:
+    return normalize_model_family((root.model.family or "") if root.model else "")
 
 
 def rule_kl_reward_shaping_needs_step_kl(root: RootConfig) -> None:
@@ -118,35 +122,35 @@ def rule_sde_objectives_declare_a_sampler(root: RootConfig) -> None:
         raise ValueError("config missing required field: rollout.sde.type")
 
 
-def rule_model_and_algorithm_contracts_agree(root: RootConfig) -> None:
-    """Enforce both owners' pairing constraints and required rollout fields."""
+def rule_nextstep_token_grpo_needs_noise_level(root: RootConfig) -> None:
+    """NextStep-1's continuous-token sampler reads ``rollout.noise_level``."""
+
+    algo = root.algorithm
+    if algo is None or algo.kind != "token_grpo" or _family(root) != "nextstep_1":
+        return
+    if root.rollout is None or root.rollout.noise_level is None:
+        raise ValueError("config missing required field: rollout.noise_level")
+
+
+def rule_janus_r1_pairs_with_multisegment_grpo(root: RootConfig) -> None:
+    """``janus_pro_r1`` and ``token_grpo_multisegment`` select each other, and the
+    multi-segment protocol's ``rollout.final_image_policy`` is one of two values."""
 
     algo = root.algorithm
     if algo is None:
         return
-    entry = get_model_family_entry(root.model.family) if root.model is not None else None
-    contract = algo.hyperparameters.config_contract
-    if entry is not None:
-        required_algorithm = entry.training_contract.required_algorithm
-        if required_algorithm is not None and algo.kind != required_algorithm:
-            raise ValueError(
-                f"model.family={entry.family} requires algorithm.kind={required_algorithm}",
-            )
-    if contract.required_model_family is not None and (
-        entry is None or entry.family != contract.required_model_family
-    ):
+    family = _family(root)
+    if family == "janus_pro_r1" and algo.kind != "token_grpo_multisegment":
         raise ValueError(
-            f"{algo.kind} currently requires model.family={contract.required_model_family}",
+            "model.family=janus_pro_r1 requires algorithm.kind=token_grpo_multisegment",
         )
-
-    required_fields = contract.required_rollout_fields
-    if entry is not None:
-        for kind, fields in entry.training_contract.rollout_fields_by_algorithm:
-            if kind == algo.kind:
-                required_fields += fields
-    for name in required_fields:
-        if root.rollout is None or getattr(root.rollout, name) is None:
-            raise ValueError(f"config missing required field: rollout.{name}")
+    if algo.kind != "token_grpo_multisegment":
+        return
+    if family != "janus_pro_r1":
+        raise ValueError("token_grpo_multisegment currently requires model.family=janus_pro_r1")
+    # The schema Literal owns the legal values; this pairing requires a value.
+    if root.rollout is None or root.rollout.final_image_policy is None:
+        raise ValueError("rollout.final_image_policy must be 'always_generate' or 'use_selfcheck'")
 
 
 CROSS_SECTION_RULES: tuple[CrossSectionRule, ...] = (
@@ -154,7 +158,8 @@ CROSS_SECTION_RULES: tuple[CrossSectionRule, ...] = (
     rule_algorithm_consumes_only_its_surface,
     rule_sft_weight_is_owned_and_backed,
     rule_sde_objectives_declare_a_sampler,
-    rule_model_and_algorithm_contracts_agree,
+    rule_nextstep_token_grpo_needs_noise_level,
+    rule_janus_r1_pairs_with_multisegment_grpo,
 )
 
 

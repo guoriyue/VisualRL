@@ -162,18 +162,6 @@ class TokenFamilyBuild:
 
 
 @dataclass(frozen=True, slots=True)
-class FamilyTrainingContract:
-    """Family-owned constraints checked only when an algorithm is selected.
-
-    A field requirement is scoped to its consuming algorithm so inference and
-    other objectives do not inherit training-only requirements.
-    """
-
-    required_algorithm: str | None = None
-    rollout_fields_by_algorithm: tuple[tuple[str, tuple[str, ...]], ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
 class ModelFamilyEntry:
     """Declarative runtime binding for one canonical model family."""
 
@@ -192,8 +180,6 @@ class ModelFamilyEntry:
     runtime_capabilities: GenerationRuntimeCapabilities = field(
         default_factory=GenerationRuntimeCapabilities,
     )
-
-    training_contract: FamilyTrainingContract = field(default_factory=FamilyTrainingContract)
 
     def __post_init__(self) -> None:
         denoise_build = isinstance(self.family_build, DenoiseFamilyBuild)
@@ -556,7 +542,6 @@ def _token_autoregressive_entry(
     executor_cls: str,
     build: TokenFamilyBuild,
     task: str = "ar_t2i",
-    training_contract: FamilyTrainingContract | None = None,
     trajectory_layout: TrajectoryLayout = "token",
     gatherer_cls: str = "vrl.generation.bindings.token_autoregressive.executor:ARDiscreteBatchGatherer",
 ) -> ModelFamilyEntry:
@@ -576,9 +561,6 @@ def _token_autoregressive_entry(
         model_section_cls=model_section_cls,
         sampling_section_cls=sampling_section_cls,
         family_build=build,
-        training_contract=training_contract
-        if training_contract is not None
-        else FamilyTrainingContract(),
     )
 
 
@@ -995,7 +977,6 @@ _register_model_family(
 _register_model_family(
     _token_autoregressive_entry(
         family="janus_pro_r1",
-        training_contract=FamilyTrainingContract(required_algorithm="token_grpo_multisegment"),
         action_distribution="categorical",
         model_section_cls="vrl.models.families.janus_pro.config:JanusProModelSection",
         sampling_section_cls="vrl.config.sampling_schema:JanusProR1SamplingSection",
@@ -1010,9 +991,6 @@ _register_model_family(
 _register_model_family(
     _token_autoregressive_entry(
         family="nextstep_1",
-        training_contract=FamilyTrainingContract(
-            rollout_fields_by_algorithm=(("token_grpo", ("noise_level",)),),
-        ),
         action_distribution="continuous",
         model_section_cls="vrl.models.families.nextstep_1.config:NextStep1ModelSection",
         sampling_section_cls="vrl.config.sampling_schema:NextStepSamplingSection",
@@ -1104,7 +1082,6 @@ __all__ = [
     "FAMILY_REGISTRY",
     "GENERIC_FULL_SEQUENCE_DENOISE_EXECUTOR",
     "DenoiseFamilyBuild",
-    "FamilyTrainingContract",
     "GenerationParkingProfile",
     "GenerationRuntimeCapabilities",
     "ModelFamilyEntry",
