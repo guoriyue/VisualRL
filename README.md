@@ -81,6 +81,7 @@ positioning and roadmap.
 | **LlamaGen** | text -> image | token_autoregressive / token | Token-GRPO | 🔌 Integrated |
 | **Cosmos3** | text -> video | full_sequence / denoise | — | 🔌 Integrated |
 | **MiniMax-H3** (Hailuo 3.0) | text -> video (+ audio side stream) | full_sequence / denoise | GRPO (recipe only) | 🔌 Integrated (33B + 32B conditioner, ~144 GB: needs multi-GPU FSDP; CPU tiny-real parity only; diffusers>=0.40) |
+| **VDN-H3** (VideoDeltaNet on MiniMax-H3) | text -> video (+ audio side stream) | full_sequence / denoise | GRPO (recipe only) | 🔌 Integrated (hybrid window-softmax + linear attention grafted on the H3 backbone; 8-NFE distilled artifact; vendored submodule; CPU tiny-real only) |
 | **CausVid** | text -> video | chunk_autoregressive / denoise | GRPO | 🔌 Integrated (real-weight proof pending; non-commercial weights) |
 | **MAGI-1 4.5B** | text/image/video -> video | chunk_autoregressive / denoise | generation only | 🔌 Integrated (isolated upstream runtime; no replay API) |
 
