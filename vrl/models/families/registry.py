@@ -890,6 +890,23 @@ _register_model_family(
 
 _register_model_family(
     _full_sequence_denoise_entry(
+        family="vdn_h3",
+        task="t2v",
+        model_section_cls="vrl.models.families.vdn_h3.config:VDNH3ModelSection",
+        sampling_section_cls="vrl.config.sampling_schema:MiniMaxH3SamplingSection",
+        executor_cls="vrl.models.families.vdn_h3.runtime:VDNH3BatchExecutor",
+        supported_model_memory_sections=_VAE_DECODE_MEMORY_SECTIONS,
+        build=DenoiseFamilyBuild(
+            model_cls="vrl.models.families.vdn_h3.model:VDNH3Model",
+            replay_runtime_builder=(
+                "vrl.models.families.vdn_h3.runtime:build_vdn_h3_replay_runtime_bundle"
+            ),
+        ),
+    ),
+)
+
+_register_model_family(
+    _full_sequence_denoise_entry(
         family="minimax_h3",
         task="t2v",
         model_section_cls=SHARED_MODEL_SECTION_CLS,

@@ -1,0 +1,51 @@
+# VDN-H3 (8 NFE) + production video reward GRPO on motion-grounded prompts.
+#
+# Same recipe shape as minimax_h3/online_grpo_kling_video_reward; the model
+# layer is the only difference. The 8-NFE artifact is why this is interesting
+# for RL: rollout cost dominates diffusion RL, and 8 model evaluations per
+# sample is ~6x cheaper than the dense base's 50.
+#
+# Not validated: no run of this file has completed. The checkpoint needs a
+# multi-GPU deployment (upstream: 8xB200), and its license excludes several
+# territories -- see the model preset.
+defaults:
+  - /recipe/online/denoise_grpo
+  - /model/vdn_h3/8nfe
+  - /sampling/video/h3_768p_124f
+  - /sampling/denoise/8_step_no_cfg
+  - /reward/kling_video_reward
+  - /dataset/videophy
+
+actor:
+  optim:
+    lr: 1.0e-5
+  ppo_epochs: 1
+  train_batch_size: 1   # one packed layout per replay forward
+
+algorithm:
+  kl_coef: 0.004
+
+rollout:
+  n_samples_per_prompt: 8
+  prompts_per_batch: 1
+  samples_per_generation_batch: 1
+  denoise_mode: native
+  noise_level: 0.7
+  sde:
+    type: cps
+
+sampling:
+  max_sequence_length: 512
+
+trainer:
+  output_dir: outputs/vdn_h3_kling_video_reward
+  save_freq: 20
+
+reward:
+  kwargs:
+    kling_video_reward:
+      artifact_format: mp4
+
+production:
+  kling_video_reward:
+    enabled: true

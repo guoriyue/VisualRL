@@ -1,0 +1,6 @@
+# Shared diffusion denoise preset: 8 steps, no classifier-free guidance.
+# The step count is the NFE (model evaluations), which is what a distilled
+# checkpoint advertises.
+sampling:
+  num_steps: 8
+  guidance_scale: 1.0

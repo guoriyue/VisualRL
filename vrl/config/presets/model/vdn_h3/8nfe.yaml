@@ -1,0 +1,48 @@
+# VDN-H3 (VideoDeltaNet on MiniMax-H3), 8-NFE DMD-distilled artifact.
+#
+# `path` is the MiniMax-H3 release the hybrid attention is grafted onto (the
+# transformer, both VAEs and the Qwen3-VL conditioner); `vdn_checkpoint` is the
+# VDN artifact that carries the transform config, the linear-branch weights and
+# the adapters folded into the backbone at load. Both are checkpoint identity:
+# a run is reproducible only with both pinned.
+#
+# `ckpts/<name>` is upstream's own spelling (src/paths.py): the directory is
+# used if present under third_party/vdn-minimax-h3, else that subfolder is
+# fetched from the OpenVDN/vdn-minimax-h3 Hub repo.
+#
+# Strictly batch=1, inherited from MiniMax-H3: the transformer's batch axis
+# replicates ONE packed layout.
+#
+# Scale: the base transformer alone is ~72 GB with its VAEs, before the 32B
+# conditioner; upstream benchmarks on 8xB200. This preset is the LoRA shape a
+# multi-GPU deployment starts from, not a single-card recipe.
+#
+# License: the weights are a MiniMax-H3 derivative under the MiniMax H3
+# Community License Agreement, whose Applicable Territory EXCLUDES the European
+# Union, the United Kingdom, the Republic of Korea and the United States of
+# America. Upstream's NOTICE states that running the code means running a
+# derivative and is subject to that agreement. Read it before deploying.
+model:
+  family: vdn_h3
+  path: MiniMaxAI/MiniMax-H3
+  vdn_checkpoint: ckpts/stage-dmd-step-250
+  # auto | flex | decomposed | ref. "auto" resolves per GPU architecture
+  # (upstream: decomposed on sm100, flex elsewhere); "ref" is the eager
+  # reference that runs anywhere.
+  softmax_backend: auto
+  use_lora: true
+  lora:
+    rank: 32
+    alpha: 64
+    # Resolve to the backbone projections the hybrid keeps at `attn.orig.*`,
+    # which is where VDN's own artifact adapters land too.
+    target_modules:
+      - to_q
+      - to_k
+      - to_v
+      - to_out.0
+  memory:
+    vae_decode:
+      tiling: true
+  torch_compile:
+    enable: false

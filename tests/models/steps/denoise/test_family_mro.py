@@ -32,6 +32,7 @@ _UNREGISTERED_REPLAY_CLASSES = (
     "vrl.models.families.cosmos.cosmos3.model:Cosmos3ReplayModel",
     "vrl.models.families.cosmos.anima.model:AnimaReplayModel",
     "vrl.models.families.minimax_h3.model:MiniMaxH3ReplayModel",
+    "vrl.models.families.vdn_h3.model:VDNH3ReplayModel",
 )
 
 _LOADING_DECLARATIONS = (
